@@ -1634,6 +1634,7 @@ async function saveAllBufferSettings() {
 let adminItemScope = ''; // '' = ส่วนกลาง, otherwise branchId
 let adminByCatCache = {}; // ใช้ตอนกดปุ่ม ▲▼ เรียงลำดับ ไม่ต้องคำนวณ byCat ซ้ำ
 let adminScopeItems = [];
+let adminOpenCategories = new Set(); // จำหมวดที่เปิดอยู่ ไม่ให้หุบตอน re-render (เช่นตอนกด ▲▼)
 
 async function renderAdminItemsTab() {
   const el = document.getElementById('admin-tab-items');
@@ -1651,6 +1652,8 @@ async function renderAdminItemsTab() {
 /** เรนเดอร์จาก adminScopeItems ที่มีอยู่แล้วในหน่วยความจำ ไม่ยิง network — ใช้หลังแก้ไข/เรียงลำดับ เพื่อให้ UI ตอบสนองทันที */
 function renderAdminItemsTabFromCache_() {
   const el = document.getElementById('admin-tab-items');
+  const modalEl = document.getElementById('admin-modal');
+  const scrollTop = modalEl ? modalEl.scrollTop : 0;
   const cats = Object.keys(catalogByCategory);
 
   const scopeOptions = [`<option value="">${t('scopeGlobal')}</option>`]
@@ -1699,7 +1702,7 @@ function renderAdminItemsTabFromCache_() {
     <p class="text-xs text-gray-400 mb-2">กดชื่อหมวดเพื่อเปิด/หุบ · กด ▲▼ เพื่อเรียงลำดับรายการภายในหมวด</p>
     <div>
       ${catNames.map(cat => `
-        <details class="mb-2 border border-gray-200 rounded-xl overflow-hidden">
+        <details class="mb-2 border border-gray-200 rounded-xl overflow-hidden" ${adminOpenCategories.has(cat) ? 'open' : ''} ontoggle="onAdminCategoryToggle_(this,'${cat.replace(/'/g,"\\'")}')">
           <summary class="cursor-pointer select-none px-3 py-2.5 bg-gray-100 text-sm font-semibold text-gray-700 flex items-center justify-between">
             <span>${tCategory(cat)}</span>
             <span class="text-xs text-gray-400 font-normal">${byCat[cat].length} รายการ</span>
@@ -1711,6 +1714,12 @@ function renderAdminItemsTabFromCache_() {
     </div>
   `;
   el.innerHTML = html;
+  if (modalEl) modalEl.scrollTop = scrollTop;
+}
+/** เก็บสถานะเปิด/หุบของแต่ละหมวดไว้ ไม่ให้หายตอน re-render (เช่นตอนกด ▲▼ เรียงลำดับ) */
+function onAdminCategoryToggle_(detailsEl, cat) {
+  if (detailsEl.open) adminOpenCategories.add(cat);
+  else adminOpenCategories.delete(cat);
 }
 
 /** สลับ sort_order ของรายการกับตัวข้างเคียง (direction: -1 ขึ้น, 1 ลง) แล้วบันทึกทั้งคู่ */
