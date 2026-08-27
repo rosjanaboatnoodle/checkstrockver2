@@ -119,38 +119,7 @@
         </div>
 
         <div class="space-y-4">
-          <button onclick="selectCategory('หน้าเรือ')" class="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]">
-            <div class="flex items-center gap-4">
-              <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">🚣</div>
-              <div class="text-left">
-                <p class="text-xl font-bold" data-t-cat="หน้าเรือ">หน้าเรือ</p>
-                <p class="text-orange-100 text-sm" data-t="boatFrontDesc">เช็คสต็อกวัตถุดิบหน้าเรือ</p>
-              </div>
-              <svg class="w-6 h-6 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            </div>
-          </button>
-
-          <button onclick="selectCategory('อาหารตามสั่ง')" class="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]">
-            <div class="flex items-center gap-4">
-              <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">🍳</div>
-              <div class="text-left">
-                <p class="text-xl font-bold" data-t-cat="อาหารตามสั่ง">อาหารตามสั่ง</p>
-                <p class="text-emerald-100 text-sm" data-t="customFoodDesc">เช็คสต็อกวัตถุดิบอาหารตามสั่ง</p>
-              </div>
-              <svg class="w-6 h-6 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            </div>
-          </button>
-
-          <button onclick="selectCategory('เด็กเสิร์ฟ')" class="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]">
-            <div class="flex items-center gap-4">
-              <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">🧑‍🍳</div>
-              <div class="text-left">
-                <p class="text-xl font-bold" data-t-cat="เด็กเสิร์ฟ">เด็กเสิร์ฟ</p>
-                <p class="text-blue-100 text-sm" data-t="staffChildDesc">เช็คสต็อกอุปกรณ์เด็กเสิร์ฟ</p>
-              </div>
-              <svg class="w-6 h-6 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            </div>
-          </button>
+          <div id="home-category-buttons" class="space-y-4"></div>
 
           <button onclick="selectCategory('__movement__')" class="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]">
             <div class="flex items-center gap-4">
@@ -302,12 +271,7 @@
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2" data-t="category">หมวดหมู่</label>
-              <select id="filter-category" onchange="filterHistory()" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors">
-                <option value="" data-t="all">ทั้งหมด</option>
-                <option value="หน้าเรือ">หน้าเรือ</option>
-                <option value="อาหารตามสั่ง">อาหารตามสั่ง</option>
-                <option value="เด็กเสิร์ฟ">เด็กเสิร์ฟ</option>
-              </select>
+              <select id="filter-category" onchange="filterHistory()" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors"></select>
             </div>
           </div>
         </div>
@@ -468,7 +432,9 @@ const UI_TH = {
   confirmDelete:'ยืนยันการลบรายการนี้?', addBranch:'เพิ่มสาขา', branchName:'ชื่อสาขา',
   refreshTranslation:'อัปเดตคำแปลด้วย AI', translating:'กำลังแปล...', editRecord:'แก้ไขรายการนี้',
   saveEdit:'บันทึกการแก้ไข', cancel:'ยกเลิก', seedItems:'นำเข้ารายการเริ่มต้น', saveOk:'บันทึกสำเร็จ',
-  movementType:'ประเภท', movementHistory:'รายการปรับสต็อค', editedNote:'แก้ไขล่าสุดโดย'
+  movementType:'ประเภท', movementHistory:'รายการปรับสต็อค', editedNote:'แก้ไขล่าสุดโดย',
+  noCategoriesYet:'ยังไม่มีหมวดหมู่สินค้า กรุณาไปเพิ่มรายการสินค้าในหน้าแอดมินก่อน',
+  checkStockGeneric:'เช็คสต็อกวัตถุดิบในหมวดนี้'
 };
 const CAT_TH = { 'หน้าเรือ':'หน้าเรือ', 'อาหารตามสั่ง':'อาหารตามสั่ง', 'เด็กเสิร์ฟ':'เด็กเสิร์ฟ' };
 
@@ -725,6 +691,21 @@ function buildCatalog_() {
   });
 }
 
+/* สี/ไอคอนของแต่ละหมวดหมู่ กำหนดแบบไดนามิกตามลำดับที่ปรากฏใน catalogByCategory
+   (จำกัดเฉพาะคลาส Tailwind ที่ compile ไว้แล้วในไฟล์นี้ เพราะไม่มีขั้นตอน build ใหม่) */
+const CATEGORY_PALETTE = [
+  { grad: 'from-orange-500 to-orange-600', bg: 'bg-orange-500', icon: '🚣' },
+  { grad: 'from-emerald-500 to-emerald-600', bg: 'bg-emerald-500', icon: '🍳' },
+  { grad: 'from-blue-500 to-blue-600', bg: 'bg-blue-500', icon: '🧑‍🍳' },
+  { grad: 'from-green-500 to-green-600', bg: 'bg-green-500', icon: '🍱' },
+];
+function categoryStyle_(cat) {
+  if (cat === '__movement__') return { grad: 'from-purple-500 to-purple-600', bg: 'bg-purple-500', icon: '📦' };
+  const idx = Object.keys(catalogByCategory).indexOf(cat);
+  if (idx < 0) return { grad: 'from-gray-400 to-gray-500', bg: 'bg-orange-500', icon: '📦' };
+  return CATEGORY_PALETTE[idx % CATEGORY_PALETTE.length];
+}
+
 async function loadCatalog() {
   try {
     const res = await jsonpGet('listItems', { branch_id: currentBranchId });
@@ -927,13 +908,14 @@ function showPage(pageId) {
   ['branch-page','home-page','name-page','stock-page','movement-page','history-page','history-detail-page'].forEach(p => document.getElementById(p).classList.add('hidden'));
   document.getElementById(pageId).classList.remove('hidden');
 }
-function goHome() { showPage('home-page'); }
+function goHome() { renderHomeCategoryButtons(); showPage('home-page'); }
 function goToNamePage() { showPage('name-page'); }
 
 function rerenderVisiblePages() {
   try {
+    if (!document.getElementById('home-page').classList.contains('hidden')) renderHomeCategoryButtons();
     if (!document.getElementById('stock-page').classList.contains('hidden')) renderStockTable();
-    if (!document.getElementById('history-page').classList.contains('hidden')) renderHistory();
+    if (!document.getElementById('history-page').classList.contains('hidden')) { renderHistoryCategoryFilter(); renderHistory(); }
     if (!document.getElementById('history-detail-page').classList.contains('hidden') && window.__currentDetailRecordId) showHistoryDetail(window.__currentDetailRecordId);
     updateBranchSwitchLabel();
   } catch(e) {}
@@ -942,13 +924,36 @@ function rerenderVisiblePages() {
 /* =========================================================
    หน้าเช็คสต็อกประจำวัน
    ========================================================= */
+/* วาดปุ่มหมวดหมู่หน้าแรกจากหมวดที่แอดมินสร้างไว้จริงใน catalogByCategory (ไม่ใช่ hardcode อีกต่อไป) */
+function renderHomeCategoryButtons() {
+  const el = document.getElementById('home-category-buttons');
+  if (!el) return;
+  const cats = Object.keys(catalogByCategory);
+  if (!cats.length) {
+    el.innerHTML = `<p class="text-center text-gray-400 text-sm py-4">${t('noCategoriesYet')}</p>`;
+    return;
+  }
+  el.innerHTML = cats.map(cat => {
+    const s = categoryStyle_(cat);
+    return `
+      <button onclick="selectCategory('${cat.replace(/'/g,"\\'")}')" class="w-full bg-gradient-to-r ${s.grad} text-white p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">${s.icon}</div>
+          <div class="text-left">
+            <p class="text-xl font-bold">${tCategory(cat)}</p>
+            <p class="text-white opacity-90 text-sm">${t('checkStockGeneric')}</p>
+          </div>
+          <svg class="w-6 h-6 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+        </div>
+      </button>`;
+  }).join('');
+}
 function selectCategory(category) {
   currentCategory = category;
   const badge = document.getElementById('category-badge');
-  const colors = { 'หน้าเรือ':'bg-orange-500', 'อาหารตามสั่ง':'bg-emerald-500', 'เด็กเสิร์ฟ':'bg-blue-500', '__movement__':'bg-purple-500' };
-  const icons = { 'หน้าเรือ':'🚣', 'อาหารตามสั่ง':'🍳', 'เด็กเสิร์ฟ':'🧑‍🍳', '__movement__':'📦' };
-  badge.className = `inline-flex items-center gap-2 px-4 py-2 rounded-full text-white text-sm font-medium mb-4 ${colors[category]}`;
-  badge.innerHTML = `${icons[category]} ${category==='__movement__' ? t('movement') : tCategory(category)}`;
+  const s = categoryStyle_(category);
+  badge.className = `inline-flex items-center gap-2 px-4 py-2 rounded-full text-white text-sm font-medium mb-4 ${s.bg}`;
+  badge.innerHTML = `${s.icon} ${category==='__movement__' ? t('movement') : tCategory(category)}`;
   document.getElementById('checker-name').value = '';
   showPage('name-page');
 }
@@ -976,8 +981,7 @@ async function startChecking() {
   document.getElementById('display-checker-name').textContent = checkerName;
   document.getElementById('display-date').textContent = formatDate(new Date(), currentLanguage);
   const badge = document.getElementById('stock-category-badge');
-  const colors = { 'หน้าเรือ':'bg-orange-500', 'อาหารตามสั่ง':'bg-emerald-500', 'เด็กเสิร์ฟ':'bg-blue-500' };
-  badge.className = `px-4 py-2 rounded-full text-white text-sm font-medium ${colors[currentCategory]}`;
+  badge.className = `px-4 py-2 rounded-full text-white text-sm font-medium ${categoryStyle_(currentCategory).bg}`;
   badge.textContent = tCategory(currentCategory);
   renderStockTable();
   showPage('stock-page');
@@ -1269,8 +1273,19 @@ async function syncHistory() {
     if (res && res.ok) allRecords = res.records || [];
   } catch (e) { console.warn('syncHistory failed', e); }
 }
+function renderHistoryCategoryFilter() {
+  const sel = document.getElementById('filter-category');
+  if (!sel) return;
+  const prev = sel.value;
+  const cats = Object.keys(catalogByCategory);
+  sel.innerHTML = `<option value="">${t('all')}</option>` +
+    cats.map(cat => `<option value="${cat.replace(/"/g,'&quot;')}">${tCategory(cat)}</option>`).join('') +
+    `<option value="ปรับสต็อค">${t('movement')}</option>`;
+  if (cats.includes(prev) || prev === 'ปรับสต็อค') sel.value = prev;
+}
 async function showHistory() {
   showPage('history-page');
+  renderHistoryCategoryFilter();
   document.getElementById('history-list').innerHTML = `<div class="bg-white rounded-xl p-4 shadow-md text-center text-gray-500">กำลังโหลด...</div>`;
   await syncHistory();
   renderHistory();
@@ -1295,12 +1310,12 @@ function renderHistory() {
   const noHistory = document.getElementById('no-history');
   if (!filtered.length) { listEl.innerHTML=''; noHistory.classList.remove('hidden'); return; }
   noHistory.classList.add('hidden');
-  const colors = { 'หน้าเรือ':'from-orange-500 to-orange-600', 'อาหารตามสั่ง':'from-emerald-500 to-emerald-600', 'เด็กเสิร์ฟ':'from-blue-500 to-blue-600', 'ปรับสต็อค':'from-purple-500 to-purple-600' };
-  const icons = { 'หน้าเรือ':'🚣', 'อาหารตามสั่ง':'🍳', 'เด็กเสิร์ฟ':'🧑‍🍳', 'ปรับสต็อค':'📦' };
-  listEl.innerHTML = filtered.map(record => `
+  listEl.innerHTML = filtered.map(record => {
+    const s = categoryStyle_(record.type==='movement' ? '__movement__' : record.category);
+    return `
     <div onclick="showHistoryDetail('${record.id}')" class="bg-white rounded-xl p-4 shadow-md hover:shadow-lg transition-all cursor-pointer">
       <div class="flex items-center gap-4">
-        <div class="w-12 h-12 bg-gradient-to-br ${colors[record.category]||'from-gray-400 to-gray-500'} rounded-xl flex items-center justify-center text-2xl">${icons[record.category]||'📦'}</div>
+        <div class="w-12 h-12 bg-gradient-to-br ${s.grad} rounded-xl flex items-center justify-center text-2xl">${s.icon}</div>
         <div class="flex-1">
           <p class="font-semibold text-gray-800">${record.type==='movement' ? t('movement') : tCategory(record.category)}
             <span class="ml-2 text-xs px-2 py-0.5 rounded-full ${record.type==='movement' ? 'badge-movement' : 'badge-check'}">${record.type==='movement' ? t('movement') : t('dailyCheck')}</span>
@@ -1311,7 +1326,8 @@ function renderHistory() {
         <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function getPreviousRecord(category, currentDate) {
@@ -1333,14 +1349,13 @@ function showHistoryDetail(id) {
   let items = [];
   try { items = JSON.parse(record.items || '[]'); } catch(e) { items = []; }
 
-  const colors = { 'หน้าเรือ':'from-orange-500 to-orange-600', 'อาหารตามสั่ง':'from-emerald-500 to-emerald-600', 'เด็กเสิร์ฟ':'from-blue-500 to-blue-600', 'ปรับสต็อค':'from-purple-500 to-purple-600' };
   const content = document.getElementById('history-detail-content');
 
   if (record.type === 'movement') {
     const dirLabel = { in:t('movementIn'), out:t('movementOut'), adjust:t('movementAdjust') };
     const dirColor = { in:'text-green-600', out:'text-red-600', adjust:'text-blue-600' };
     content.innerHTML = `
-      <div class="bg-gradient-to-r ${colors['ปรับสต็อค']} p-4 text-white">
+      <div class="bg-gradient-to-r ${categoryStyle_('__movement__').grad} p-4 text-white">
         <h3 class="text-xl font-bold mb-2">${t('movement')}</h3>
         <p class="text-sm opacity-90">${t('staffChecker')} <span class="font-semibold">${record.checker_name}</span></p>
         <p class="text-sm opacity-90">${t('date')} <span class="font-semibold">${formatFullDate(record.date, currentLanguage)}</span></p>
@@ -1364,7 +1379,7 @@ function showHistoryDetail(id) {
   const editButtonHtml = adminPassword ? `<button onclick="toggleEditMode()" class="text-sm bg-white/20 px-3 py-1.5 rounded-lg" >${t('editRecord')}</button>` : '';
 
   content.innerHTML = `
-    <div class="bg-gradient-to-r ${colors[record.category]||'from-gray-400 to-gray-500'} p-4 text-white flex items-center justify-between">
+    <div class="bg-gradient-to-r ${categoryStyle_(record.category).grad} p-4 text-white flex items-center justify-between">
       <div>
         <h3 class="text-xl font-bold mb-2">${tCategory(record.category)}</h3>
         <p class="text-sm opacity-90">${t('staffChecker')} <span class="font-semibold">${record.checker_name}</span></p>
@@ -1476,7 +1491,11 @@ function openAdminModal() {
 }
 async function closeAdminModal() {
   document.getElementById('admin-modal').classList.add('hidden');
-  if (catalogDirty) { await loadCatalog(); catalogDirty = false; } // รีเฟรชข้อมูลฝั่งเช็คสต็อกแค่ตอนปิด ไม่ใช่ทุกคลิก
+  if (catalogDirty) { // รีเฟรชข้อมูลฝั่งเช็คสต็อกแค่ตอนปิด ไม่ใช่ทุกคลิก
+    await loadCatalog();
+    catalogDirty = false;
+    rerenderVisiblePages();
+  }
 }
 
 function switchAdminTab(tab) {
