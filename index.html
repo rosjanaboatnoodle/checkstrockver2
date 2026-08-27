@@ -1448,7 +1448,7 @@ async function saveEditedItem(itemName, btn) {
    Admin
    ========================================================= */
 function openAdminGate() {
-  if (adminPassword) { openAdminModal(); return; }
+  // เพื่อความปลอดภัย ให้ถามรหัสผ่านทุกครั้งที่กดปุ่มแอดมิน ไม่ใช้รหัสผ่านที่จำไว้ข้ามไป
   document.getElementById('admin-gate-modal').classList.remove('hidden');
 }
 function closeAdminGate() { document.getElementById('admin-gate-modal').classList.add('hidden'); }
@@ -2026,6 +2026,7 @@ async function runSeedItems() {
   showToast(t('saveOk'), 'success');
 }
 
+let editingBranchId = ''; // สาขาที่กำลังแก้ไขชื่อ/รหัสผ่านอยู่ (แสดงฟอร์มแก้ไขแทนแถวปกติ)
 async function renderAdminBranchesTab() {
   const el = document.getElementById('admin-tab-branches');
   el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">กำลังโหลด...</div>`;
@@ -2033,6 +2034,28 @@ async function renderAdminBranchesTab() {
     const res = await jsonpGet('listBranches', { password: adminPassword });
     if (res && res.ok) branches = res.branches;
   } catch (e) {}
+  const branchRowHtml = (b) => {
+    if (editingBranchId === b.id) return `
+      <div class="py-2 border-b border-gray-100">
+        <input id="edit-branch-name" value="${b.name.replace(/"/g,'&quot;')}" placeholder="${t('branchNameLabel')}" class="w-full px-3 py-2 border rounded-lg text-sm mb-2">
+        <input id="edit-branch-staffpw" value="${(b.staff_password||'').replace(/"/g,'&quot;')}" placeholder="${t('branchPasswordLabel')}" class="w-full px-3 py-2 border rounded-lg text-sm mb-2">
+        <div class="flex gap-2">
+          <button onclick="submitEditBranch('${b.id}')" class="flex-1 bg-orange-500 text-white py-1.5 rounded-lg text-sm font-semibold">${t('saveEdit')}</button>
+          <button onclick="cancelEditBranch()" class="flex-1 bg-gray-200 text-gray-700 py-1.5 rounded-lg text-sm font-semibold">${t('cancel')}</button>
+        </div>
+      </div>`;
+    return `
+      <div class="text-sm py-1.5 border-b border-gray-100 flex items-center justify-between gap-2">
+        <div class="min-w-0">
+          <span>${b.name}</span>
+          <span class="text-gray-400 text-xs block">รหัสสาขา: ${b.staff_password || '-'}</span>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button onclick="startEditBranch('${b.id}')" class="text-indigo-600 text-xs font-semibold">${t('edit')}</button>
+          <button onclick="deleteBranch('${b.id}')" class="text-red-500 text-xs font-semibold">${t('delete')}</button>
+        </div>
+      </div>`;
+  };
   el.innerHTML = `
     <div class="bg-gray-50 rounded-xl p-3 mb-4">
       <p class="text-sm font-semibold text-gray-700 mb-2">${t('addBranch')}</p>
@@ -2040,7 +2063,7 @@ async function renderAdminBranchesTab() {
       <input id="new-branch-staffpw" placeholder="${t('branchPasswordLabel')}" class="w-full px-3 py-2 border rounded-lg text-sm mb-2">
       <button onclick="submitNewBranch()" class="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-semibold">${t('addBranch')}</button>
     </div>
-    <div>${branches.map(b => `<div class="text-sm py-1.5 border-b border-gray-100 flex justify-between"><span>${b.name}</span><span class="text-gray-400 text-xs">รหัสสาขา: ${b.staff_password || '-'}</span></div>`).join('')}</div>
+    <div>${branches.map(branchRowHtml).join('')}</div>
   `;
 }
 async function submitNewBranch() {
@@ -2051,6 +2074,33 @@ async function submitNewBranch() {
     const res = await jsonpGet('addBranch', { password: adminPassword, name, staff_password: staffPw });
     if (res && res.ok) { branches = res.branches; renderAdminBranchesTab(); showToast(t('saveOk'),'success'); }
     else showToast(t('wrongPassword'),'error');
+  } catch(e){ showToast(t('error'),'error'); }
+}
+function startEditBranch(id) { editingBranchId = id; renderAdminBranchesTab(); }
+function cancelEditBranch() { editingBranchId = ''; renderAdminBranchesTab(); }
+async function submitEditBranch(id) {
+  const name = document.getElementById('edit-branch-name').value.trim();
+  const staffPw = document.getElementById('edit-branch-staffpw').value.trim();
+  if (!name || !staffPw) { showToast('กรอกชื่อสาขาและรหัสผ่านสาขา', 'error'); return; }
+  try {
+    const res = await jsonpGet('updateBranch', { password: adminPassword, id, name, staff_password: staffPw });
+    if (res && res.ok) {
+      branches = res.branches;
+      editingBranchId = '';
+      renderAdminBranchesTab();
+      showToast(t('saveOk'),'success');
+    } else showToast(t('wrongPassword'),'error');
+  } catch(e){ showToast(t('error'),'error'); }
+}
+async function deleteBranch(id) {
+  if (!confirm(t('confirmDelete'))) return;
+  try {
+    const res = await jsonpGet('deleteBranch', { password: adminPassword, id });
+    if (res && res.ok) {
+      branches = res.branches;
+      renderAdminBranchesTab();
+      showToast(t('saveOk'),'success');
+    } else showToast(t('wrongPassword'),'error');
   } catch(e){ showToast(t('error'),'error'); }
 }
 
