@@ -1480,6 +1480,10 @@ async function submitAdminLogin() {
 let catalogDirty = false; // true = ต้อง loadCatalog() ใหม่ตอนปิด admin modal (เพราะแก้แคตตาล็อกระหว่างอยู่ในนี้)
 
 function openAdminModal() {
+  // เริ่มเซสชันแอดมินใหม่ทุกครั้ง — บังคับให้ดึงข้อมูลสดอย่างน้อย 1 ครั้ง แต่หลังจากนั้นสลับแท็บได้เร็วโดยไม่ยิงซ้ำ
+  adminItemsLoadedScope = null;
+  branchesLoaded = false;
+  bufferConfigLoaded = false;
   document.getElementById('admin-modal').classList.remove('hidden');
   switchAdminTab('items');
 }
@@ -1558,8 +1562,11 @@ async function submitChangePassword() {
    ========================================================= */
 async function renderAdminBufferTab() {
   const el = document.getElementById('admin-tab-buffer');
-  el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">กำลังโหลด...</div>`;
-  await loadBufferConfig();
+  if (!bufferConfigLoaded) {
+    el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">กำลังโหลด...</div>`;
+    await loadBufferConfig();
+    bufferConfigLoaded = true;
+  }
 
   const categories = Object.keys(catalogByCategory);
   const groupRows = categories.map(cat => `
@@ -1648,16 +1655,23 @@ let adminItemScope = ''; // '' = ส่วนกลาง, otherwise branchId
 let adminByCatCache = {}; // ใช้ตอนกดปุ่ม ▲▼ เรียงลำดับ ไม่ต้องคำนวณ byCat ซ้ำ
 let adminScopeItems = [];
 let adminOpenCategories = new Set(); // จำหมวดที่เปิดอยู่ ไม่ให้หุบตอน re-render (เช่นตอนกด ▲▼)
+/* แคชระดับเซสชันแอดมิน — สลับแท็บไปมาไม่ต้องยิง network ซ้ำทุกครั้ง (Apps Script ช้า)
+   รีเซ็ตตอนเปิด admin modal ใหม่ทุกครั้ง เพื่อยังได้ข้อมูลสดอย่างน้อย 1 ครั้งต่อเซสชัน */
+let adminItemsLoadedScope = null; // scope ที่ adminScopeItems โหลดล่าสุด (null = ยังไม่เคยโหลด)
+let branchesLoaded = false;
+let bufferConfigLoaded = false;
 
 async function renderAdminItemsTab() {
   const el = document.getElementById('admin-tab-items');
+  if (adminItemsLoadedScope === adminItemScope) { renderAdminItemsTabFromCache_(); return; } // สลับแท็บกลับมา scope เดิม ใช้แคชได้เลย
   if (!branches.length) {
-    try { const r = await jsonpGet('listBranches', { password: adminPassword }); if (r && r.ok) branches = r.branches; } catch(e){}
+    try { const r = await jsonpGet('listBranches', { password: adminPassword }); if (r && r.ok) { branches = r.branches; branchesLoaded = true; } } catch(e){}
   }
   el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">กำลังโหลด...</div>`;
   try {
     const res = await jsonpGet('listItemsAdmin', { password: adminPassword, scope: adminItemScope });
     adminScopeItems = (res && res.ok) ? res.items : [];
+    adminItemsLoadedScope = adminItemScope;
   } catch (e) { adminScopeItems = []; }
   renderAdminItemsTabFromCache_();
 }
@@ -1990,6 +2004,7 @@ async function confirmAiImport() {
     showToast(`นำเข้าสำเร็จ ${items.length} รายการ`, 'success');
     closeAiImportModal();
     await loadCatalog();
+    adminItemsLoadedScope = null; // เพิ่งนำเข้าสด ๆ จาก server ต้องดึงแคชของ adminScopeItems ใหม่ ไม่ใช้ของเก่า
     renderAdminItemsTab();
   } catch (e) {
     showToast('นำเข้าไม่สำเร็จ', 'error');
@@ -2028,11 +2043,13 @@ async function removeItem(id) {
 let editingBranchId = ''; // สาขาที่กำลังแก้ไขชื่อ/รหัสผ่านอยู่ (แสดงฟอร์มแก้ไขแทนแถวปกติ)
 async function renderAdminBranchesTab() {
   const el = document.getElementById('admin-tab-branches');
-  el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">กำลังโหลด...</div>`;
-  try {
-    const res = await jsonpGet('listBranches', { password: adminPassword });
-    if (res && res.ok) branches = res.branches;
-  } catch (e) {}
+  if (!branchesLoaded) {
+    el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">กำลังโหลด...</div>`;
+    try {
+      const res = await jsonpGet('listBranches', { password: adminPassword });
+      if (res && res.ok) { branches = res.branches; branchesLoaded = true; }
+    } catch (e) {}
+  }
   const branchRowHtml = (b) => {
     if (editingBranchId === b.id) return `
       <div class="py-2 border-b border-gray-100">
