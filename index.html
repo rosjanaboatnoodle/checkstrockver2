@@ -101,7 +101,7 @@
       <div class="max-w-lg mx-auto">
         <div class="flex items-center justify-between mb-6">
           <div>
-            <h1 id="shop-title" class="text-2xl md:text-3xl font-bold text-orange-800">🍜 ก๋วยเตี๋ยวเรือรสจนา</h1>
+            <h1 id="shop-title" class="text-2xl md:text-3xl font-bold text-orange-800">📋 ระบบเช็คสต็อกสินค้า</h1>
             <p data-t="dailyCheck" class="text-orange-600 text-sm mt-1">เช็คสต็อกประจำวัน</p>
             <button onclick="branchSwitchLabelClick()" id="branch-switch-label" class="text-xs text-gray-500 underline mt-1"></button>
           </div>
@@ -119,38 +119,7 @@
         </div>
 
         <div class="space-y-4">
-          <button onclick="selectCategory('หน้าเรือ')" class="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]">
-            <div class="flex items-center gap-4">
-              <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">🚣</div>
-              <div class="text-left">
-                <p class="text-xl font-bold" data-t-cat="หน้าเรือ">หน้าเรือ</p>
-                <p class="text-orange-100 text-sm" data-t="boatFrontDesc">เช็คสต็อกวัตถุดิบหน้าเรือ</p>
-              </div>
-              <svg class="w-6 h-6 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            </div>
-          </button>
-
-          <button onclick="selectCategory('อาหารตามสั่ง')" class="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]">
-            <div class="flex items-center gap-4">
-              <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">🍳</div>
-              <div class="text-left">
-                <p class="text-xl font-bold" data-t-cat="อาหารตามสั่ง">อาหารตามสั่ง</p>
-                <p class="text-emerald-100 text-sm" data-t="customFoodDesc">เช็คสต็อกวัตถุดิบอาหารตามสั่ง</p>
-              </div>
-              <svg class="w-6 h-6 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            </div>
-          </button>
-
-          <button onclick="selectCategory('เด็กเสิร์ฟ')" class="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]">
-            <div class="flex items-center gap-4">
-              <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">🧑‍🍳</div>
-              <div class="text-left">
-                <p class="text-xl font-bold" data-t-cat="เด็กเสิร์ฟ">เด็กเสิร์ฟ</p>
-                <p class="text-blue-100 text-sm" data-t="staffChildDesc">เช็คสต็อกอุปกรณ์เด็กเสิร์ฟ</p>
-              </div>
-              <svg class="w-6 h-6 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            </div>
-          </button>
+          <div id="home-category-buttons" class="space-y-4"></div>
 
           <button onclick="selectCategory('__movement__')" class="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]">
             <div class="flex items-center gap-4">
@@ -302,12 +271,7 @@
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2" data-t="category">หมวดหมู่</label>
-              <select id="filter-category" onchange="filterHistory()" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors">
-                <option value="" data-t="all">ทั้งหมด</option>
-                <option value="หน้าเรือ">หน้าเรือ</option>
-                <option value="อาหารตามสั่ง">อาหารตามสั่ง</option>
-                <option value="เด็กเสิร์ฟ">เด็กเสิร์ฟ</option>
-              </select>
+              <select id="filter-category" onchange="filterHistory()" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors"></select>
             </div>
           </div>
         </div>
@@ -467,16 +431,12 @@ const UI_TH = {
   manageTranslations:'จัดการคำแปล', addItem:'เพิ่มรายการสินค้า', edit:'แก้ไข', delete:'ลบ',
   confirmDelete:'ยืนยันการลบรายการนี้?', addBranch:'เพิ่มสาขา', branchName:'ชื่อสาขา',
   refreshTranslation:'อัปเดตคำแปลด้วย AI', translating:'กำลังแปล...', editRecord:'แก้ไขรายการนี้',
-  saveEdit:'บันทึกการแก้ไข', cancel:'ยกเลิก', seedItems:'นำเข้ารายการเริ่มต้น', saveOk:'บันทึกสำเร็จ',
-  movementType:'ประเภท', movementHistory:'รายการปรับสต็อค', editedNote:'แก้ไขล่าสุดโดย'
+  saveEdit:'บันทึกการแก้ไข', cancel:'ยกเลิก', saveOk:'บันทึกสำเร็จ',
+  movementType:'ประเภท', movementHistory:'รายการปรับสต็อค', editedNote:'แก้ไขล่าสุดโดย',
+  noCategoriesYet:'ยังไม่มีหมวดหมู่สินค้า กรุณาไปเพิ่มรายการสินค้าในหน้าแอดมินก่อน',
+  checkStockGeneric:'เช็คสต็อกวัตถุดิบในหมวดนี้'
 };
 const CAT_TH = { 'หน้าเรือ':'หน้าเรือ', 'อาหารตามสั่ง':'อาหารตามสั่ง', 'เด็กเสิร์ฟ':'เด็กเสิร์ฟ' };
-
-/* รายการเริ่มต้น (ใช้ตอน "นำเข้ารายการเริ่มต้น" ครั้งแรกเท่านั้น ไม่ได้ใช้เป็นแหล่งข้อมูลหลักอีกต่อไป) */
-const SEED_ITEMS = [
-/* ...รายการเดิมจากระบบเก่า... */
-];
-// หมายเหตุ: ใส่รายการ seed แบบเต็มไว้ด้านล่างสุดของไฟล์ (SEED_ITEMS_FULL) เพื่อความกระชับของส่วนหัว
 
 /* =========================================================
    state
@@ -725,6 +685,21 @@ function buildCatalog_() {
   });
 }
 
+/* สี/ไอคอนของแต่ละหมวดหมู่ กำหนดแบบไดนามิกตามลำดับที่ปรากฏใน catalogByCategory
+   (จำกัดเฉพาะคลาส Tailwind ที่ compile ไว้แล้วในไฟล์นี้ เพราะไม่มีขั้นตอน build ใหม่) */
+const CATEGORY_PALETTE = [
+  { grad: 'from-orange-500 to-orange-600', bg: 'bg-orange-500', icon: '🚣' },
+  { grad: 'from-emerald-500 to-emerald-600', bg: 'bg-emerald-500', icon: '🍳' },
+  { grad: 'from-blue-500 to-blue-600', bg: 'bg-blue-500', icon: '🧑‍🍳' },
+  { grad: 'from-green-500 to-green-600', bg: 'bg-green-500', icon: '🍱' },
+];
+function categoryStyle_(cat) {
+  if (cat === '__movement__') return { grad: 'from-purple-500 to-purple-600', bg: 'bg-purple-500', icon: '📦' };
+  const idx = Object.keys(catalogByCategory).indexOf(cat);
+  if (idx < 0) return { grad: 'from-gray-400 to-gray-500', bg: 'bg-orange-500', icon: '📦' };
+  return CATEGORY_PALETTE[idx % CATEGORY_PALETTE.length];
+}
+
 async function loadCatalog() {
   try {
     const res = await jsonpGet('listItems', { branch_id: currentBranchId });
@@ -927,13 +902,14 @@ function showPage(pageId) {
   ['branch-page','home-page','name-page','stock-page','movement-page','history-page','history-detail-page'].forEach(p => document.getElementById(p).classList.add('hidden'));
   document.getElementById(pageId).classList.remove('hidden');
 }
-function goHome() { showPage('home-page'); }
+function goHome() { renderHomeCategoryButtons(); showPage('home-page'); }
 function goToNamePage() { showPage('name-page'); }
 
 function rerenderVisiblePages() {
   try {
+    if (!document.getElementById('home-page').classList.contains('hidden')) renderHomeCategoryButtons();
     if (!document.getElementById('stock-page').classList.contains('hidden')) renderStockTable();
-    if (!document.getElementById('history-page').classList.contains('hidden')) renderHistory();
+    if (!document.getElementById('history-page').classList.contains('hidden')) { renderHistoryCategoryFilter(); renderHistory(); }
     if (!document.getElementById('history-detail-page').classList.contains('hidden') && window.__currentDetailRecordId) showHistoryDetail(window.__currentDetailRecordId);
     updateBranchSwitchLabel();
   } catch(e) {}
@@ -942,13 +918,36 @@ function rerenderVisiblePages() {
 /* =========================================================
    หน้าเช็คสต็อกประจำวัน
    ========================================================= */
+/* วาดปุ่มหมวดหมู่หน้าแรกจากหมวดที่แอดมินสร้างไว้จริงใน catalogByCategory (ไม่ใช่ hardcode อีกต่อไป) */
+function renderHomeCategoryButtons() {
+  const el = document.getElementById('home-category-buttons');
+  if (!el) return;
+  const cats = Object.keys(catalogByCategory);
+  if (!cats.length) {
+    el.innerHTML = `<p class="text-center text-gray-400 text-sm py-4">${t('noCategoriesYet')}</p>`;
+    return;
+  }
+  el.innerHTML = cats.map(cat => {
+    const s = categoryStyle_(cat);
+    return `
+      <button onclick="selectCategory('${cat.replace(/'/g,"\\'")}')" class="w-full bg-gradient-to-r ${s.grad} text-white p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">${s.icon}</div>
+          <div class="text-left">
+            <p class="text-xl font-bold">${tCategory(cat)}</p>
+            <p class="text-white opacity-90 text-sm">${t('checkStockGeneric')}</p>
+          </div>
+          <svg class="w-6 h-6 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+        </div>
+      </button>`;
+  }).join('');
+}
 function selectCategory(category) {
   currentCategory = category;
   const badge = document.getElementById('category-badge');
-  const colors = { 'หน้าเรือ':'bg-orange-500', 'อาหารตามสั่ง':'bg-emerald-500', 'เด็กเสิร์ฟ':'bg-blue-500', '__movement__':'bg-purple-500' };
-  const icons = { 'หน้าเรือ':'🚣', 'อาหารตามสั่ง':'🍳', 'เด็กเสิร์ฟ':'🧑‍🍳', '__movement__':'📦' };
-  badge.className = `inline-flex items-center gap-2 px-4 py-2 rounded-full text-white text-sm font-medium mb-4 ${colors[category]}`;
-  badge.innerHTML = `${icons[category]} ${category==='__movement__' ? t('movement') : tCategory(category)}`;
+  const s = categoryStyle_(category);
+  badge.className = `inline-flex items-center gap-2 px-4 py-2 rounded-full text-white text-sm font-medium mb-4 ${s.bg}`;
+  badge.innerHTML = `${s.icon} ${category==='__movement__' ? t('movement') : tCategory(category)}`;
   document.getElementById('checker-name').value = '';
   showPage('name-page');
 }
@@ -976,8 +975,7 @@ async function startChecking() {
   document.getElementById('display-checker-name').textContent = checkerName;
   document.getElementById('display-date').textContent = formatDate(new Date(), currentLanguage);
   const badge = document.getElementById('stock-category-badge');
-  const colors = { 'หน้าเรือ':'bg-orange-500', 'อาหารตามสั่ง':'bg-emerald-500', 'เด็กเสิร์ฟ':'bg-blue-500' };
-  badge.className = `px-4 py-2 rounded-full text-white text-sm font-medium ${colors[currentCategory]}`;
+  badge.className = `px-4 py-2 rounded-full text-white text-sm font-medium ${categoryStyle_(currentCategory).bg}`;
   badge.textContent = tCategory(currentCategory);
   renderStockTable();
   showPage('stock-page');
@@ -1269,8 +1267,19 @@ async function syncHistory() {
     if (res && res.ok) allRecords = res.records || [];
   } catch (e) { console.warn('syncHistory failed', e); }
 }
+function renderHistoryCategoryFilter() {
+  const sel = document.getElementById('filter-category');
+  if (!sel) return;
+  const prev = sel.value;
+  const cats = Object.keys(catalogByCategory);
+  sel.innerHTML = `<option value="">${t('all')}</option>` +
+    cats.map(cat => `<option value="${cat.replace(/"/g,'&quot;')}">${tCategory(cat)}</option>`).join('') +
+    `<option value="ปรับสต็อค">${t('movement')}</option>`;
+  if (cats.includes(prev) || prev === 'ปรับสต็อค') sel.value = prev;
+}
 async function showHistory() {
   showPage('history-page');
+  renderHistoryCategoryFilter();
   document.getElementById('history-list').innerHTML = `<div class="bg-white rounded-xl p-4 shadow-md text-center text-gray-500">กำลังโหลด...</div>`;
   await syncHistory();
   renderHistory();
@@ -1295,12 +1304,12 @@ function renderHistory() {
   const noHistory = document.getElementById('no-history');
   if (!filtered.length) { listEl.innerHTML=''; noHistory.classList.remove('hidden'); return; }
   noHistory.classList.add('hidden');
-  const colors = { 'หน้าเรือ':'from-orange-500 to-orange-600', 'อาหารตามสั่ง':'from-emerald-500 to-emerald-600', 'เด็กเสิร์ฟ':'from-blue-500 to-blue-600', 'ปรับสต็อค':'from-purple-500 to-purple-600' };
-  const icons = { 'หน้าเรือ':'🚣', 'อาหารตามสั่ง':'🍳', 'เด็กเสิร์ฟ':'🧑‍🍳', 'ปรับสต็อค':'📦' };
-  listEl.innerHTML = filtered.map(record => `
+  listEl.innerHTML = filtered.map(record => {
+    const s = categoryStyle_(record.type==='movement' ? '__movement__' : record.category);
+    return `
     <div onclick="showHistoryDetail('${record.id}')" class="bg-white rounded-xl p-4 shadow-md hover:shadow-lg transition-all cursor-pointer">
       <div class="flex items-center gap-4">
-        <div class="w-12 h-12 bg-gradient-to-br ${colors[record.category]||'from-gray-400 to-gray-500'} rounded-xl flex items-center justify-center text-2xl">${icons[record.category]||'📦'}</div>
+        <div class="w-12 h-12 bg-gradient-to-br ${s.grad} rounded-xl flex items-center justify-center text-2xl">${s.icon}</div>
         <div class="flex-1">
           <p class="font-semibold text-gray-800">${record.type==='movement' ? t('movement') : tCategory(record.category)}
             <span class="ml-2 text-xs px-2 py-0.5 rounded-full ${record.type==='movement' ? 'badge-movement' : 'badge-check'}">${record.type==='movement' ? t('movement') : t('dailyCheck')}</span>
@@ -1311,7 +1320,8 @@ function renderHistory() {
         <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function getPreviousRecord(category, currentDate) {
@@ -1333,14 +1343,13 @@ function showHistoryDetail(id) {
   let items = [];
   try { items = JSON.parse(record.items || '[]'); } catch(e) { items = []; }
 
-  const colors = { 'หน้าเรือ':'from-orange-500 to-orange-600', 'อาหารตามสั่ง':'from-emerald-500 to-emerald-600', 'เด็กเสิร์ฟ':'from-blue-500 to-blue-600', 'ปรับสต็อค':'from-purple-500 to-purple-600' };
   const content = document.getElementById('history-detail-content');
 
   if (record.type === 'movement') {
     const dirLabel = { in:t('movementIn'), out:t('movementOut'), adjust:t('movementAdjust') };
     const dirColor = { in:'text-green-600', out:'text-red-600', adjust:'text-blue-600' };
     content.innerHTML = `
-      <div class="bg-gradient-to-r ${colors['ปรับสต็อค']} p-4 text-white">
+      <div class="bg-gradient-to-r ${categoryStyle_('__movement__').grad} p-4 text-white">
         <h3 class="text-xl font-bold mb-2">${t('movement')}</h3>
         <p class="text-sm opacity-90">${t('staffChecker')} <span class="font-semibold">${record.checker_name}</span></p>
         <p class="text-sm opacity-90">${t('date')} <span class="font-semibold">${formatFullDate(record.date, currentLanguage)}</span></p>
@@ -1364,7 +1373,7 @@ function showHistoryDetail(id) {
   const editButtonHtml = adminPassword ? `<button onclick="toggleEditMode()" class="text-sm bg-white/20 px-3 py-1.5 rounded-lg" >${t('editRecord')}</button>` : '';
 
   content.innerHTML = `
-    <div class="bg-gradient-to-r ${colors[record.category]||'from-gray-400 to-gray-500'} p-4 text-white flex items-center justify-between">
+    <div class="bg-gradient-to-r ${categoryStyle_(record.category).grad} p-4 text-white flex items-center justify-between">
       <div>
         <h3 class="text-xl font-bold mb-2">${tCategory(record.category)}</h3>
         <p class="text-sm opacity-90">${t('staffChecker')} <span class="font-semibold">${record.checker_name}</span></p>
@@ -1448,7 +1457,7 @@ async function saveEditedItem(itemName, btn) {
    Admin
    ========================================================= */
 function openAdminGate() {
-  if (adminPassword) { openAdminModal(); return; }
+  // เพื่อความปลอดภัย ให้ถามรหัสผ่านทุกครั้งที่กดปุ่มแอดมิน ไม่ใช้รหัสผ่านที่จำไว้ข้ามไป
   document.getElementById('admin-gate-modal').classList.remove('hidden');
 }
 function closeAdminGate() { document.getElementById('admin-gate-modal').classList.add('hidden'); }
@@ -1476,7 +1485,11 @@ function openAdminModal() {
 }
 async function closeAdminModal() {
   document.getElementById('admin-modal').classList.add('hidden');
-  if (catalogDirty) { await loadCatalog(); catalogDirty = false; } // รีเฟรชข้อมูลฝั่งเช็คสต็อกแค่ตอนปิด ไม่ใช่ทุกคลิก
+  if (catalogDirty) { // รีเฟรชข้อมูลฝั่งเช็คสต็อกแค่ตอนปิด ไม่ใช่ทุกคลิก
+    await loadCatalog();
+    catalogDirty = false;
+    rerenderVisiblePages();
+  }
 }
 
 function switchAdminTab(tab) {
@@ -2012,20 +2025,7 @@ async function removeItem(id) {
     } else showToast(t('wrongPassword'),'error');
   } catch(e){ showToast(t('error'),'error'); }
 }
-async function runSeedItems() {
-  const chunks = [];
-  for (let i=0;i<SEED_ITEMS_FULL.length;i+=15) chunks.push(SEED_ITEMS_FULL.slice(i,i+15));
-  for (let i=0;i<chunks.length;i++) {
-    showToast(`กำลังนำเข้า... ${i+1}/${chunks.length}`, 'success');
-    try {
-      await jsonpGet('bulkSeedItems', { password: adminPassword, branch_id:'', items: JSON.stringify(chunks[i]) });
-    } catch(e) { console.warn('seed chunk failed', e); }
-  }
-  catalogDirty = true;
-  renderAdminItemsTab(); // ครั้งนี้ยอมยิง network ใหม่ เพราะนำเข้าทีเดียวหลายรายการ ต้องดึงของจริงจาก server
-  showToast(t('saveOk'), 'success');
-}
-
+let editingBranchId = ''; // สาขาที่กำลังแก้ไขชื่อ/รหัสผ่านอยู่ (แสดงฟอร์มแก้ไขแทนแถวปกติ)
 async function renderAdminBranchesTab() {
   const el = document.getElementById('admin-tab-branches');
   el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">กำลังโหลด...</div>`;
@@ -2033,6 +2033,28 @@ async function renderAdminBranchesTab() {
     const res = await jsonpGet('listBranches', { password: adminPassword });
     if (res && res.ok) branches = res.branches;
   } catch (e) {}
+  const branchRowHtml = (b) => {
+    if (editingBranchId === b.id) return `
+      <div class="py-2 border-b border-gray-100">
+        <input id="edit-branch-name" value="${b.name.replace(/"/g,'&quot;')}" placeholder="${t('branchNameLabel')}" class="w-full px-3 py-2 border rounded-lg text-sm mb-2">
+        <input id="edit-branch-staffpw" value="${(b.staff_password||'').replace(/"/g,'&quot;')}" placeholder="${t('branchPasswordLabel')}" class="w-full px-3 py-2 border rounded-lg text-sm mb-2">
+        <div class="flex gap-2">
+          <button onclick="submitEditBranch('${b.id}')" class="flex-1 bg-orange-500 text-white py-1.5 rounded-lg text-sm font-semibold">${t('saveEdit')}</button>
+          <button onclick="cancelEditBranch()" class="flex-1 bg-gray-200 text-gray-700 py-1.5 rounded-lg text-sm font-semibold">${t('cancel')}</button>
+        </div>
+      </div>`;
+    return `
+      <div class="text-sm py-1.5 border-b border-gray-100 flex items-center justify-between gap-2">
+        <div class="min-w-0">
+          <span>${b.name}</span>
+          <span class="text-gray-400 text-xs block">รหัสสาขา: ${b.staff_password || '-'}</span>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button onclick="startEditBranch('${b.id}')" class="text-indigo-600 text-xs font-semibold">${t('edit')}</button>
+          <button onclick="deleteBranch('${b.id}')" class="text-red-500 text-xs font-semibold">${t('delete')}</button>
+        </div>
+      </div>`;
+  };
   el.innerHTML = `
     <div class="bg-gray-50 rounded-xl p-3 mb-4">
       <p class="text-sm font-semibold text-gray-700 mb-2">${t('addBranch')}</p>
@@ -2040,7 +2062,7 @@ async function renderAdminBranchesTab() {
       <input id="new-branch-staffpw" placeholder="${t('branchPasswordLabel')}" class="w-full px-3 py-2 border rounded-lg text-sm mb-2">
       <button onclick="submitNewBranch()" class="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-semibold">${t('addBranch')}</button>
     </div>
-    <div>${branches.map(b => `<div class="text-sm py-1.5 border-b border-gray-100 flex justify-between"><span>${b.name}</span><span class="text-gray-400 text-xs">รหัสสาขา: ${b.staff_password || '-'}</span></div>`).join('')}</div>
+    <div>${branches.map(branchRowHtml).join('')}</div>
   `;
 }
 async function submitNewBranch() {
@@ -2051,6 +2073,33 @@ async function submitNewBranch() {
     const res = await jsonpGet('addBranch', { password: adminPassword, name, staff_password: staffPw });
     if (res && res.ok) { branches = res.branches; renderAdminBranchesTab(); showToast(t('saveOk'),'success'); }
     else showToast(t('wrongPassword'),'error');
+  } catch(e){ showToast(t('error'),'error'); }
+}
+function startEditBranch(id) { editingBranchId = id; renderAdminBranchesTab(); }
+function cancelEditBranch() { editingBranchId = ''; renderAdminBranchesTab(); }
+async function submitEditBranch(id) {
+  const name = document.getElementById('edit-branch-name').value.trim();
+  const staffPw = document.getElementById('edit-branch-staffpw').value.trim();
+  if (!name || !staffPw) { showToast('กรอกชื่อสาขาและรหัสผ่านสาขา', 'error'); return; }
+  try {
+    const res = await jsonpGet('updateBranch', { password: adminPassword, id, name, staff_password: staffPw });
+    if (res && res.ok) {
+      branches = res.branches;
+      editingBranchId = '';
+      renderAdminBranchesTab();
+      showToast(t('saveOk'),'success');
+    } else showToast(t('wrongPassword'),'error');
+  } catch(e){ showToast(t('error'),'error'); }
+}
+async function deleteBranch(id) {
+  if (!confirm(t('confirmDelete'))) return;
+  try {
+    const res = await jsonpGet('deleteBranch', { password: adminPassword, id });
+    if (res && res.ok) {
+      branches = res.branches;
+      renderAdminBranchesTab();
+      showToast(t('saveOk'),'success');
+    } else showToast(t('wrongPassword'),'error');
   } catch(e){ showToast(t('error'),'error'); }
 }
 
@@ -2145,101 +2194,6 @@ document.addEventListener('keydown', (e) => {
 });
 
 init();
-</script>
-
-<!-- รายการสินค้าเริ่มต้น (ใช้ครั้งเดียวตอนกด "นำเข้ารายการเริ่มต้น" ในแอดมิน) -->
-<script>
-const SEED_ITEMS_FULL = [
-{"category":"หน้าเรือ","name":"เส้นเล็ก","unit":"ห่อ"},{"category":"หน้าเรือ","name":"เส้นใหญ่","unit":"ห่อ"},{"category":"หน้าเรือ","name":"เส้นหมี่ขาว","unit":"ก้อน"},
-{"category":"หน้าเรือ","name":"บะหมี่เหลือง","unit":"ห่อ"},{"category":"หน้าเรือ","name":"วุ้นเส้น","unit":"ห่อ"},{"category":"หน้าเรือ","name":"มาม่า","unit":"ก้อน"},
-{"category":"หน้าเรือ","name":"เนื้อสด","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"เนื้อเปื่อย","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"ตับวัว","unit":"กิโลกรัม"},
-{"category":"หน้าเรือ","name":"เลือดวัว","unit":"ขวด"},{"category":"หน้าเรือ","name":"ลูกชิ้นเนื้อ","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"หมูสด","unit":"กิโลกรัม"},
-{"category":"หน้าเรือ","name":"หมูเปื่อย","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"ตับหมู","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"เลือดหมู","unit":"ขวด"},
-{"category":"หน้าเรือ","name":"ลูกชิ้นหมู","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"หัวน้ำเชื้อเนื้อ","unit":"โหล"},{"category":"หน้าเรือ","name":"เครื่องเทศเนื้อ","unit":"โหล"},
-{"category":"หน้าเรือ","name":"หัวน้ำเชื้อหมู","unit":"โหล"},{"category":"หน้าเรือ","name":"เครื่องเทศหมู","unit":"โหล"},{"category":"หน้าเรือ","name":"น้ำปรุงก๋วยเตี๋ยว","unit":"โหล"},
-{"category":"หน้าเรือ","name":"ผักบุ้ง (ตัดแล้ว)","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"ถั่วคั่ว","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"น้ำปลา","unit":"แกนลอน"},
-{"category":"หน้าเรือ","name":"พริกน้ำส้ม","unit":"โหล"},{"category":"หน้าเรือ","name":"พริกคั่ว","unit":"ถัง"},{"category":"หน้าเรือ","name":"ซีอิ๊วดำ","unit":"ขวด"},
-{"category":"หน้าเรือ","name":"ถั่วงอก","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"ถั่วลิสงดิบ","unit":"ถุง"},{"category":"หน้าเรือ","name":"ถ้วยใส่น้ำซุป 9*14 นิ้ว","unit":"แพ็ค"},
-{"category":"หน้าเรือ","name":"ถ้วยใส่ชามก๋วยเตี๋ยว","unit":"แพ็ค"},{"category":"หน้าเรือ","name":"เนื้อสด (ที่หมักแล้ว)","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"เนื้อสด (ที่ยังไม่หมักหรือยังไม่ถูกตัด)","unit":"กิโลกรัม"},
-{"category":"หน้าเรือ","name":"เนื้อเปื่อย (เนื้อสามชั้น)","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"ตับวัว (หมักแล้ว)","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"ตับวัว (ที่ยังไม่ถูกหมักหรือยังไม่ถูกตัด)","unit":"กิโลกรัม"},
-{"category":"หน้าเรือ","name":"กระดูกวัว","unit":"ชิ้น"},{"category":"หน้าเรือ","name":"สันหลังวัว","unit":"ชิ้น"},{"category":"หน้าเรือ","name":"หมูสด (ที่หมักแล้ว)","unit":"กิโลกรัม"},
-{"category":"หน้าเรือ","name":"หมูสด (ที่ยังไม่หมักหรือยังไม่ถูกตัด)","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"หมูเปื่อย (ขั้วตับหมู)","unit":"กิโลกรัม"},{"category":"หน้าเรือ","name":"ตับหมู (หมักแล้ว)","unit":"กิโลกรัม"},
-{"category":"หน้าเรือ","name":"เล้ง","unit":"ชิ้น"},{"category":"หน้าเรือ","name":"ขาตั้ง","unit":"ชิ้น"},{"category":"หน้าเรือ","name":"มันแข็ง","unit":"กิโลกรัม"},
-
-{"category":"อาหารตามสั่ง","name":"ผักสด","is_header":true},
-{"category":"อาหารตามสั่ง","name":"ใบโหระพา","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"ผักชีใบเลื่อย","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"ผักบุ้ง (ยังไม่ตัด)","unit":"กิโลกรัม"},
-{"category":"อาหารตามสั่ง","name":"ใบเตย","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"ตะไคร้","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"ผักชี","unit":"กิโลกรัม"},
-{"category":"อาหารตามสั่ง","name":"รากผักชี","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"กระเทียมไทย","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"กระเทียมจีน","unit":"กิโลกรัม"},
-{"category":"อาหารตามสั่ง","name":"ใบกะเพรา","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"คะน้าเล็ก","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"ถั่วฝักยาว","unit":"กิโลกรัม"},
-{"category":"อาหารตามสั่ง","name":"มะม่วงดิบ","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"ต้นหอม","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"ชะอม","unit":"กิโลกรัม"},
-{"category":"อาหารตามสั่ง","name":"แครอท","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"หัวหอมใหญ่","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"มะเขือเทศ","unit":"กิโลกรัม"},
-{"category":"อาหารตามสั่ง","name":"มะละกอ","unit":"ลูก"},{"category":"อาหารตามสั่ง","name":"แตงกวา","unit":"กิโลกรัม/กรัม"},{"category":"อาหารตามสั่ง","name":"มะนาว","unit":"กิโลกรัม"},
-{"category":"อาหารตามสั่ง","name":"พริกหยวก","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"พริกชี้แดง","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"พริกแดง","unit":"กิโลกรัม"},
-{"category":"อาหารตามสั่ง","name":"พริกเขียว","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"พริกขี้หนู","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"พริกแห้ง","unit":"กิโลกรัม"},
-{"category":"อาหารตามสั่ง","name":"ขิง","unit":"กิโลกรัม/กรัม"},{"category":"อาหารตามสั่ง","name":"กระชาย","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"มัน","unit":"ลูก"},
-{"category":"อาหารตามสั่ง","name":"ใบมะกรูด","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"เม็ดพริกไทยพวง","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"หัวไชเท้า","unit":"กิโลกรัม"},
-{"category":"อาหารตามสั่ง","name":"ลูกผักชี","unit":"ถุง"},{"category":"อาหารตามสั่ง","name":"ผักกาดดอง","unit":"กิโลกรัม"},
-
-{"category":"อาหารตามสั่ง","name":"เครื่องปรุง","is_header":true},
-{"category":"อาหารตามสั่ง","name":"นมจืด","unit":"ขวด"},{"category":"อาหารตามสั่ง","name":"เนยจืด (ก้อน)","unit":"ก้อน"},{"category":"อาหารตามสั่ง","name":"เนยเค็ม (กระปุก)","unit":"กระปุก"},
-{"category":"อาหารตามสั่ง","name":"กะทิ","unit":"ขวด"},{"category":"อาหารตามสั่ง","name":"น้ำตาลปี๊บ","unit":"ก้อน"},{"category":"อาหารตามสั่ง","name":"แป้งมันสัมปะหลัง","unit":"ถุง"},
-{"category":"อาหารตามสั่ง","name":"ผงหมักเนื้อสัตว์","unit":"ซอง"},{"category":"อาหารตามสั่ง","name":"น้ำตาลทรายขาว","unit":"ถุง"},{"category":"อาหารตามสั่ง","name":"น้ำตาลทรายแดง (ห่อสีม่วง)","unit":"ถุง"},
-{"category":"อาหารตามสั่ง","name":"เกลือ","unit":"ถุง"},{"category":"อาหารตามสั่ง","name":"ดอกเกลือ","unit":"ถุง"},{"category":"อาหารตามสั่ง","name":"ซีอิ๊วขาว","unit":"แกนลอน"},
-{"category":"อาหารตามสั่ง","name":"ซอสฝาเขียว (ขวด)","unit":"ขวด"},{"category":"อาหารตามสั่ง","name":"ซอสน้ำมันหอย","unit":"แกนลอน"},{"category":"อาหารตามสั่ง","name":"น้ำส้มสายชู","unit":"แกนลอน"},
-{"category":"อาหารตามสั่ง","name":"น้ำปลาทิพรส(แกนลอน)","unit":"แกนลอน"},{"category":"อาหารตามสั่ง","name":"พริกแกง","unit":"ถุง"},{"category":"อาหารตามสั่ง","name":"เหล้าจีน","unit":"ขวด"},
-{"category":"อาหารตามสั่ง","name":"น้ำมันงา","unit":"ขวด"},{"category":"อาหารตามสั่ง","name":"น้ำมันพืช","unit":"ขวด"},{"category":"อาหารตามสั่ง","name":"ผงชูรส","unit":"ถุง"},
-{"category":"อาหารตามสั่ง","name":"รสดีไก่","unit":"ถุง"},{"category":"อาหารตามสั่ง","name":"รสดีหมู","unit":"ถุง"},{"category":"อาหารตามสั่ง","name":"ซีอิ๊วหวานดำ","unit":"ขวด"},
-{"category":"อาหารตามสั่ง","name":"น้ำจิ้มลูกชิ้น","unit":"ถุง"},
-
-{"category":"อาหารตามสั่ง","name":"เนื้อสัตว์","is_header":true},
-{"category":"อาหารตามสั่ง","name":"ซี่โครงไก่","unit":"ตัว"},{"category":"อาหารตามสั่ง","name":"อกไก่","unit":"กิโลกรัม/กรัม"},{"category":"อาหารตามสั่ง","name":"ไก่ตัว","unit":"ตัว"},
-{"category":"อาหารตามสั่ง","name":"สันในไก่","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"ปีกไก่","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"ปลาหมึก","unit":"กิโลกรัม/กรัม"},
-{"category":"อาหารตามสั่ง","name":"กุ้ง","unit":"กิโลกรัม/กรัม"},{"category":"อาหารตามสั่ง","name":"มันแข็ง","unit":"กิโลกรัม"},{"category":"อาหารตามสั่ง","name":"ขาหมู","unit":"กิโลกรัม"},
-{"category":"อาหารตามสั่ง","name":"ไข่ไก่","unit":"ฟอง"},{"category":"อาหารตามสั่ง","name":"ไข่เป็ด","unit":"ฟอง"},{"category":"อาหารตามสั่ง","name":"ไข่เยี่ยวม้า","unit":"ฟอง"},
-
-{"category":"อาหารตามสั่ง","name":"ข้าว","is_header":true},
-{"category":"อาหารตามสั่ง","name":"ข้าวตราสามงู","unit":"ถุง"},{"category":"อาหารตามสั่ง","name":"ข้าวตรามังกร","unit":"ถุง"},{"category":"อาหารตามสั่ง","name":"ข้าวสารทำข้าวผัด","unit":"ถุง"},
-{"category":"อาหารตามสั่ง","name":"ข้าวเหนียว","unit":"ถุง"},{"category":"อาหารตามสั่ง","name":"สปาเก็ตตี้","unit":"กิโลกรัม/กรัม"},
-
-{"category":"เด็กเสิร์ฟ","name":"น้ำเปล่า","unit":"ขวด/แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"น้ำโค้ก","unit":"ขวด/ลัง"},{"category":"เด็กเสิร์ฟ","name":"น้ำแดง","unit":"ขวด/ลัง"},
-{"category":"เด็กเสิร์ฟ","name":"น้ำเขียว","unit":"ขวด/ลัง"},{"category":"เด็กเสิร์ฟ","name":"น้ำส้ม","unit":"ขวด/ลัง"},{"category":"เด็กเสิร์ฟ","name":"น้ำสไปร์ท Sprite","unit":"ขวด/ลัง"},
-{"category":"เด็กเสิร์ฟ","name":"โค้กซีโร่","unit":"ขวด/แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"น้ำเก๊กฮวย","unit":"ถุง"},{"category":"เด็กเสิร์ฟ","name":"น้ำบ๊วย","unit":"ถุง"},
-{"category":"เด็กเสิร์ฟ","name":"น้ำกระเจี๊ยบ","unit":"ถุง"},{"category":"เด็กเสิร์ฟ","name":"โอเลี้ยง","unit":"ถุง"},{"category":"เด็กเสิร์ฟ","name":"น้ำชาเขียว","unit":"ถุง"},
-{"category":"เด็กเสิร์ฟ","name":"น้ำชาไทย","unit":"ถุง"},{"category":"เด็กเสิร์ฟ","name":"น้ำชามะนาว","unit":"ถุง"},{"category":"เด็กเสิร์ฟ","name":"น้ำลำไย","unit":"ถุง"},
-
-{"category":"เด็กเสิร์ฟ","name":"ของหวาน และ เครื่องเคียง","is_header":true},
-{"category":"เด็กเสิร์ฟ","name":"ไอติมขนมปัง ช็อกโกแลต","unit":"ไม้"},{"category":"เด็กเสิร์ฟ","name":"ไอติมกรวยคอตตอนแคนดี้","unit":"โคน"},
-{"category":"เด็กเสิร์ฟ","name":"ไอติมถ้วย ช็อกโกแลต","unit":"ถ้วย"},{"category":"เด็กเสิร์ฟ","name":"ไอติมถ้วย วานิลา","unit":"ถ้วย"},
-{"category":"เด็กเสิร์ฟ","name":"ไอติมถ้วย กะทิ","unit":"ถ้วย"},{"category":"เด็กเสิร์ฟ","name":"ไอติมถ้วย มะนาว","unit":"ถ้วย"},
-{"category":"เด็กเสิร์ฟ","name":"ไอติมถั่วดำ","unit":"ไม้"},{"category":"เด็กเสิร์ฟ","name":"ไอติมเผือก","unit":"ไม้"},{"category":"เด็กเสิร์ฟ","name":"ไอติมทุเรียน","unit":"ไม้"},
-{"category":"เด็กเสิร์ฟ","name":"ไอติมข้าวโพด","unit":"ไม้"},
-
-{"category":"เด็กเสิร์ฟ","name":"นมข้นหวาน","unit":"ถุง"},{"category":"เด็กเสิร์ฟ","name":"นมจืดกระป๋อง","unit":"กระป๋อง"},{"category":"เด็กเสิร์ฟ","name":"ครีมเทียม","unit":"ถุง"},
-
-{"category":"เด็กเสิร์ฟ","name":"ภาชนะบรรจุ","is_header":true},
-{"category":"เด็กเสิร์ฟ","name":"ถ้วยใส่ก๋วยเตี๋ยว","unit":"แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"กล่องใส่ข้าวอาหารตามสั่ง 1 ช่อง","unit":"แพ็ค"},
-{"category":"เด็กเสิร์ฟ","name":"กล่องใส่ข้าวอาหารตามสั่ง 2 ช่อง","unit":"แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"กล่องใส่ขนมถ้วย","unit":"แพ็ค"},
-{"category":"เด็กเสิร์ฟ","name":"ถุงน้ำจิ้ม 2.5*4","unit":"แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"ถุงร้อน 4*6","unit":"แพ็ค"},
-{"category":"เด็กเสิร์ฟ","name":"ถุงร้อน 5*8","unit":"แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"ถุงร้อน 6*9","unit":"แพ็ค"},
-{"category":"เด็กเสิร์ฟ","name":"ถุงใส่เนื้อหมัก 7*11","unit":"แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"ถุงน้ำหวาน 10*15","unit":"แพ็ค"},
-{"category":"เด็กเสิร์ฟ","name":"ถุงหูหิ้วเล็ก 6*14","unit":"แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"ถุงหูหิ้วกลาง 8*16","unit":"แพ็ค"},
-{"category":"เด็กเสิร์ฟ","name":"ถุงหูหิ้วใหญ่ 9*18","unit":"แพ็ค"},
-
-{"category":"เด็กเสิร์ฟ","name":"หนังยาง","unit":"ถุง"},{"category":"เด็กเสิร์ฟ","name":"ตะเกียบ","unit":"แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"ช้อนพลาสติก","unit":"แพ็ค"},
-{"category":"เด็กเสิร์ฟ","name":"แก้ว 20oz","unit":"แถว"},{"category":"เด็กเสิร์ฟ","name":"ฝาแก้ว 20oz","unit":"แถว"},{"category":"เด็กเสิร์ฟ","name":"ถุงใส่แก้ว 20 oz","unit":"แพ็ค"},
-{"category":"เด็กเสิร์ฟ","name":"แก้ว 30oz","unit":"แถว"},{"category":"เด็กเสิร์ฟ","name":"ฝาแก้ว 30oz","unit":"แถว"},{"category":"เด็กเสิร์ฟ","name":"ถุงใส่แก้ว 32 oz","unit":"แพ็ค"},
-
-{"category":"เด็กเสิร์ฟ","name":"พลาสติกแร๊ปอาหาร","unit":"ม้วน"},{"category":"เด็กเสิร์ฟ","name":"หลอดสั้น","unit":"แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"หลอดยาว","unit":"แพ็ค"},
-
-{"category":"เด็กเสิร์ฟ","name":"อื่น ๆ","is_header":true},
-{"category":"เด็กเสิร์ฟ","name":"ทิชชู่ตั้งโต๊ะ","unit":"แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"ทิชชู่ม้วนใหญ่","unit":"ม้วน"},{"category":"เด็กเสิร์ฟ","name":"น้ำปลาขวดเล็ก","unit":"ขวด"},
-{"category":"เด็กเสิร์ฟ","name":"หน้ากากอนามัย","unit":"กล่อง"},{"category":"เด็กเสิร์ฟ","name":"หน้ากากอนามัยแบบซอง","unit":"แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"ถุงมือพลาสติก","unit":"กล่อง"},
-{"category":"เด็กเสิร์ฟ","name":"ถุงมือสีดำ","unit":"กล่อง"},{"category":"เด็กเสิร์ฟ","name":"กระดาษร้อน เครื่องปริ้น","unit":"ม้วน"},{"category":"เด็กเสิร์ฟ","name":"ไม้จิ้มฟัน","unit":"กระปุก"},
-{"category":"เด็กเสิร์ฟ","name":"ถุงดำหลังครัว","unit":"แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"ถุงดำหน้าเรือ","unit":"แพ็ค"},{"category":"เด็กเสิร์ฟ","name":"น้ำยาล้างจาน","unit":"แกนลอน"},
-{"category":"เด็กเสิร์ฟ","name":"สก็อตไบร์ท (จาน)","unit":"ชิ้น"},{"category":"เด็กเสิร์ฟ","name":"สก็อตไบร์ท (แก้ว)","unit":"ชิ้น"},{"category":"เด็กเสิร์ฟ","name":"ผงซักฟอก","unit":"ถุง"},
-{"category":"เด็กเสิร์ฟ","name":"แผ่นดักแมลงวัน","unit":"กล่อง"},{"category":"เด็กเสิร์ฟ","name":"น้ำยาไล่แมลงวัน","unit":"แกนลอน"},{"category":"เด็กเสิร์ฟ","name":"หมวกคลุมผม","unit":"แพ็ค"},
-{"category":"เด็กเสิร์ฟ","name":"ซอสมะเขือเทศ","unit":"ขวด"},{"category":"เด็กเสิร์ฟ","name":"ซอสพริก","unit":"ขวด"},{"category":"เด็กเสิร์ฟ","name":"ซอสแมคกี้","unit":"ขวด"}
-];
 </script>
 </body>
 </html>
