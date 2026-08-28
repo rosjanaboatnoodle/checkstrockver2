@@ -332,21 +332,6 @@
       <span id="toast-message">บันทึกสำเร็จ!</span>
     </div>
 
-    <!-- โมดัลรายงาน LINE (แสดงหลังบันทึกสต็อกสำเร็จ) -->
-    <div id="line-report-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeLineReportModal()">
-      <div class="modal-box p-5 mt-10 mb-10">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-lg font-bold text-gray-800">📋 ตัวอย่างข้อความสรุป (คัดลอกไปวาง LINE)</h3>
-          <button onclick="closeLineReportModal()" class="text-gray-400 hover:text-gray-600 text-3xl leading-none w-10 h-10 flex items-center justify-center -m-2">&times;</button>
-        </div>
-        <div class="relative">
-          <pre id="line-report-text" class="report-pre"></pre>
-          <button onclick="copyLineReport()" id="copy-report-btn" class="absolute top-2 right-2 bg-white/10 text-white border border-white/20 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-white/20">คัดลอก</button>
-        </div>
-        <button onclick="closeLineReportModal()" class="w-full mt-4 bg-orange-500 text-white py-3 rounded-xl font-semibold">เสร็จสิ้น กลับหน้าหลัก</button>
-      </div>
-    </div>
-
     <!-- โมดัลจัดการหน่วย + อัตราแปลง + หน่วยหลัก -->
     <div id="unit-editor-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeUnitEditor()">
       <div class="modal-box p-5 mt-16 mb-10">
@@ -1077,75 +1062,14 @@ async function saveStock() {
 
     await postNoCors({ action:'create', branch_id: currentBranchId, type:'check', category: currentCategory, checker_name: checkerName, date: new Date().toISOString(), items: stockEntries });
     showToast(t('saved'), 'success');
-    buildAndShowLineReport(stockEntries);
     await syncHistory();
+    goHome();
   } catch (err) {
     console.error(err);
     showToast(t('error'), 'error');
   } finally {
     btn.disabled = false;
   }
-}
-
-/* =========================================================
-   รายงาน LINE (สร้างข้อความสรุปหลังบันทึกสต็อกสำเร็จ)
-   ========================================================= */
-function buildAndShowLineReport(stockEntries) {
-  const prevRecord = getPreviousRecord(currentCategory, new Date().toISOString());
-  let lines = [];
-  lines.push('🚣 รายงานเช็คสต็อก');
-  lines.push('━━━━━━━━━━━━━━━━');
-  lines.push(`👤 ผู้เช็ค: ${checkerName}`);
-  lines.push(`📋 หมวด: ${tCategory(currentCategory)}`);
-  lines.push(`📅 ${formatFullDate(new Date(), currentLanguage)}`);
-  lines.push('');
-  lines.push('รายการสต็อก:');
-
-  let shortCount = 0, overCount = 0, criticalCount = 0;
-  stockEntries.forEach(entry => {
-    let predicted = null;
-    if (isPredictionEnabled_(entry.name, currentCategory) && prevRecord) {
-      const p = getItemFromRecord(prevRecord, entry.name);
-      if (p) predicted = getComparableQty_(p);
-    }
-    let line = `• ${tItem(entry.name)}: ${fmtQty(entry.quantity_base)} ${tUnit(entry.unit)}`;
-    if (predicted !== null) {
-      const bufferPct = effectiveBufferPct_(entry.name, currentCategory);
-      const flag = computeFlag_(entry.quantity_base, predicted, bufferPct);
-      if (flag) {
-        line += ` (คาด ${fmtQty(predicted)}) ${flag}`;
-        if (flag === '🔽') shortCount++;
-        if (flag === '⚠️') criticalCount++;
-        if (flag === '🔼') overCount++;
-      }
-    }
-    if (entry.note) line += ` 📝 ${entry.note}`;
-    lines.push(line);
-  });
-
-  lines.push('━━━━━━━━━━━━━━━━');
-  const summaryParts = [];
-  if (criticalCount) summaryParts.push(`${criticalCount} รายการวิกฤต ⚠️`);
-  if (shortCount) summaryParts.push(`${shortCount} รายการขาด 🔽`);
-  if (overCount) summaryParts.push(`${overCount} รายการเกิน 🔼`);
-  lines.push(summaryParts.length ? `ที่ต้องดู: ${summaryParts.join(', ')}` : '✅ ทุกรายการอยู่ในเกณฑ์ปกติ');
-  lines.push(`🔄 เทียบกับรอบ: ${prevRecord ? formatFullDate(prevRecord.date, currentLanguage) : 'ไม่มีรอบก่อนหน้า'}`);
-
-  document.getElementById('line-report-text').textContent = lines.join('\n');
-  document.getElementById('line-report-modal').classList.remove('hidden');
-}
-function closeLineReportModal() {
-  document.getElementById('line-report-modal').classList.add('hidden');
-  goHome();
-}
-function copyLineReport() {
-  const text = document.getElementById('line-report-text').textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const btn = document.getElementById('copy-report-btn');
-    const original = btn.textContent;
-    btn.textContent = 'คัดลอกแล้ว ✓';
-    setTimeout(() => btn.textContent = original, 1500);
-  });
 }
 
 /* =========================================================
@@ -2201,7 +2125,6 @@ document.addEventListener('keydown', (e) => {
   const modals = [
     ['ai-import-modal', closeAiImportModal],
     ['unit-editor-modal', closeUnitEditor],
-    ['line-report-modal', closeLineReportModal],
     ['admin-modal', closeAdminModal],
   ];
   for (const [id, closeFn] of modals) {
