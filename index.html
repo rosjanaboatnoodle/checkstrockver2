@@ -157,13 +157,6 @@
               <label class="block text-sm font-medium text-gray-700 mb-2" data-t="fullName">ชื่อ-นามสกุล</label>
               <input type="text" id="checker-name" placeholder="กรอกชื่อของคุณ" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-lg">
             </div>
-            <div id="waste-mode-wrap" class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
-              <div>
-                <p class="text-sm font-medium text-gray-700">เช็คสต็อกแบบมีของเสียด้วยไหม?</p>
-                <p class="text-xs text-gray-400">เปิดถ้าวันนี้มีของเสีย จะมีช่องกรอกจำนวนของเสียเพิ่มต่อรายการ</p>
-              </div>
-              <button type="button" id="waste-mode-toggle" onclick="toggleWasteMode()" class="toggle-sw"></button>
-            </div>
             <button onclick="startChecking()" class="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold text-lg hover:bg-orange-600 transition-colors shadow-md hover:shadow-lg" data-t="startChecking">เริ่มเช็คสต็อก</button>
           </div>
         </div>
@@ -192,7 +185,7 @@
                   <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700" data-t="item">รายการ</th>
                   <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700 w-28" data-t="quantity">จำนวน</th>
                   <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700 w-20" data-t="unit">หน่วย</th>
-                  <th id="waste-col-header" class="px-4 py-3 text-center text-sm font-semibold text-red-600 w-24 hidden">ของเสีย</th>
+                  <th class="px-4 py-3 text-center text-sm font-semibold text-red-600 w-24">ของเสีย</th>
                   <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700" data-t="note">หมายเหตุ</th>
                 </tr>
               </thead>
@@ -451,7 +444,6 @@ let dict = { ui:{}, items:{}, units:{}, categories:{} };
 let allRecords = [];
 let currentCategory = '';
 let checkerName = '';
-let wasteModeOn = false;
 let movementCart = [];
 let adminPassword = sessionStorage.getItem('admin_pw') || '';
 window.__currentDetailRecordId = null;
@@ -950,14 +942,7 @@ function selectCategory(category) {
   badge.className = `inline-flex items-center gap-2 px-4 py-2 rounded-full text-white text-sm font-medium mb-4 ${s.bg}`;
   badge.innerHTML = `${s.icon} ${category==='__movement__' ? t('movement') : tCategory(category)}`;
   document.getElementById('checker-name').value = '';
-  wasteModeOn = false;
-  document.getElementById('waste-mode-toggle').classList.remove('on');
-  document.getElementById('waste-mode-wrap').classList.toggle('hidden', category === '__movement__');
   showPage('name-page');
-}
-function toggleWasteMode() {
-  wasteModeOn = !wasteModeOn;
-  document.getElementById('waste-mode-toggle').classList.toggle('on', wasteModeOn);
 }
 
 async function startChecking() {
@@ -991,10 +976,9 @@ async function startChecking() {
 
 function renderStockTable() {
   const tbody = document.getElementById('stock-table-body');
-  document.getElementById('waste-col-header').classList.toggle('hidden', !wasteModeOn);
   const items = catalogByCategory[currentCategory] || [];
   let html = '', index = 0;
-  const colspan = wasteModeOn ? 5 : 4;
+  const colspan = 5;
   items.forEach(item => {
     if (String(item.is_header) === 'TRUE') {
       if (html !== '') html += `<tr><td colspan="${colspan}" class="h-1"></td></tr>`;
@@ -1022,11 +1006,11 @@ function renderStockTable() {
             class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-center focus:border-orange-500 focus:outline-none transition-colors text-lg font-medium">
         </td>
         <td class="px-4 py-3 text-center text-gray-600 font-medium">${unitHtml}</td>
-        ${wasteModeOn ? `<td class="px-4 py-3">
+        <td class="px-4 py-3">
           <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="waste_raw" placeholder="0"
             oninput="sanitizeQuantityInput(this)"
             class="w-full px-2 py-2 border-2 border-red-100 rounded-lg text-center focus:border-red-400 focus:outline-none text-sm">
-        </td>` : ''}
+        </td>
         <td class="px-4 py-3">
           <div class="flex items-center gap-2">
             <input type="text" data-item="${item.name}" data-field="note" placeholder="-"
