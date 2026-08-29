@@ -53,6 +53,10 @@
     .toast-box.success{ background:#16a34a; }
     .toast-box.error{ background:#dc2626; }
     @keyframes toastPop{ from{ opacity:0;transform:translate(-50%,12px) scale(.9); } to{ opacity:1;transform:translate(-50%,0) scale(1); } }
+    /* ปุ่มฟันเฟือง/ภาษาเลื่อนลงตาม safe-area-inset-top (กันโดนแถบเวลา/แบต) แล้ว
+       เนื้อหาหน้าแต่ละหน้าก็ต้องเผื่อระยะเท่ากัน ไม่งั้นบนมือถือรุ่นที่มีติ่งกล้อง/ขอบโค้งเยอะๆ
+       ปุ่มจะลงมาทับหัวข้อ/ปุ่มกลับหน้าหลักแทน */
+    .pt-20{ padding-top: calc(5rem + env(safe-area-inset-top)); }
     /* หน้าจอแคบ (มือถือ): เปลี่ยนตารางเช็คสต็อกเป็นการ์ดวางซ้อนกัน แทนตารางที่ต้องเลื่อนซ้าย-ขวา */
     @media (max-width: 640px) {
       #stock-table thead{ display:none; }
