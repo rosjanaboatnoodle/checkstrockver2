@@ -519,6 +519,19 @@ function getItemUnits_(itemName, legacyUnitStr) {
   if (cfg && cfg.units && cfg.units.length) return cfg.units.map(u => u.name);
   return getUnitOptions_(legacyUnitStr) || [String(legacyUnitStr||'').trim()];
 }
+/* หน่วยที่ "เล็กกว่า" ของรายการนี้ (ใช้เป็นค่าเริ่มต้นของช่องของเสีย เพราะของเสียมักเป็นจำนวนน้อย
+   กรอกเป็นหน่วยเล็ก เช่น กรัม แทนที่จะต้องพิมพ์ทศนิยมของหน่วยใหญ่ เช่น กิโลกรัม) */
+function getFinerUnit_(itemName, legacyUnitStr) {
+  const cfg = unitConfig[itemName];
+  if (cfg && cfg.units && cfg.units.length > 1) {
+    const sorted = [...cfg.units].sort((a, b) => (Number(a.ratio) || 1) - (Number(b.ratio) || 1));
+    return sorted[0].name;
+  }
+  const opts = getUnitOptions_(legacyUnitStr) || [];
+  if (opts.includes('กรัม') && opts.includes('กิโลกรัม')) return 'กรัม';
+  if (opts.includes('ขวด') && (opts.includes('ลัง') || opts.includes('แพ็ค'))) return 'ขวด';
+  return opts[0] || String(legacyUnitStr || '').trim();
+}
 /* หน่วยหลักของรายการนี้ (หน่วยที่จะโชว์ในรายงาน LINE / ประวัติเสมอ) */
 function getPrimaryUnit_(itemName, legacyUnitStr) {
   const cfg = unitConfig[itemName];
@@ -995,6 +1008,13 @@ function renderStockTable() {
     } else {
       unitHtml = `<span class="text-gray-600">${tUnit(unitOptions[0])}</span>`;
     }
+    let wasteUnitHtml = '';
+    if (unitOptions.length > 1) {
+      const finerUnit = getFinerUnit_(item.name, item.unit);
+      wasteUnitHtml = `<select class="w-full px-1 py-2 border border-red-200 rounded-lg text-xs bg-white" data-item="${item.name}" data-field="waste_unit">
+        ${unitOptions.map(u => `<option value="${u}" ${u===finerUnit?'selected':''}>${tUnit(u)}</option>`).join('')}
+      </select>`;
+    }
     // หมายเหตุ: ไม่แสดงตัวเลข "คาด" ให้พนักงานเห็นตอนกรอก ป้องกันการพิมพ์ตามค่าคาดแทนการนับจริง
     // ค่าคาดคะเนยังคำนวณอยู่เบื้องหลัง และใช้แสดงเฉพาะในรายงาน LINE ที่ส่งให้เจ้าของร้านหลังบันทึกเท่านั้น
     html += `
@@ -1007,9 +1027,12 @@ function renderStockTable() {
         </td>
         <td class="px-4 py-3 text-center text-gray-600 font-medium">${unitHtml}</td>
         <td class="px-4 py-3">
-          <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="waste_raw" placeholder="0"
-            oninput="sanitizeQuantityInput(this)"
-            class="w-full px-2 py-2 border-2 border-red-100 rounded-lg text-center focus:border-red-400 focus:outline-none text-sm">
+          <div class="flex items-center gap-1">
+            <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="waste_raw" placeholder="0"
+              oninput="sanitizeQuantityInput(this)"
+              class="w-full px-2 py-2 border-2 border-red-100 rounded-lg text-center focus:border-red-400 focus:outline-none text-sm">
+            ${wasteUnitHtml}
+          </div>
         </td>
         <td class="px-4 py-3">
           <div class="flex items-center gap-2">
@@ -1067,11 +1090,14 @@ async function saveStock() {
       const norm = normalizeQtyByItem_(item.name, parsed.ok ? parsed.value : 0, unitInput, item.unit);
       const wasteRaw = wasteEl ? wasteEl.value.trim() : '';
       const wasteParsed = wasteRaw ? parseQuantity_(wasteRaw) : { ok:true, value:0 };
+      const wasteUnitSelectEl = document.querySelector(`select[data-item="${item.name}"][data-field="waste_unit"]`);
+      const wasteUnitInput = wasteUnitSelectEl ? wasteUnitSelectEl.value : unitInput;
+      const wasteNorm = normalizeQtyByItem_(item.name, wasteParsed.ok ? wasteParsed.value : 0, wasteUnitInput, item.unit);
       return {
         name:item.name, unit:norm.unit, quantity:norm.qty, quantity_base:norm.qty,
         note: noteEl ? noteEl.value.trim() : '',
         note_original: noteEl ? (noteEl.dataset.originalNote || '') : '',
-        waste_qty: wasteParsed.ok ? wasteParsed.value : 0
+        waste_qty: wasteNorm.qty
       };
     });
 
