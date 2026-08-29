@@ -70,7 +70,7 @@
       #stock-table tbody tr[data-stock-row] td[data-label]{ display:flex;align-items:center;gap:8px; }
       /* กำหนดความกว้างป้ายชื่อคงที่ (แทนที่จะปล่อยตามความยาวข้อความ) กล่องกรอกของทุกแถวจะได้เริ่มที่เส้นเดียวกัน
          ไม่ว่าป้ายจะสั้น (จำนวน) หรือยาว (หมายเหตุ) ก็ตาม */
-      #stock-table tbody tr[data-stock-row] td[data-label]::before{ content:attr(data-label);font-size:12px;font-weight:600;color:#9ca3af;flex:0 0 68px;white-space:nowrap; }
+      #stock-table tbody tr[data-stock-row] td[data-label]::before{ content:attr(data-label);font-size:12px;font-weight:600;color:#9ca3af;flex:0 0 var(--stock-label-w, 60px);white-space:nowrap; }
       #stock-table tbody tr[data-stock-row] td[data-label] > *{ flex:1;min-width:0; }
     }
   </style>
@@ -207,7 +207,7 @@
                 <tr>
                   <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700" data-t="item">รายการ</th>
                   <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700 w-44"><span data-t="quantity">จำนวน</span> / <span data-t="unit">หน่วย</span></th>
-                  <th class="px-4 py-3 text-center text-sm font-semibold text-red-600 w-24">ของเสีย</th>
+                  <th class="px-4 py-3 text-center text-sm font-semibold text-red-600 w-24" data-t="waste">ของเสีย</th>
                   <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700" data-t="note">หมายเหตุ</th>
                 </tr>
               </thead>
@@ -429,7 +429,7 @@ const UI_TH = {
   customFoodDesc:'เช็คสต็อกวัตถุดิบอาหารตามสั่ง', staffChildDesc:'เช็คสต็อกอุปกรณ์เด็กเสิร์ฟ',
   backHome:'กลับหน้าหลัก', staffName:'ผู้เช็คสต็อก', enterName:'กรุณากรอกชื่อผู้ทำการเช็คสต็อก',
   fullName:'ชื่อ-นามสกุล', startChecking:'เริ่มเช็คสต็อก', item:'รายการ', quantity:'จำนวน', unit:'หน่วย',
-  note:'หมายเหตุ', save:'บันทึกข้อมูล', historyTitle:'ประวัติการเช็คสต็อก', selectDate:'เลือกวันที่',
+  note:'หมายเหตุ', waste:'ของเสีย', save:'บันทึกข้อมูล', historyTitle:'ประวัติการเช็คสต็อก', selectDate:'เลือกวันที่',
   category:'หมวดหมู่', all:'ทั้งหมด', staffChecker:'ผู้เช็คสต็อก:', date:'วันที่:', date2:'วันที่',
   noHistory:'ไม่พบประวัติการเช็คสต็อก', saved:'บันทึกข้อมูลสำเร็จ!', error:'เกิดข้อผิดพลาด กรุณาลองใหม่',
   fullLimit:'ไม่สามารถบันทึกได้ ข้อมูลเต็มแล้ว', enterName2:'กรุณากรอกชื่อ', back:'กลับ', backHistory:'กลับหน้าประวัติ',
@@ -1009,7 +1009,22 @@ async function startChecking() {
   showPage('stock-page');
 }
 
+/* วัดความกว้างจริงของป้ายชื่อ (จำนวน/ของเสีย/หมายเหตุ) ตามข้อความที่แปลแล้วของภาษาปัจจุบัน แล้วตั้งเป็น
+   CSS variable ให้การ์ดบนมือถือใช้ — กล่องกรอกของทุกแถวจะชิดขอบป้ายพอดี ไม่ว่าภาษาไหนจะสั้น/ยาวแค่ไหน
+   (ทำแบบวัดจริงแทนตั้งความกว้างตายตัว เพราะแอปรองรับ 6 ภาษา ความยาวคำต่างกันมาก) */
+function updateStockLabelWidth_() {
+  const table = document.getElementById('stock-table');
+  if (!table) return;
+  const labels = [t('quantity') || 'จำนวน', t('waste') || 'ของเสีย', t('note') || 'หมายเหตุ'];
+  if (!updateStockLabelWidth_._canvas) updateStockLabelWidth_._canvas = document.createElement('canvas');
+  const ctx = updateStockLabelWidth_._canvas.getContext('2d');
+  ctx.font = "600 12px 'Sarabun', sans-serif";
+  const maxWidth = Math.max(...labels.map(s => ctx.measureText(s).width));
+  table.style.setProperty('--stock-label-w', Math.ceil(maxWidth + 2) + 'px');
+}
+
 function renderStockTable() {
+  updateStockLabelWidth_();
   const tbody = document.getElementById('stock-table-body');
   const items = catalogByCategory[currentCategory] || [];
   let html = '', index = 0;
@@ -1050,7 +1065,7 @@ function renderStockTable() {
             <div class="flex-half">${unitHtml}</div>
           </div>
         </td>
-        <td class="px-4 py-3" data-label="ของเสีย">
+        <td class="px-4 py-3" data-label="${t('waste')||'ของเสีย'}">
           <div class="flex items-center gap-2">
             <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="waste_raw" placeholder="0"
               oninput="sanitizeQuantityInput(this)"
