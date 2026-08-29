@@ -53,6 +53,17 @@
     .toast-box.success{ background:#16a34a; }
     .toast-box.error{ background:#dc2626; }
     @keyframes toastPop{ from{ opacity:0;transform:translate(-50%,12px) scale(.9); } to{ opacity:1;transform:translate(-50%,0) scale(1); } }
+    /* หน้าจอแคบ (มือถือ): เปลี่ยนตารางเช็คสต็อกเป็นการ์ดวางซ้อนกัน แทนตารางที่ต้องเลื่อนซ้าย-ขวา */
+    @media (max-width: 640px) {
+      #stock-table thead{ display:none; }
+      #stock-table, #stock-table tbody, #stock-table tr, #stock-table td{ display:block; width:100%; }
+      #stock-table tbody tr[data-stock-row]{ border:1px solid #f1f5f9;border-radius:14px;margin:0 8px 10px;padding:10px 12px;background:#fff; }
+      #stock-table tbody tr[data-stock-row] td{ padding:5px 0; }
+      #stock-table tbody tr[data-stock-row] td:first-child{ padding-bottom:8px;font-size:16px; }
+      #stock-table tbody tr[data-stock-row] td[data-label]{ display:flex;align-items:center;justify-content:space-between;gap:10px; }
+      #stock-table tbody tr[data-stock-row] td[data-label]::before{ content:attr(data-label);font-size:12px;font-weight:600;color:#9ca3af;flex-shrink:0; }
+      #stock-table tbody tr[data-stock-row] td[data-label] > *{ flex:1;min-width:0; }
+    }
   </style>
   <style>@view-transition { navigation: auto; }</style>
 </head>
@@ -60,11 +71,11 @@
 <body class="h-full bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50">
   <div id="app" class="h-full w-full overflow-auto">
 
-    <!-- Top bar: admin (left) + language (right) -->
-    <div class="fixed top-4 left-4 z-50">
+    <!-- Top bar: admin (left) + language (right) — top offset ใช้ safe-area-inset กันโดนแถบเวลา/แบตของมือถือบัง -->
+    <div class="fixed left-4 z-50" style="top: calc(1rem + env(safe-area-inset-top));">
       <button onclick="openAdminGate()" class="top-bar-btn w-10 h-10 flex items-center justify-center text-orange-700" title="แอดมิน">⚙️</button>
     </div>
-    <div class="fixed top-4 right-4 z-50">
+    <div class="fixed right-4 z-50" style="top: calc(1rem + env(safe-area-inset-top));">
       <select id="lang-select" onchange="setLanguage(this.value)" class="top-bar-btn px-3 py-2 text-sm font-medium text-orange-700 border-0 focus:outline-none">
         <option value="th">ไทย</option>
         <option value="en">English</option>
@@ -179,7 +190,7 @@
             <p class="text-sm opacity-90"><span data-t="date">วันที่:</span> <span id="display-date" class="font-semibold"></span></p>
           </div>
           <div class="overflow-x-auto">
-            <table class="w-full">
+            <table id="stock-table" class="w-full">
               <thead class="bg-gray-50">
                 <tr>
                   <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700" data-t="item">รายการ</th>
@@ -1020,13 +1031,13 @@ function renderStockTable() {
     html += `
       <tr class="slide-in hover:bg-orange-50 transition-colors" style="animation-delay:${index*20}ms" data-stock-row="${item.name}">
         <td class="px-4 py-3"><span class="font-medium text-gray-800">${tItem(item.name)}</span></td>
-        <td class="px-4 py-3">
+        <td class="px-4 py-3" data-label="${t('quantity')||'จำนวน'}">
           <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="quantity_raw" placeholder="0"
             onkeydown="onQtyKeyDown_(event)" oninput="sanitizeQuantityInput(this)"
             class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-center focus:border-orange-500 focus:outline-none transition-colors text-lg font-medium">
         </td>
-        <td class="px-4 py-3 text-center text-gray-600 font-medium">${unitHtml}</td>
-        <td class="px-4 py-3">
+        <td class="px-4 py-3 text-center text-gray-600 font-medium" data-label="${t('unit')||'หน่วย'}">${unitHtml}</td>
+        <td class="px-4 py-3" data-label="ของเสีย">
           <div class="flex items-center gap-1">
             <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="waste_raw" placeholder="0"
               oninput="sanitizeQuantityInput(this)"
@@ -1034,7 +1045,7 @@ function renderStockTable() {
             ${wasteUnitHtml}
           </div>
         </td>
-        <td class="px-4 py-3">
+        <td class="px-4 py-3" data-label="${t('note')||'หมายเหตุ'}">
           <div class="flex items-center gap-2">
             <input type="text" data-item="${item.name}" data-field="note" placeholder="-"
               class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none">
