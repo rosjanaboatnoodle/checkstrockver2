@@ -194,8 +194,7 @@
               <thead class="bg-gray-50">
                 <tr>
                   <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700" data-t="item">รายการ</th>
-                  <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700 w-28" data-t="quantity">จำนวน</th>
-                  <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700 w-20" data-t="unit">หน่วย</th>
+                  <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700 w-44"><span data-t="quantity">จำนวน</span> / <span data-t="unit">หน่วย</span></th>
                   <th class="px-4 py-3 text-center text-sm font-semibold text-red-600 w-24">ของเสีย</th>
                   <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700" data-t="note">หมายเหตุ</th>
                 </tr>
@@ -1002,7 +1001,7 @@ function renderStockTable() {
   const tbody = document.getElementById('stock-table-body');
   const items = catalogByCategory[currentCategory] || [];
   let html = '', index = 0;
-  const colspan = 5;
+  const colspan = 4;
   items.forEach(item => {
     if (String(item.is_header) === 'TRUE') {
       if (html !== '') html += `<tr><td colspan="${colspan}" class="h-1"></td></tr>`;
@@ -1032,11 +1031,13 @@ function renderStockTable() {
       <tr class="slide-in hover:bg-orange-50 transition-colors" style="animation-delay:${index*20}ms" data-stock-row="${item.name}">
         <td class="px-4 py-3"><span class="font-medium text-gray-800">${tItem(item.name)}</span></td>
         <td class="px-4 py-3" data-label="${t('quantity')||'จำนวน'}">
-          <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="quantity_raw" placeholder="0"
-            onkeydown="onQtyKeyDown_(event)" oninput="sanitizeQuantityInput(this)"
-            class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-center focus:border-orange-500 focus:outline-none transition-colors text-lg font-medium">
+          <div class="flex items-center gap-2">
+            <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="quantity_raw" placeholder="0"
+              onkeydown="onQtyKeyDown_(event)" oninput="sanitizeQuantityInput(this)"
+              class="flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 rounded-lg text-center focus:border-orange-500 focus:outline-none transition-colors text-lg font-medium">
+            <div class="flex-shrink-0 text-gray-600 font-medium">${unitHtml}</div>
+          </div>
         </td>
-        <td class="px-4 py-3 text-center text-gray-600 font-medium" data-label="${t('unit')||'หน่วย'}">${unitHtml}</td>
         <td class="px-4 py-3" data-label="ของเสีย">
           <div class="flex items-center gap-1">
             <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="waste_raw" placeholder="0"
