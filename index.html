@@ -1460,6 +1460,7 @@ function openAdminModal() {
   adminItemsLoadedScope = null;
   branchesLoaded = false;
   bufferConfigLoaded = false;
+  reorderConfigLoaded = false;
   document.getElementById('admin-modal').classList.remove('hidden');
   switchAdminTab('items');
 }
@@ -1543,6 +1544,10 @@ async function renderAdminBufferTab() {
     await loadBufferConfig();
     bufferConfigLoaded = true;
   }
+  if (!reorderConfigLoaded) {
+    await loadReorderConfig();
+    reorderConfigLoaded = true;
+  }
 
   const categories = Object.keys(catalogByCategory);
   const groupRows = categories.map(cat => `
@@ -1592,6 +1597,48 @@ async function renderAdminBufferTab() {
       ${overrideSections}
     </div>
     <button onclick="saveAllBufferSettings()" class="w-full mt-4 bg-orange-500 text-white py-3 rounded-xl font-semibold">${t('saveEdit') || 'บันทึกการตั้งค่า'}</button>
+
+    <div class="bg-gray-50 rounded-xl p-4 mt-6">
+      <div class="flex items-center justify-between mb-1">
+        <p class="text-sm font-semibold text-gray-700">🔔 แจ้งเตือนของที่ต้องสั่งซื้อ</p>
+        <button id="reorder-enabled-toggle" class="toggle-sw ${reorderConfig.enabled ? 'on' : ''}"></button>
+      </div>
+      <p class="text-xs text-gray-500 mb-3">ส่งข้อความรายการวัตถุดิบที่ขาด/ใกล้หมดเข้า LINE แยกต่างหากจากรายงานเช็คสต็อกปกติ</p>
+      <div id="reorder-settings-body" class="${reorderConfig.enabled ? '' : 'hidden'}">
+        <p class="text-xs text-gray-500 mb-1">เงื่อนไขการส่ง</p>
+        <label class="flex items-center gap-2 text-sm mb-1.5">
+          <input type="radio" name="reorder-trigger" value="after_all_categories" ${reorderConfig.triggerMode==='after_all_categories'?'checked':''}>
+          ทันทีที่เช็คครบทุกหมวดของวันนั้น
+        </label>
+        <label class="flex items-center gap-2 text-sm mb-2">
+          <input type="radio" name="reorder-trigger" value="schedule" ${reorderConfig.triggerMode==='schedule'?'checked':''}>
+          ตามตารางเวลา
+        </label>
+        <div id="reorder-schedule-fields" class="${reorderConfig.triggerMode==='schedule'?'':'hidden'} pl-6 mb-3">
+          <p class="text-xs text-gray-500 mb-1">วันที่จะส่ง</p>
+          <div class="flex flex-wrap gap-2 mb-3">
+            ${['อา','จ','อ','พ','พฤ','ศ','ส'].map((label, idx) => `
+              <label class="flex items-center gap-1 text-xs bg-white border border-gray-200 rounded-lg px-2 py-1 cursor-pointer">
+                <input type="checkbox" class="reorder-day-cb" value="${idx}" ${reorderConfig.scheduleDays.includes(idx)?'checked':''}> ${label}
+              </label>`).join('')}
+          </div>
+          <label class="block text-xs text-gray-500 mb-1">เวลา (ตามเขตเวลาของสเปรดชีต)</label>
+          <select id="reorder-schedule-hour" class="w-full px-2 py-1.5 border rounded-lg text-sm">
+            ${Array.from({length:24},(_,h)=>`<option value="${h}" ${reorderConfig.scheduleHour===h?'selected':''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
+          </select>
+        </div>
+        <p class="text-xs text-gray-500 mb-1 mt-3">ขอบเขตข้อความ</p>
+        <label class="flex items-center gap-2 text-sm mb-1.5">
+          <input type="radio" name="reorder-scope" value="per_branch" ${reorderConfig.scopeMode==='per_branch'?'checked':''}>
+          แยกข้อความตามสาขา
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="radio" name="reorder-scope" value="combined" ${reorderConfig.scopeMode==='combined'?'checked':''}>
+          รวมทุกสาขาในข้อความเดียว
+        </label>
+      </div>
+      <button onclick="saveReorderSettings()" class="w-full mt-4 bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึกการแจ้งเตือน</button>
+    </div>
   `;
 
   el.querySelectorAll('[data-buf-cat-toggle]').forEach(btn => {
@@ -1611,6 +1658,31 @@ async function renderAdminBufferTab() {
       btn.title = next === null ? 'ตามค่าเริ่มต้นของหมวด' : (next ? 'เปิดคาดคะเน (เฉพาะรายการนี้)' : 'ปิดคาดคะเน (เฉพาะรายการนี้)');
     });
   });
+
+  const reorderToggle = document.getElementById('reorder-enabled-toggle');
+  reorderToggle.addEventListener('click', () => {
+    reorderConfig.enabled = !reorderConfig.enabled;
+    reorderToggle.classList.toggle('on', reorderConfig.enabled);
+    document.getElementById('reorder-settings-body').classList.toggle('hidden', !reorderConfig.enabled);
+  });
+  el.querySelectorAll('input[name="reorder-trigger"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      document.getElementById('reorder-schedule-fields').classList.toggle('hidden', radio.value !== 'schedule');
+    });
+  });
+}
+
+async function saveReorderSettings() {
+  reorderConfig.triggerMode = document.querySelector('input[name="reorder-trigger"]:checked').value;
+  reorderConfig.scheduleDays = [...document.querySelectorAll('.reorder-day-cb:checked')].map(cb => Number(cb.value));
+  reorderConfig.scheduleHour = Number(document.getElementById('reorder-schedule-hour').value);
+  reorderConfig.scopeMode = document.querySelector('input[name="reorder-scope"]:checked').value;
+  if (reorderConfig.enabled && reorderConfig.triggerMode === 'schedule' && !reorderConfig.scheduleDays.length) {
+    showToast('กรุณาเลือกวันที่จะส่งอย่างน้อย 1 วัน', 'error');
+    return;
+  }
+  await persistReorderConfig();
+  showToast('บันทึกการตั้งค่าแจ้งเตือนแล้ว', 'success');
 }
 
 async function saveAllBufferSettings() {
@@ -1636,6 +1708,35 @@ let adminOpenCategories = new Set(); // จำหมวดที่เปิด�
 let adminItemsLoadedScope = null; // scope ที่ adminScopeItems โหลดล่าสุด (null = ยังไม่เคยโหลด)
 let branchesLoaded = false;
 let bufferConfigLoaded = false;
+let reorderConfigLoaded = false;
+
+/* =========================================================
+   แจ้งเตือนของที่ต้องสั่งซื้อ (ส่งเข้า LINE แยกข้อความจากรายงานเช็คสต็อกปกติ)
+   -----------------------------------------------------------
+   หมายเหตุสำหรับ Code.gs: ต้องเพิ่ม action 'getReorderConfig'/'saveReorderConfig'
+   (แพทเทิร์นเดียวกับ getBufferConfig/saveBufferConfig) และ logic ฝั่งเซิร์ฟเวอร์
+   สำหรับคำนวณ+ส่งจริง เพราะการส่งอัตโนมัติ (ตามตารางเวลา หรือหลังเช็คครบ) ต้องทำงาน
+   ได้แม้ไม่มีใครเปิดหน้าเว็บอยู่ — ฝั่งนี้แค่จัดการหน้าตั้งค่าเท่านั้น
+   ========================================================= */
+const DEFAULT_REORDER_CONFIG = {
+  enabled: false,
+  triggerMode: 'after_all_categories', // 'after_all_categories' | 'schedule'
+  scheduleDays: [1,2,3,4,5,6,0], // 0=อาทิตย์..6=เสาร์ (ตรงกับ Date.getDay())
+  scheduleHour: 9,
+  scopeMode: 'per_branch' // 'per_branch' | 'combined'
+};
+let reorderConfig = JSON.parse(JSON.stringify(DEFAULT_REORDER_CONFIG));
+async function loadReorderConfig() {
+  try {
+    const res = await jsonpGet('getReorderConfig', { password: adminPassword });
+    if (res && res.ok && res.config) { reorderConfig = Object.assign({}, DEFAULT_REORDER_CONFIG, res.config); return; }
+  } catch (e) {}
+  reorderConfig = JSON.parse(JSON.stringify(DEFAULT_REORDER_CONFIG));
+}
+async function persistReorderConfig() {
+  try { await jsonpGet('saveReorderConfig', { password: adminPassword, config: JSON.stringify(reorderConfig) }); }
+  catch (e) { showToast(t('error'), 'error'); }
+}
 
 async function renderAdminItemsTab() {
   const el = document.getElementById('admin-tab-items');
