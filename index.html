@@ -1028,7 +1028,7 @@ function renderStockTable() {
     let wasteUnitHtml = '';
     if (unitOptions.length > 1) {
       const finerUnit = getFinerUnit_(item.name, item.unit);
-      wasteUnitHtml = `<select class="w-full px-1 py-2 border border-red-200 rounded-lg text-xs bg-white" data-item="${item.name}" data-field="waste_unit">
+      wasteUnitHtml = `<select class="flex-half px-1 py-2 border border-red-200 rounded-lg text-xs bg-white" data-item="${item.name}" data-field="waste_unit">
         ${unitOptions.map(u => `<option value="${u}" ${u===finerUnit?'selected':''}>${tUnit(u)}</option>`).join('')}
       </select>`;
     }
@@ -1049,7 +1049,7 @@ function renderStockTable() {
           <div class="flex items-center gap-1">
             <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="waste_raw" placeholder="0"
               oninput="sanitizeQuantityInput(this)"
-              class="w-full px-2 py-2 border-2 border-red-100 rounded-lg text-center focus:border-red-400 focus:outline-none text-sm">
+              class="flex-half px-2 py-2 border-2 border-red-100 rounded-lg text-center focus:border-red-400 focus:outline-none text-sm">
             ${wasteUnitHtml}
           </div>
         </td>
