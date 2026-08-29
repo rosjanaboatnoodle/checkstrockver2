@@ -47,6 +47,12 @@
     .report-pre{ background:#0F2A24;color:#EAF3EE;font:500 12.5px/1.6 'Courier New',monospace;padding:16px;border-radius:12px;white-space:pre-wrap;word-break:break-word;max-height:50vh;overflow-y:auto;margin:0; }
     .buffer-row{ display:grid;grid-template-columns:1.3fr .8fr .9fr;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:13px; }
     .buffer-row.head{ font-weight:700;color:#9ca3af;font-size:11px;text-transform:uppercase; }
+    /* z-index สูงกว่า .modal-overlay (60) เสมอ กันไม่ให้ข้อความแจ้งเตือนถูกบังตอนอยู่ในหน้าแอดมิน/โมดัลต่างๆ */
+    .toast-box{ position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:10px;padding:16px 26px;border-radius:14px;color:#fff;font-weight:700;font-size:15px;box-shadow:0 12px 32px rgba(0,0,0,.35),0 0 0 1px rgba(255,255,255,.15) inset;max-width:90vw;animation:toastPop .25s cubic-bezier(.34,1.56,.64,1); }
+    .toast-box.hidden{ display:none !important; }
+    .toast-box.success{ background:#16a34a; }
+    .toast-box.error{ background:#dc2626; }
+    @keyframes toastPop{ from{ opacity:0;transform:translate(-50%,12px) scale(.9); } to{ opacity:1;transform:translate(-50%,0) scale(1); } }
   </style>
   <style>@view-transition { navigation: auto; }</style>
 </head>
@@ -328,7 +334,8 @@
     </div>
 
     <!-- Toast -->
-    <div id="toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg hidden transition-all duration-300 flex items-center gap-2 z-50 max-w-[90vw]">
+    <div id="toast" class="toast-box hidden">
+      <span id="toast-icon" class="text-xl leading-none">✅</span>
       <span id="toast-message">บันทึกสำเร็จ!</span>
     </div>
 
@@ -2117,12 +2124,14 @@ async function runTranslateAll(lang) {
 /* =========================================================
    Toast
    ========================================================= */
+let toastHideTimer_ = null;
 function showToast(message, type='success') {
   const toast = document.getElementById('toast');
   document.getElementById('toast-message').textContent = message;
-  toast.className = `fixed bottom-4 left-1/2 transform -translate-x-1/2 ${type==='success'?'bg-green-500':'bg-red-500'} text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 transition-all duration-300 z-50 max-w-[90vw]`;
-  toast.classList.remove('hidden');
-  setTimeout(() => toast.classList.add('hidden'), 3000);
+  document.getElementById('toast-icon').textContent = type==='success' ? '✅' : '⚠️';
+  toast.className = `toast-box ${type==='success' ? 'success' : 'error'}`;
+  clearTimeout(toastHideTimer_); // กันกรณีกด save รัวๆ แล้ว toast เก่าดันมาซ่อนอันใหม่ก่อนเวลา
+  toastHideTimer_ = setTimeout(() => toast.classList.add('hidden'), 3000);
 }
 
 /* =========================================================
