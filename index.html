@@ -1060,7 +1060,8 @@ async function saveStock() {
     if (missingEls.length) { missingEls[0].scrollIntoView({behavior:'smooth',block:'center'}); showToast('กรุณากรอกจำนวนให้ครบทุกช่อง', 'error'); return; }
     if (invalidEls.length) { invalidEls[0].scrollIntoView({behavior:'smooth',block:'center'}); showToast(t('invalidQty'), 'error'); return; }
 
-    await postNoCors({ action:'create', branch_id: currentBranchId, type:'check', category: currentCategory, checker_name: checkerName, date: new Date().toISOString(), items: stockEntries });
+    const lineText = buildLineReportText_(stockEntries);
+    await postNoCors({ action:'create', branch_id: currentBranchId, type:'check', category: currentCategory, checker_name: checkerName, date: new Date().toISOString(), items: stockEntries, line_text: lineText });
     showToast(t('saved'), 'success');
     await syncHistory();
     goHome();
@@ -1070,6 +1071,50 @@ async function saveStock() {
   } finally {
     btn.disabled = false;
   }
+}
+
+/** สร้างข้อความสรุปเช็คสต็อก ส่งแนบไปกับ action:'create' ให้ backend ยิงต่อเข้า LINE ทันที (ไม่โชว์ในหน้าเว็บอีกต่อไป) */
+function buildLineReportText_(stockEntries) {
+  const prevRecord = getPreviousRecord(currentCategory, new Date().toISOString());
+  let lines = [];
+  lines.push('🚣 รายงานเช็คสต็อก');
+  lines.push('━━━━━━━━━━━━━━━━');
+  lines.push(`👤 ผู้เช็ค: ${checkerName}`);
+  lines.push(`📋 หมวด: ${tCategory(currentCategory)}`);
+  lines.push(`📅 ${formatFullDate(new Date(), currentLanguage)}`);
+  lines.push('');
+  lines.push('รายการสต็อก:');
+
+  let shortCount = 0, overCount = 0, criticalCount = 0;
+  stockEntries.forEach(entry => {
+    let predicted = null;
+    if (isPredictionEnabled_(entry.name, currentCategory) && prevRecord) {
+      const p = getItemFromRecord(prevRecord, entry.name);
+      if (p) predicted = getComparableQty_(p);
+    }
+    let line = `• ${tItem(entry.name)}: ${fmtQty(entry.quantity_base)} ${tUnit(entry.unit)}`;
+    if (predicted !== null) {
+      const bufferPct = effectiveBufferPct_(entry.name, currentCategory);
+      const flag = computeFlag_(entry.quantity_base, predicted, bufferPct);
+      if (flag) {
+        line += ` (คาด ${fmtQty(predicted)}) ${flag}`;
+        if (flag === '🔽') shortCount++;
+        if (flag === '⚠️') criticalCount++;
+        if (flag === '🔼') overCount++;
+      }
+    }
+    if (entry.note) line += ` 📝 ${entry.note}`;
+    lines.push(line);
+  });
+
+  lines.push('━━━━━━━━━━━━━━━━');
+  const summaryParts = [];
+  if (criticalCount) summaryParts.push(`${criticalCount} รายการวิกฤต ⚠️`);
+  if (shortCount) summaryParts.push(`${shortCount} รายการขาด 🔽`);
+  if (overCount) summaryParts.push(`${overCount} รายการเกิน 🔼`);
+  lines.push(summaryParts.length ? `ที่ต้องดู: ${summaryParts.join(', ')}` : '✅ ทุกรายการอยู่ในเกณฑ์ปกติ');
+  lines.push(`🔄 เทียบกับรอบ: ${prevRecord ? formatFullDate(prevRecord.date, currentLanguage) : 'ไม่มีรอบก่อนหน้า'}`);
+  return lines.join('\n');
 }
 
 /* =========================================================
