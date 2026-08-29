@@ -157,6 +157,13 @@
               <label class="block text-sm font-medium text-gray-700 mb-2" data-t="fullName">ชื่อ-นามสกุล</label>
               <input type="text" id="checker-name" placeholder="กรอกชื่อของคุณ" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-lg">
             </div>
+            <div id="waste-mode-wrap" class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+              <div>
+                <p class="text-sm font-medium text-gray-700">เช็คสต็อกแบบมีของเสียด้วยไหม?</p>
+                <p class="text-xs text-gray-400">เปิดถ้าวันนี้มีของเสีย จะมีช่องกรอกจำนวนของเสียเพิ่มต่อรายการ</p>
+              </div>
+              <button type="button" id="waste-mode-toggle" onclick="toggleWasteMode()" class="toggle-sw"></button>
+            </div>
             <button onclick="startChecking()" class="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold text-lg hover:bg-orange-600 transition-colors shadow-md hover:shadow-lg" data-t="startChecking">เริ่มเช็คสต็อก</button>
           </div>
         </div>
@@ -185,6 +192,7 @@
                   <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700" data-t="item">รายการ</th>
                   <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700 w-28" data-t="quantity">จำนวน</th>
                   <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700 w-20" data-t="unit">หน่วย</th>
+                  <th id="waste-col-header" class="px-4 py-3 text-center text-sm font-semibold text-red-600 w-24 hidden">ของเสีย</th>
                   <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700" data-t="note">หมายเหตุ</th>
                 </tr>
               </thead>
@@ -443,6 +451,7 @@ let dict = { ui:{}, items:{}, units:{}, categories:{} };
 let allRecords = [];
 let currentCategory = '';
 let checkerName = '';
+let wasteModeOn = false;
 let movementCart = [];
 let adminPassword = sessionStorage.getItem('admin_pw') || '';
 window.__currentDetailRecordId = null;
@@ -941,7 +950,14 @@ function selectCategory(category) {
   badge.className = `inline-flex items-center gap-2 px-4 py-2 rounded-full text-white text-sm font-medium mb-4 ${s.bg}`;
   badge.innerHTML = `${s.icon} ${category==='__movement__' ? t('movement') : tCategory(category)}`;
   document.getElementById('checker-name').value = '';
+  wasteModeOn = false;
+  document.getElementById('waste-mode-toggle').classList.remove('on');
+  document.getElementById('waste-mode-wrap').classList.toggle('hidden', category === '__movement__');
   showPage('name-page');
+}
+function toggleWasteMode() {
+  wasteModeOn = !wasteModeOn;
+  document.getElementById('waste-mode-toggle').classList.toggle('on', wasteModeOn);
 }
 
 async function startChecking() {
@@ -975,12 +991,14 @@ async function startChecking() {
 
 function renderStockTable() {
   const tbody = document.getElementById('stock-table-body');
+  document.getElementById('waste-col-header').classList.toggle('hidden', !wasteModeOn);
   const items = catalogByCategory[currentCategory] || [];
   let html = '', index = 0;
+  const colspan = wasteModeOn ? 5 : 4;
   items.forEach(item => {
     if (String(item.is_header) === 'TRUE') {
-      if (html !== '') html += '<tr><td colspan="4" class="h-1"></td></tr>';
-      html += `<tr class="bg-gray-100"><td colspan="4" class="px-4 py-3 font-bold text-gray-700 text-base">${tItem(item.name)}</td></tr>`;
+      if (html !== '') html += `<tr><td colspan="${colspan}" class="h-1"></td></tr>`;
+      html += `<tr class="bg-gray-100"><td colspan="${colspan}" class="px-4 py-3 font-bold text-gray-700 text-base">${tItem(item.name)}</td></tr>`;
       return;
     }
     const unitOptions = getItemUnits_(item.name, item.unit);
@@ -1004,6 +1022,11 @@ function renderStockTable() {
             class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-center focus:border-orange-500 focus:outline-none transition-colors text-lg font-medium">
         </td>
         <td class="px-4 py-3 text-center text-gray-600 font-medium">${unitHtml}</td>
+        ${wasteModeOn ? `<td class="px-4 py-3">
+          <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="waste_raw" placeholder="0"
+            oninput="sanitizeQuantityInput(this)"
+            class="w-full px-2 py-2 border-2 border-red-100 rounded-lg text-center focus:border-red-400 focus:outline-none text-sm">
+        </td>` : ''}
         <td class="px-4 py-3">
           <div class="flex items-center gap-2">
             <input type="text" data-item="${item.name}" data-field="note" placeholder="-"
@@ -1050,6 +1073,7 @@ async function saveStock() {
     const stockEntries = items.filter(it => String(it.is_header) !== 'TRUE').map(item => {
       const qtyEl = document.querySelector(`input[data-item="${item.name}"][data-field="quantity_raw"]`);
       const noteEl = document.querySelector(`input[data-item="${item.name}"][data-field="note"]`);
+      const wasteEl = document.querySelector(`input[data-item="${item.name}"][data-field="waste_raw"]`);
       const raw = qtyEl ? qtyEl.value.trim() : '';
       const parsed = parseQuantity_(raw);
       if (qtyEl && raw === '') missingEls.push(qtyEl);
@@ -1057,10 +1081,13 @@ async function saveStock() {
       const unitSelectEl = document.querySelector(`select[data-item="${item.name}"][data-field="unit"]`);
       const unitInput = unitSelectEl ? unitSelectEl.value : getPrimaryUnit_(item.name, item.unit);
       const norm = normalizeQtyByItem_(item.name, parsed.ok ? parsed.value : 0, unitInput, item.unit);
+      const wasteRaw = wasteEl ? wasteEl.value.trim() : '';
+      const wasteParsed = wasteRaw ? parseQuantity_(wasteRaw) : { ok:true, value:0 };
       return {
         name:item.name, unit:norm.unit, quantity:norm.qty, quantity_base:norm.qty,
         note: noteEl ? noteEl.value.trim() : '',
-        note_original: noteEl ? (noteEl.dataset.originalNote || '') : ''
+        note_original: noteEl ? (noteEl.dataset.originalNote || '') : '',
+        waste_qty: wasteParsed.ok ? wasteParsed.value : 0
       };
     });
 
@@ -1068,7 +1095,8 @@ async function saveStock() {
     if (invalidEls.length) { invalidEls[0].scrollIntoView({behavior:'smooth',block:'center'}); showToast(t('invalidQty'), 'error'); return; }
 
     const lineText = buildLineReportText_(stockEntries);
-    await postNoCors({ action:'create', branch_id: currentBranchId, type:'check', category: currentCategory, checker_name: checkerName, date: new Date().toISOString(), items: stockEntries, line_text: lineText });
+    const wasteText = buildWasteReportText_(stockEntries);
+    await postNoCors({ action:'create', branch_id: currentBranchId, type:'check', category: currentCategory, checker_name: checkerName, date: new Date().toISOString(), items: stockEntries, line_text: lineText, line_text_waste: wasteText });
     showToast(t('saved'), 'success');
     await syncHistory();
     goHome();
@@ -1111,6 +1139,7 @@ function buildLineReportText_(stockEntries) {
       }
     }
     if (entry.note) line += ` 📝 ${entry.note}`;
+    if (entry.waste_qty > 0) line += ` 🗑 เสีย ${fmtQty(entry.waste_qty)} ${tUnit(entry.unit)}`;
     lines.push(line);
   });
 
@@ -1121,6 +1150,21 @@ function buildLineReportText_(stockEntries) {
   if (overCount) summaryParts.push(`${overCount} รายการเกิน 🔼`);
   lines.push(summaryParts.length ? `ที่ต้องดู: ${summaryParts.join(', ')}` : '✅ ทุกรายการอยู่ในเกณฑ์ปกติ');
   lines.push(`🔄 เทียบกับรอบ: ${prevRecord ? formatFullDate(prevRecord.date, currentLanguage) : 'ไม่มีรอบก่อนหน้า'}`);
+  return lines.join('\n');
+}
+
+/** สร้างข้อความ "สรุปของเสีย" แยกต่างหาก — ส่งเฉพาะตอนมีของเสียจริง (คืนสตริงว่างถ้าไม่มีเลย ฝั่ง saveStock จะไม่ส่งข้อความนี้) */
+function buildWasteReportText_(stockEntries) {
+  const wasteItems = stockEntries.filter(e => e.waste_qty > 0);
+  if (!wasteItems.length) return '';
+  let lines = [];
+  lines.push('🗑 สรุปของเสียวันนี้');
+  lines.push('━━━━━━━━━━━━━━━━');
+  lines.push(`👤 ผู้เช็ค: ${checkerName}`);
+  lines.push(`📋 หมวด: ${tCategory(currentCategory)}`);
+  lines.push(`📅 ${formatFullDate(new Date(), currentLanguage)}`);
+  lines.push('');
+  wasteItems.forEach(e => lines.push(`• ${tItem(e.name)}: ${fmtQty(e.waste_qty)} ${tUnit(e.unit)}`));
   return lines.join('\n');
 }
 
@@ -1610,6 +1654,15 @@ async function renderAdminBufferTab() {
           <input type="radio" name="reorder-trigger" value="after_all_categories" ${reorderConfig.triggerMode==='after_all_categories'?'checked':''}>
           ทันทีที่เช็คครบทุกหมวดของวันนั้น
         </label>
+        <label class="flex items-center gap-2 text-sm mb-1.5">
+          <input type="radio" name="reorder-trigger" value="after_n_rounds" ${reorderConfig.triggerMode==='after_n_rounds'?'checked':''}>
+          หลังเช็คครบทุกหมวดติดต่อกัน
+        </label>
+        <div id="reorder-rounds-fields" class="${reorderConfig.triggerMode==='after_n_rounds'?'':'hidden'} pl-6 mb-3">
+          <label class="block text-xs text-gray-500 mb-1">ส่งทุกๆ กี่รอบ (1 รอบ = เช็คครบทุกหมวดของสาขาใน 1 วัน)</label>
+          <input type="number" id="reorder-rounds-target" min="1" max="30" value="${reorderConfig.roundsTarget || 3}"
+            class="w-24 px-2 py-1.5 border rounded-lg text-sm">
+        </div>
         <label class="flex items-center gap-2 text-sm mb-2">
           <input type="radio" name="reorder-trigger" value="schedule" ${reorderConfig.triggerMode==='schedule'?'checked':''}>
           ตามตารางเวลา
@@ -1668,12 +1721,14 @@ async function renderAdminBufferTab() {
   el.querySelectorAll('input[name="reorder-trigger"]').forEach(radio => {
     radio.addEventListener('change', () => {
       document.getElementById('reorder-schedule-fields').classList.toggle('hidden', radio.value !== 'schedule');
+      document.getElementById('reorder-rounds-fields').classList.toggle('hidden', radio.value !== 'after_n_rounds');
     });
   });
 }
 
 async function saveReorderSettings() {
   reorderConfig.triggerMode = document.querySelector('input[name="reorder-trigger"]:checked').value;
+  reorderConfig.roundsTarget = Math.max(1, Number(document.getElementById('reorder-rounds-target').value) || 3);
   reorderConfig.scheduleDays = [...document.querySelectorAll('.reorder-day-cb:checked')].map(cb => Number(cb.value));
   reorderConfig.scheduleHour = Number(document.getElementById('reorder-schedule-hour').value);
   reorderConfig.scopeMode = document.querySelector('input[name="reorder-scope"]:checked').value;
@@ -1720,7 +1775,8 @@ let reorderConfigLoaded = false;
    ========================================================= */
 const DEFAULT_REORDER_CONFIG = {
   enabled: false,
-  triggerMode: 'after_all_categories', // 'after_all_categories' | 'schedule'
+  triggerMode: 'after_all_categories', // 'after_all_categories' | 'after_n_rounds' | 'schedule'
+  roundsTarget: 3, // ใช้เมื่อ triggerMode === 'after_n_rounds': ส่งทุกๆ กี่รอบ (1 รอบ = เช็คครบทุกหมวดของสาขาใน 1 วัน)
   scheduleDays: [1,2,3,4,5,6,0], // 0=อาทิตย์..6=เสาร์ (ตรงกับ Date.getDay())
   scheduleHour: 9,
   scopeMode: 'per_branch' // 'per_branch' | 'combined'
