@@ -57,6 +57,9 @@
        เนื้อหาหน้าแต่ละหน้าก็ต้องเผื่อระยะเท่ากัน ไม่งั้นบนมือถือรุ่นที่มีติ่งกล้อง/ขอบโค้งเยอะๆ
        ปุ่มจะลงมาทับหัวข้อ/ปุ่มกลับหน้าหลักแทน */
     .pt-20{ padding-top: calc(5rem + env(safe-area-inset-top)); }
+    /* Tailwind ในไฟล์นี้ compile ไว้ล่วงหน้า ไม่มี build step — คลาส min-w-0 ไม่เคยถูกใช้มาก่อนเลยไม่ถูก compile เข้ามา
+       ถ้าไม่มีตัวนี้ select จะไม่ยอมหดต่ำกว่าความกว้างเนื้อหาของมันเอง ทำให้แบ่ง 50/50 กับ flex-1 ไม่ได้จริง */
+    .flex-half{ flex:1 1 0%;min-width:0; }
     /* หน้าจอแคบ (มือถือ): เปลี่ยนตารางเช็คสต็อกเป็นการ์ดวางซ้อนกัน แทนตารางที่ต้องเลื่อนซ้าย-ขวา */
     @media (max-width: 640px) {
       #stock-table thead{ display:none; }
@@ -1038,8 +1041,8 @@ function renderStockTable() {
           <div class="flex items-center gap-2">
             <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="quantity_raw" placeholder="0"
               onkeydown="onQtyKeyDown_(event)" oninput="sanitizeQuantityInput(this)"
-              class="flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 rounded-lg text-center focus:border-orange-500 focus:outline-none transition-colors text-lg font-medium">
-            <div class="flex-1 min-w-0">${unitHtml}</div>
+              class="flex-half px-3 py-2 border-2 border-gray-200 rounded-lg text-center focus:border-orange-500 focus:outline-none transition-colors text-lg font-medium">
+            <div class="flex-half">${unitHtml}</div>
           </div>
         </td>
         <td class="px-4 py-3" data-label="ของเสีย">
