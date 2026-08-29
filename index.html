@@ -60,19 +60,19 @@
     /* Tailwind ในไฟล์นี้ compile ไว้ล่วงหน้า ไม่มี build step — คลาส min-w-0 ไม่เคยถูกใช้มาก่อนเลยไม่ถูก compile เข้ามา
        ถ้าไม่มีตัวนี้ select จะไม่ยอมหดต่ำกว่าความกว้างเนื้อหาของมันเอง ทำให้แบ่ง 50/50 กับ flex-1 ไม่ได้จริง */
     .flex-half{ flex:1 1 0%;min-width:0; }
-    /* หน้าจอแคบ (มือถือ): เปลี่ยนตารางเช็คสต็อกเป็นการ์ดวางซ้อนกัน แทนตารางที่ต้องเลื่อนซ้าย-ขวา */
-    @media (max-width: 640px) {
-      #stock-table thead{ display:none; }
-      #stock-table, #stock-table tbody, #stock-table tr, #stock-table td{ display:block; width:100%; }
-      #stock-table tbody tr[data-stock-row]{ border:1px solid #f1f5f9;border-radius:14px;margin:0 8px 10px;padding:10px 12px;background:#fff; }
-      #stock-table tbody tr[data-stock-row] td{ padding:5px 0; }
-      #stock-table tbody tr[data-stock-row] td:first-child{ padding-bottom:8px;font-size:16px; }
-      #stock-table tbody tr[data-stock-row] td[data-label]{ display:flex;align-items:center;gap:8px; }
-      /* กำหนดความกว้างป้ายชื่อคงที่ (แทนที่จะปล่อยตามความยาวข้อความ) กล่องกรอกของทุกแถวจะได้เริ่มที่เส้นเดียวกัน
-         ไม่ว่าป้ายจะสั้น (จำนวน) หรือยาว (หมายเหตุ) ก็ตาม */
-      #stock-table tbody tr[data-stock-row] td[data-label]::before{ content:attr(data-label);font-size:12px;font-weight:600;color:#9ca3af;flex:0 0 var(--stock-label-w, 60px);white-space:nowrap; }
-      #stock-table tbody tr[data-stock-row] td[data-label] > *{ flex:1;min-width:0; }
-    }
+    /* การ์ดวางซ้อนกัน แทนตารางที่ต้องเลื่อนซ้าย-ขวา — ใช้เสมอทุกขนาดหน้าจอ (ไม่ใช่แค่มือถือ)
+       เพราะกล่องเนื้อหาของแอปนี้ถูกจำกัดความกว้างไว้แค่ ~672px (max-w-2xl) อยู่แล้วไม่ว่าจะเปิดจากอุปกรณ์ไหน
+       ถ้าใช้ตารางจริงบนความกว้างเท่านี้ คอลัมน์จะไม่พอจนต้องเลื่อนแนวนอนอยู่ดี แม้บนแล็ปท็อป/ไอแพด/คอม */
+    #stock-table thead{ display:none; }
+    #stock-table, #stock-table tbody, #stock-table tr, #stock-table td{ display:block; width:100%; }
+    #stock-table tbody tr[data-stock-row]{ border:1px solid #f1f5f9;border-radius:14px;margin:0 8px 10px;padding:10px 12px;background:#fff; }
+    #stock-table tbody tr[data-stock-row] td{ padding:5px 0; }
+    #stock-table tbody tr[data-stock-row] td:first-child{ padding-bottom:8px;font-size:16px; }
+    #stock-table tbody tr[data-stock-row] td[data-label]{ display:flex;align-items:center;gap:8px; }
+    /* กำหนดความกว้างป้ายชื่อคงที่ (แทนที่จะปล่อยตามความยาวข้อความ) กล่องกรอกของทุกแถวจะได้เริ่มที่เส้นเดียวกัน
+       ไม่ว่าป้ายจะสั้น (จำนวน) หรือยาว (หมายเหตุ) ก็ตาม */
+    #stock-table tbody tr[data-stock-row] td[data-label]::before{ content:attr(data-label);font-size:12px;font-weight:600;color:#9ca3af;flex:0 0 var(--stock-label-w, 60px);white-space:nowrap; }
+    #stock-table tbody tr[data-stock-row] td[data-label] > *{ flex:1;min-width:0; }
   </style>
   <style>@view-transition { navigation: auto; }</style>
 </head>
