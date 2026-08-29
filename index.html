@@ -1016,11 +1016,11 @@ function renderStockTable() {
     let unitHtml = '';
     if (!unitOptions.length) unitHtml = '';
     else if (unitOptions.length > 1) {
-      unitHtml = `<select class="w-24 px-2 py-1 border border-gray-300 rounded-lg text-sm bg-white" data-item="${item.name}" data-field="unit">
+      unitHtml = `<select class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-center text-lg font-medium bg-white focus:border-orange-500 focus:outline-none" data-item="${item.name}" data-field="unit">
         ${unitOptions.map(u => `<option value="${u}">${tUnit(u)}</option>`).join('')}
       </select>`;
     } else {
-      unitHtml = `<span class="text-gray-600">${tUnit(unitOptions[0])}</span>`;
+      unitHtml = `<span class="w-full flex items-center justify-center px-3 py-2 border-2 border-gray-200 rounded-lg text-lg font-medium text-gray-600 bg-gray-50">${tUnit(unitOptions[0])}</span>`;
     }
     let wasteUnitHtml = '';
     if (unitOptions.length > 1) {
@@ -1039,7 +1039,7 @@ function renderStockTable() {
             <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="quantity_raw" placeholder="0"
               onkeydown="onQtyKeyDown_(event)" oninput="sanitizeQuantityInput(this)"
               class="flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 rounded-lg text-center focus:border-orange-500 focus:outline-none transition-colors text-lg font-medium">
-            <div class="flex-shrink-0 text-gray-600 font-medium">${unitHtml}</div>
+            <div class="flex-1 min-w-0">${unitHtml}</div>
           </div>
         </td>
         <td class="px-4 py-3" data-label="ของเสีย">
