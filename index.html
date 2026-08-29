@@ -76,13 +76,16 @@
 </head>
 
 <body class="h-full bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50">
-  <div id="app" class="h-full w-full overflow-auto">
+  <div id="app" class="relative h-full w-full overflow-auto">
 
-    <!-- Top bar: admin (left) + language (right) — top offset ใช้ safe-area-inset กันโดนแถบเวลา/แบตของมือถือบัง -->
-    <div class="fixed left-4 z-50" style="top: calc(1rem + env(safe-area-inset-top));">
+    <!-- Top bar: admin (left) + language (right)
+         ใช้ absolute (ไม่ใช่ fixed) ให้เลื่อนหายไปพร้อมเนื้อหาตอนสกอลหน้ายาวๆ (เช่น รายการเช็คสต็อก)
+         ไม่งั้นปุ่มจะลอยทับรายการที่เลื่อนผ่านมาอยู่ตลอด ไม่ว่าจะเผื่อระยะบนของหน้าไว้เท่าไหร่ก็ตาม
+         top offset ยังใช้ safe-area-inset กันโดนแถบเวลา/แบตของมือถือตอนอยู่บนสุดของหน้า -->
+    <div class="absolute left-4 z-50" style="top: calc(1rem + env(safe-area-inset-top));">
       <button onclick="openAdminGate()" class="top-bar-btn w-10 h-10 flex items-center justify-center text-orange-700" title="แอดมิน">⚙️</button>
     </div>
-    <div class="fixed right-4 z-50" style="top: calc(1rem + env(safe-area-inset-top));">
+    <div class="absolute right-4 z-50" style="top: calc(1rem + env(safe-area-inset-top));">
       <select id="lang-select" onchange="setLanguage(this.value)" class="top-bar-btn px-3 py-2 text-sm font-medium text-orange-700 border-0 focus:outline-none">
         <option value="th">ไทย</option>
         <option value="en">English</option>
