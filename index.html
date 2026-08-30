@@ -1093,10 +1093,10 @@ function renderStockTable() {
           </div>
         </td>
         <td class="px-4 py-3" data-label="${t('note')||'หมายเหตุ'}">
-          <div class="flex items-center gap-2">
+          <div class="relative">
             <input type="text" data-item="${item.name}" data-field="note" placeholder="-"
-              class="flex-half px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none">
-            <button type="button" class="translate-btn" title="แปลเป็นไทยด้วย Gemini" onclick="translateNoteField('${item.name}', this)">🌐</button>
+              class="w-full pl-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none" style="padding-right:42px;">
+            <button type="button" class="translate-btn absolute" style="right:4px;top:50%;transform:translateY(-50%);" title="แปลเป็นไทยด้วย Gemini" onclick="translateNoteField('${item.name}', this)">🌐</button>
           </div>
         </td>
       </tr>`;
