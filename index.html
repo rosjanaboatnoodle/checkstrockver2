@@ -85,11 +85,8 @@
       #stock-table thead th:nth-child(2){ width: 24%; }
       #stock-table thead th:nth-child(3){ width: 20%; }
       #stock-table thead th:nth-child(4){ width: 42%; }
-      /* กันเหนียวขั้นสุดท้าย: ถึงจะกำหนด % ของแต่ละคอลัมน์รวมเป็น 100% แล้ว inner element บางตัว
-         (เช่น select หน่วย) อาจไม่ยอมหดตามจริงในบางเบราว์เซอร์ — บังคับตัด (ไม่ให้ล้นออกนอกช่อง)
-         และปิดการเลื่อนแนวนอนของ wrapper ไปเลย รับประกันว่าจะไม่มีการเลื่อนซ้าย-ขวาเกิดขึ้นอีกแน่นอน */
-      #stock-table td, #stock-table th{ overflow:hidden; }
-      #stock-page .overflow-x-auto{ overflow-x: hidden; }
+      /* ยอมให้เลื่อนแนวนอนได้ถ้าจำเป็นจริงๆ (ไม่บังคับตัด/ซ่อนเนื้อหา) เพราะการซ่อนอาจทำให้บางเบราว์เซอร์
+         มองไม่เห็นปุ่มแปลภาษาไปเลยโดยไม่มีทางเข้าถึง — เลื่อนดูได้ยังดีกว่าซ่อนไปเฉยๆ */
       #stock-table td .flex-half{ font-size:15px; }
     }
   </style>
