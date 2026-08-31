@@ -366,12 +366,14 @@
           <div class="admin-tab" data-tab="branches" onclick="switchAdminTab('branches')" data-t="manageBranches">จัดการสาขา</div>
           <div class="admin-tab" data-tab="translations" onclick="switchAdminTab('translations')" data-t="manageTranslations">จัดการคำแปล</div>
           <div class="admin-tab" data-tab="buffer" onclick="switchAdminTab('buffer')">⚙️ Buffer คาดคะเน</div>
+          <div class="admin-tab" data-tab="purchase" onclick="switchAdminTab('purchase')">🧾 นำเข้าจากบัญชี</div>
           <div class="admin-tab" data-tab="password" onclick="switchAdminTab('password')">🔑 เปลี่ยนรหัสผ่าน</div>
         </div>
         <div id="admin-tab-items"></div>
         <div id="admin-tab-branches" class="hidden"></div>
         <div id="admin-tab-translations" class="hidden"></div>
         <div id="admin-tab-buffer" class="hidden"></div>
+        <div id="admin-tab-purchase" class="hidden"></div>
         <div id="admin-tab-password" class="hidden"></div>
       </div>
     </div>
@@ -1621,12 +1623,118 @@ function switchAdminTab(tab) {
   document.getElementById('admin-tab-branches').classList.toggle('hidden', tab!=='branches');
   document.getElementById('admin-tab-translations').classList.toggle('hidden', tab!=='translations');
   document.getElementById('admin-tab-buffer').classList.toggle('hidden', tab!=='buffer');
+  document.getElementById('admin-tab-purchase').classList.toggle('hidden', tab!=='purchase');
   document.getElementById('admin-tab-password').classList.toggle('hidden', tab!=='password');
   if (tab==='items') renderAdminItemsTab();
   if (tab==='branches') renderAdminBranchesTab();
   if (tab==='translations') renderAdminTranslationsTab();
   if (tab==='buffer') renderAdminBufferTab();
+  if (tab==='purchase') renderAdminPurchaseTab();
   if (tab==='password') renderAdminPasswordTab();
+}
+
+/* =========================================================
+   Admin — นำเข้ารายการรับเข้าจากชีตบัญชี (RAW_OCR)
+   -----------------------------------------------------------
+   หมายเหตุสำหรับ Code.gs: ต้องเพิ่ม action 'previewPurchaseSync' และ 'confirmPurchaseMatch'
+   ดูรายละเอียด logic ที่ผมส่งให้แยกเป็นไฟล์ .gs ต่างหาก (อ่านจากชีตบัญชีภายนอกที่ตั้งไว้ใน
+   Script Property PURCHASE_SHEET_ID, จับคู่ชื่อสินค้าด้วยการเทียบตรง + ตารางจำที่เคยจับคู่ไว้ +
+   Gemini ช่วยแนะนำเป็นตัวเลือกสุดท้าย — ไม่มีจุดไหน auto-apply คำแนะนำของ Gemini โดยไม่ผ่านแอดมินยืนยัน)
+   ========================================================= */
+let purchaseSyncResult = null; // เก็บผลล่าสุดไว้ในหน่วยความจำ กันต้อง sync ซ้ำตอนกดยืนยันทีละแถว
+async function renderAdminPurchaseTab() {
+  const el = document.getElementById('admin-tab-purchase');
+  if (!branchesLoaded) {
+    try { const r = await jsonpGet('listBranches', { password: adminPassword }); if (r && r.ok) { branches = r.branches; branchesLoaded = true; } } catch (e) {}
+  }
+  const branchOptions = branches.map(b => `<option value="${b.id}" ${b.id===currentBranchId?'selected':''}>${b.name}</option>`).join('');
+  el.innerHTML = `
+    <div class="bg-gray-50 rounded-xl p-4 mb-4">
+      <p class="text-sm text-gray-500 mb-3">ดึงรายการซื้อที่ผ่านการยืนยันแล้วจากชีตบัญชี (RAW_OCR) มาสร้างเป็นรายการ "รับเข้า" ให้อัตโนมัติ —
+        รายการที่ชื่อไม่ตรงกับสินค้าในระบบ จะให้ Gemini ช่วยแนะนำ แล้วต้องกดยืนยันเองก่อนถึงจะสร้างจริง</p>
+      <label class="block text-xs font-medium text-gray-600 mb-1">นำเข้าให้สาขา</label>
+      <select id="purchase-sync-branch" class="w-full px-3 py-2.5 border rounded-lg text-sm mb-3">${branchOptions}</select>
+      <button id="purchase-sync-btn" onclick="runPurchaseSync()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold">ดึงรายการรับเข้าจากชีตบัญชี</button>
+    </div>
+    <div id="purchase-sync-results"></div>
+  `;
+}
+
+async function runPurchaseSync() {
+  const btn = document.getElementById('purchase-sync-btn');
+  const branchId = document.getElementById('purchase-sync-branch').value;
+  if (!branchId) { showToast('กรุณาเลือกสาขาก่อน', 'error'); return; }
+  btn.disabled = true; btn.textContent = 'กำลังดึงข้อมูล...';
+  const resultsEl = document.getElementById('purchase-sync-results');
+  resultsEl.innerHTML = '';
+  try {
+    const res = await jsonpGet('previewPurchaseSync', { password: adminPassword, branch_id: branchId });
+    if (!res || !res.ok) throw new Error(res && res.error || 'sync_failed');
+    purchaseSyncResult = { branchId, needsReview: res.needsReview || [] };
+    renderPurchaseSyncResults_(res);
+  } catch (e) {
+    showToast('ดึงข้อมูลไม่สำเร็จ (เช็คว่าตั้งค่า PURCHASE_SHEET_ID ใน Code.gs แล้วหรือยัง)', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'ดึงรายการรับเข้าจากชีตบัญชี';
+  }
+}
+
+function renderPurchaseSyncResults_(res) {
+  const el = document.getElementById('purchase-sync-results');
+  const autoCount = (res.autoMatched || []).length;
+  const reviewList = res.needsReview || [];
+  const skipCount = res.skippedCount || 0;
+  const catalogNames = Object.values(catalogByCategory).flat().filter(it => String(it.is_header) !== 'TRUE').map(it => it.name);
+  const datalistHtml = `<datalist id="purchase-item-datalist">${catalogNames.map(n => `<option value="${n}">`).join('')}</datalist>`;
+  let html = datalistHtml;
+  html += `<div class="bg-green-50 border border-green-200 rounded-xl p-3 mb-3 text-sm text-green-700">
+    ✅ จับคู่อัตโนมัติสำเร็จ ${autoCount} รายการ (สร้างรายการรับเข้าให้แล้ว)
+    ${skipCount ? `<br>⏭️ ข้าม ${skipCount} รายการ (เคยนำเข้าไปแล้วก่อนหน้านี้)` : ''}
+  </div>`;
+  if (!reviewList.length) {
+    html += `<p class="text-center text-gray-400 text-sm py-4">ไม่มีรายการที่ต้องตรวจสอบเพิ่ม</p>`;
+  } else {
+    html += `<p class="text-sm font-semibold text-gray-700 mb-2">🔎 ต้องตรวจสอบ ${reviewList.length} รายการ (ชื่อไม่ตรงกับสินค้าที่มีในระบบ)</p>`;
+    html += reviewList.map(row => `
+      <div class="bg-white border border-gray-200 rounded-xl p-3 mb-2" data-purchase-row="${row.rowId}">
+        <p class="text-sm text-gray-800"><b>${row.rawName}</b> — ${fmtQty(row.qty)} ${row.unit || ''} <span class="text-gray-400">(${row.slipDate || ''})</span></p>
+        ${row.suggested ? `<p class="text-xs text-indigo-600 mb-1">💡 Gemini แนะนำ: ${row.suggested}</p>` : ''}
+        <div class="flex items-center gap-2 mt-1">
+          <input list="purchase-item-datalist" class="flex-1 px-2 py-1.5 border rounded-lg text-sm" data-purchase-item-input value="${row.suggested || ''}" placeholder="เลือก/พิมพ์ชื่อสินค้าในระบบ">
+          <button onclick="confirmPurchaseRow('${row.rowId}', this)" class="bg-indigo-600 text-white text-sm font-semibold px-3 py-1.5 rounded-lg">ยืนยัน</button>
+          <button onclick="skipPurchaseRow('${row.rowId}', this)" class="bg-gray-200 text-gray-600 text-sm font-semibold px-3 py-1.5 rounded-lg">ข้าม</button>
+        </div>
+      </div>`).join('');
+  }
+  el.innerHTML = html;
+}
+
+async function confirmPurchaseRow(rowId, btn) {
+  const card = btn.closest('[data-purchase-row]');
+  const itemName = card.querySelector('[data-purchase-item-input]').value.trim();
+  if (!itemName) { showToast('กรุณาเลือกชื่อสินค้า', 'error'); return; }
+  btn.disabled = true;
+  try {
+    const res = await jsonpGet('confirmPurchaseMatch', { password: adminPassword, branch_id: purchaseSyncResult.branchId, row_id: rowId, item_name: itemName });
+    if (!res || !res.ok) throw new Error('confirm_failed');
+    card.remove();
+    showToast('ยืนยันแล้ว สร้างรายการรับเข้าให้แล้ว', 'success');
+  } catch (e) {
+    showToast('ยืนยันไม่สำเร็จ', 'error');
+    btn.disabled = false;
+  }
+}
+
+async function skipPurchaseRow(rowId, btn) {
+  const card = btn.closest('[data-purchase-row]');
+  btn.disabled = true;
+  try {
+    await jsonpGet('confirmPurchaseMatch', { password: adminPassword, branch_id: purchaseSyncResult.branchId, row_id: rowId, skip: 'true' });
+    card.remove();
+  } catch (e) {
+    showToast('ข้ามรายการไม่สำเร็จ', 'error');
+    btn.disabled = false;
+  }
 }
 
 /* =========================================================
