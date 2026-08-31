@@ -570,7 +570,10 @@ function getFinerUnit_(itemName, legacyUnitStr) {
     return sorted[0].name;
   }
   const opts = getUnitOptions_(legacyUnitStr) || [];
-  if (opts.includes('กรัม') && opts.includes('กิโลกรัม')) return 'กรัม';
+  if (opts.includes('กิโลกรัม')) {
+    if (opts.includes('กรัม')) return 'กรัม';
+    if (opts.includes('ขีด')) return 'ขีด';
+  }
   if (opts.includes('ขวด') && (opts.includes('ลัง') || opts.includes('แพ็ค'))) return 'ขวด';
   return opts[0] || String(legacyUnitStr || '').trim();
 }
@@ -760,8 +763,9 @@ function normalizeQtyToBase_(qty, unitSelected, unitOptions) {
   if (!isFinite(n)) return { qty: NaN, unit: String(unitSelected||'').trim() };
   const u = String(unitSelected||'').trim();
   const opts = (unitOptions||[]).map(x => String(x||'').trim());
-  if (opts.includes('กรัม') && opts.includes('กิโลกรัม')) {
+  if (opts.includes('กิโลกรัม') && (opts.includes('กรัม') || opts.includes('ขีด'))) {
     if (u === 'กรัม') return { qty: n/1000, unit: 'กิโลกรัม' };
+    if (u === 'ขีด') return { qty: n/10, unit: 'กิโลกรัม' }; // 1 ขีด = 100 กรัม = 0.1 กิโลกรัม
     return { qty: n, unit: 'กิโลกรัม' };
   }
   if (opts.includes('ขวด') && opts.includes('ลัง')) {
@@ -1338,12 +1342,33 @@ function renderMovementCart() {
     </div>
   `).join('');
 }
+/** สร้างข้อความสรุปปรับสต็อค (รับเข้า/เบิกออก/ปรับยอด) ส่งเข้า LINE — ใช้ชื่อ/หน่วยแบบดิบเสมอ (ภาษาไทย)
+   เช่นเดียวกับรายงานเช็คสต็อก ไม่ผ่านตัวแปลภาษา ไม่ว่าเด็กจะตั้งค่าแอปเป็นภาษาไหนก็ตาม */
+function buildMovementReportText_(entries) {
+  const dirLabel = { in: 'รับเข้า', out: 'เบิกออก', adjust: 'ปรับยอด' };
+  const dirIcon = { in: '📥', out: '📤', adjust: '🔧' };
+  let lines = [];
+  lines.push('📦 รายงานปรับสต็อค');
+  lines.push('━━━━━━━━━━━━━━━━');
+  lines.push(`👤 ผู้บันทึก: ${checkerName}`);
+  lines.push(`📅 ${formatFullDate(new Date(), currentLanguage)}`);
+  lines.push('');
+  lines.push('รายการ:');
+  entries.forEach(m => {
+    let line = `${dirIcon[m.direction] || '•'} ${m.name}: ${dirLabel[m.direction] || m.direction} ${fmtQty(m.quantity)} ${m.unit}`;
+    if (m.reason) line += ` 📝 ${m.reason}`;
+    lines.push(line);
+  });
+  return lines.join('\n');
+}
+
 async function saveMovement() {
   if (!movementCart.length) { showToast('กรุณาเพิ่มอย่างน้อย 1 รายการ', 'error'); return; }
   const btn = document.getElementById('mv-save-btn');
   btn.disabled = true;
   try {
-    await postNoCors({ action:'createMovement', branch_id: currentBranchId, category:'ปรับสต็อค', checker_name: checkerName, date: new Date().toISOString(), entries: movementCart });
+    const lineText = buildMovementReportText_(movementCart);
+    await postNoCors({ action:'createMovement', branch_id: currentBranchId, category:'ปรับสต็อค', checker_name: checkerName, date: new Date().toISOString(), entries: movementCart, line_text: lineText });
     showToast(t('saved'), 'success');
     setTimeout(() => { goHome(); syncHistory(); }, 800);
   } catch (e) {
