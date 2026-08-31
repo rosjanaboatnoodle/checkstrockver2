@@ -1184,7 +1184,7 @@ function buildLineReportText_(stockEntries) {
   lines.push('🚣 รายงานเช็คสต็อก');
   lines.push('━━━━━━━━━━━━━━━━');
   lines.push(`👤 ผู้เช็ค: ${checkerName}`);
-  lines.push(`📋 หมวด: ${tCategory(currentCategory)}`);
+  lines.push(`📋 หมวด: ${currentCategory}`);
   lines.push(`📅 ${formatFullDate(new Date(), currentLanguage)}`);
   lines.push('');
   lines.push('รายการสต็อก:');
@@ -1196,7 +1196,7 @@ function buildLineReportText_(stockEntries) {
       const p = getItemFromRecord(prevRecord, entry.name);
       if (p) predicted = getComparableQty_(p);
     }
-    let line = `• ${tItem(entry.name)}: ${fmtQty(entry.quantity_base)} ${tUnit(entry.unit)}`;
+    let line = `• ${entry.name}: ${fmtQty(entry.quantity_base)} ${entry.unit}`;
     if (predicted !== null) {
       const bufferPct = effectiveBufferPct_(entry.name, currentCategory);
       const flag = computeFlag_(entry.quantity_base, predicted, bufferPct);
@@ -1208,7 +1208,7 @@ function buildLineReportText_(stockEntries) {
       }
     }
     if (entry.note) line += ` 📝 ${entry.note}`;
-    if (entry.waste_qty > 0) line += ` 🗑 เสีย ${fmtQty(entry.waste_qty)} ${tUnit(entry.unit)}`;
+    if (entry.waste_qty > 0) line += ` 🗑 เสีย ${fmtQty(entry.waste_qty)} ${entry.unit}`;
     lines.push(line);
   });
 
@@ -1230,10 +1230,10 @@ function buildWasteReportText_(stockEntries) {
   lines.push('🗑 สรุปของเสียวันนี้');
   lines.push('━━━━━━━━━━━━━━━━');
   lines.push(`👤 ผู้เช็ค: ${checkerName}`);
-  lines.push(`📋 หมวด: ${tCategory(currentCategory)}`);
+  lines.push(`📋 หมวด: ${currentCategory}`);
   lines.push(`📅 ${formatFullDate(new Date(), currentLanguage)}`);
   lines.push('');
-  wasteItems.forEach(e => lines.push(`• ${tItem(e.name)}: ${fmtQty(e.waste_qty)} ${tUnit(e.unit)}`));
+  wasteItems.forEach(e => lines.push(`• ${e.name}: ${fmtQty(e.waste_qty)} ${e.unit}`));
   return lines.join('\n');
 }
 
