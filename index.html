@@ -347,7 +347,7 @@
     <div id="admin-gate-modal" class="modal-overlay hidden">
       <div class="modal-box p-6 mt-24">
         <h3 class="text-lg font-bold text-gray-800 mb-3" data-t="adminPasswordPrompt">กรอกรหัสผ่านแอดมิน</h3>
-        <input id="admin-password-input" type="password" onkeydown="if(event.key==='Enter') submitAdminLogin()" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none">
+        <input id="admin-password-input" type="password" autocomplete="new-password" onkeydown="if(event.key==='Enter') submitAdminLogin()" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none">
         <div class="flex gap-2">
           <button onclick="submitAdminLogin()" class="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold">ตกลง</button>
           <button onclick="closeAdminGate()" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold" data-t="cancel">ยกเลิก</button>
@@ -1578,13 +1578,19 @@ async function saveEditedItem(itemName, btn) {
    ========================================================= */
 function openAdminGate() {
   // เพื่อความปลอดภัย ให้ถามรหัสผ่านทุกครั้งที่กดปุ่มแอดมิน ไม่ใช้รหัสผ่านที่จำไว้ข้ามไป
+  // ต้องเคลียร์ช่องกรอกรหัสทุกครั้งที่เปิด ไม่งั้นรหัสที่เคยพิมพ์ไว้จะค้างอยู่ในช่อง กดตกลง/Enter ผ่านได้เลยโดยไม่ต้องพิมพ์ใหม่
+  document.getElementById('admin-password-input').value = '';
   document.getElementById('admin-gate-modal').classList.remove('hidden');
 }
-function closeAdminGate() { document.getElementById('admin-gate-modal').classList.add('hidden'); }
+function closeAdminGate() {
+  document.getElementById('admin-password-input').value = '';
+  document.getElementById('admin-gate-modal').classList.add('hidden');
+}
 async function submitAdminLogin() {
   const pw = document.getElementById('admin-password-input').value;
   try {
     const res = await jsonpGet('unlock', { password: pw });
+    document.getElementById('admin-password-input').value = '';
     if (res && res.ok && res.role === 'admin') {
       adminPassword = pw;
       sessionStorage.setItem('admin_pw', pw);
