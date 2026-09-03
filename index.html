@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>ระบบเช็คสต็อก</title>
+  <!-- ตั้งโหมดสี (มืด/สว่าง) ให้เร็วที่สุดตั้งแต่ก่อนวาดหน้า กันไม่ให้กระพริบเป็นโหมดสว่างแวบนึงก่อนสลับเป็นมืด -->
+  <script>(function(){try{if(localStorage.getItem('theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
 
   <!-- ทำให้เพิ่มลงหน้าจอโฮมไอโฟนแล้วเปิดแบบแอป (ไม่มีแถบ URL ของ Safari) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -93,6 +95,63 @@
       #stock-page .overflow-x-auto{ overflow-x: hidden; }
       #stock-table td .flex-half{ font-size:15px; }
     }
+
+    /* =========================================================
+       Dark mode
+       -----------------------------------------------------------
+       ไฟล์นี้ compile Tailwind ไว้ล่วงหน้า ไม่มี build step เลยใช้คลาส dark: ของ Tailwind ไม่ได้
+       (เขียนแล้วจะไม่มีผลอะไรเลย เหมือนปัญหา min-w-0 ก่อนหน้านี้) ใช้วิธี override คลาสที่มีอยู่แล้ว
+       ด้วย selector "html[data-theme=dark] .คลาสเดิม" แทน — specificity สูงกว่าคลาสเดี่ยวเสมอ ไม่ต้องใช้ !important
+       ========================================================= */
+    html[data-theme="dark"] body{ background-image: linear-gradient(to bottom right, #1c1712, #17130f, #120f0a); }
+    html[data-theme="dark"] .bg-white{ background-color:#1f242b; }
+    html[data-theme="dark"] .bg-gray-50{ background-color:#242b32; }
+    html[data-theme="dark"] .bg-gray-100{ background-color:#2b333a; }
+    html[data-theme="dark"] .bg-gray-200{ background-color:#333c44; }
+    html[data-theme="dark"] .text-gray-800{ color:#e5e7eb; }
+    html[data-theme="dark"] .text-gray-700{ color:#d1d5db; }
+    html[data-theme="dark"] .text-gray-600{ color:#aab2bd; }
+    html[data-theme="dark"] .text-gray-500{ color:#8b93a1; }
+    html[data-theme="dark"] .text-gray-400{ color:#6b7280; }
+    html[data-theme="dark"] .border-gray-100{ border-color:#2f363d; }
+    html[data-theme="dark"] .border-gray-200{ border-color:#3a434c; }
+    html[data-theme="dark"] .border-gray-300{ border-color:#454f59; }
+    html[data-theme="dark"] .divide-gray-100 > :not([hidden]) ~ :not([hidden]){ border-color:#2f363d; }
+    html[data-theme="dark"] input, html[data-theme="dark"] select, html[data-theme="dark"] textarea{ background-color:#1a1f24; color:#e5e7eb; border-color:#3a434c; }
+    html[data-theme="dark"] input::placeholder, html[data-theme="dark"] textarea::placeholder{ color:#6b7280; }
+    html[data-theme="dark"] .top-bar-btn{ background:#242b32; box-shadow:0 2px 8px rgba(0,0,0,.5); }
+    html[data-theme="dark"] .top-bar-btn, html[data-theme="dark"] .text-orange-700{ color:#fb923c; }
+    html[data-theme="dark"] .text-orange-800{ color:#fdba74; }
+    html[data-theme="dark"] .text-orange-600{ color:#fb923c; }
+    html[data-theme="dark"] .text-indigo-600{ color:#a5b4fc; }
+    html[data-theme="dark"] .text-red-500, html[data-theme="dark"] .text-red-600{ color:#f87171; }
+    html[data-theme="dark"] .text-green-600{ color:#4ade80; }
+    html[data-theme="dark"] .modal-overlay{ background:rgba(0,0,0,.65); }
+    html[data-theme="dark"] .modal-box{ background:#1f242b; color:#e5e7eb; }
+    html[data-theme="dark"] .admin-tab{ color:#9ca3af; }
+    html[data-theme="dark"] .admin-tab.active{ color:#fff; }
+    html[data-theme="dark"] .badge-check{ background:#1e3a5f; color:#93c5fd; }
+    html[data-theme="dark"] .badge-movement{ background:#4a3510; color:#fcd34d; }
+    html[data-theme="dark"] .translate-btn{ background:#242244; color:#a5b4fc; }
+    html[data-theme="dark"] .toggle-sw{ background:#3a434c; }
+    html[data-theme="dark"] .buffer-row{ border-color:#2f363d; }
+    html[data-theme="dark"] .qty-invalid{ background:#3a1e22 !important; }
+    html[data-theme="dark"] #stock-table tbody tr[data-stock-row]{ background:#1f242b; border-color:#333c44; }
+    html[data-theme="dark"] .bg-red-50{ background-color:rgba(239,68,68,.14); }
+    html[data-theme="dark"] .bg-green-50{ background-color:rgba(34,197,94,.14); }
+    html[data-theme="dark"] .bg-emerald-50{ background-color:rgba(16,185,129,.14); }
+    html[data-theme="dark"] .bg-blue-50{ background-color:rgba(59,130,246,.14); }
+    html[data-theme="dark"] .bg-amber-50{ background-color:rgba(245,158,11,.14); }
+    html[data-theme="dark"] .bg-yellow-50{ background-color:rgba(234,179,8,.14); }
+    html[data-theme="dark"] .bg-purple-50{ background-color:rgba(168,85,247,.14); }
+    html[data-theme="dark"] .bg-indigo-50{ background-color:rgba(99,102,241,.14); }
+    html[data-theme="dark"] .bg-orange-50{ background-color:rgba(249,115,22,.14); }
+    html[data-theme="dark"] .border-red-200{ border-color:rgba(239,68,68,.4); }
+    html[data-theme="dark"] .border-green-200{ border-color:rgba(34,197,94,.4); }
+    html[data-theme="dark"] .text-green-700{ color:#6ee7b7; }
+    html[data-theme="dark"] .text-red-700{ color:#fca5a5; }
+    html[data-theme="dark"] .hover\:bg-orange-50:hover{ background-color:rgba(249,115,22,.18); }
+    html[data-theme="dark"] .hover\:bg-gray-50:hover{ background-color:#2b333a; }
   </style>
   <style>@view-transition { navigation: auto; }</style>
 </head>
@@ -104,8 +163,9 @@
          ใช้ absolute (ไม่ใช่ fixed) ให้เลื่อนหายไปพร้อมเนื้อหาตอนสกอลหน้ายาวๆ (เช่น รายการเช็คสต็อก)
          ไม่งั้นปุ่มจะลอยทับรายการที่เลื่อนผ่านมาอยู่ตลอด ไม่ว่าจะเผื่อระยะบนของหน้าไว้เท่าไหร่ก็ตาม
          top offset ยังใช้ safe-area-inset กันโดนแถบเวลา/แบตของมือถือตอนอยู่บนสุดของหน้า -->
-    <div class="absolute left-4 z-50" style="top: calc(1rem + env(safe-area-inset-top));">
+    <div class="absolute left-4 z-50 flex items-center gap-2" style="top: calc(1rem + env(safe-area-inset-top));">
       <button onclick="openAdminGate()" class="top-bar-btn w-10 h-10 flex items-center justify-center text-orange-700" title="แอดมิน">⚙️</button>
+      <button id="theme-toggle-btn" onclick="toggleTheme()" class="top-bar-btn w-10 h-10 flex items-center justify-center text-orange-700" title="สลับโหมดสี">🌙</button>
     </div>
     <div class="absolute right-4 z-50" style="top: calc(1rem + env(safe-area-inset-top));">
       <select id="lang-select" onchange="setLanguage(this.value)" class="top-bar-btn px-3 py-2 text-sm font-medium text-orange-700 border-0 focus:outline-none">
@@ -715,6 +775,26 @@ async function setLanguage(lang) {
   applyStaticTranslations();
   rerenderVisiblePages();
 }
+
+/* =========================================================
+   Dark / Light mode
+   ========================================================= */
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  try { localStorage.setItem('theme', theme); } catch (e) {}
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+}
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  applyTheme(isDark ? 'light' : 'dark');
+}
+// ตั้งไอคอนปุ่มให้ตรงกับโหมดที่ตั้งไว้แล้วตั้งแต่ก่อนหน้านี้ (สคริปต์กันกระพริบใน <head> ตั้ง attribute ไว้ให้แล้ว)
+(function syncThemeButtonIcon() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = isDark ? '☀️' : '🌙';
+})();
 
 /* =========================================================
    Catalog helpers (เดิมจากระบบเก่า ปรับให้อ่านจาก catalogFlat)
