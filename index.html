@@ -1734,12 +1734,16 @@ async function renderAdminPurchaseTab() {
     try { const r = await jsonpGet('listBranches', { password: adminPassword }); if (r && r.ok) { branches = r.branches; branchesLoaded = true; } } catch (e) {}
   }
   const branchOptions = branches.map(b => `<option value="${b.id}" ${b.id===currentBranchId?'selected':''}>${b.name}</option>`).join('');
+  const now = new Date();
+  const defaultSince = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01';
   el.innerHTML = `
     <div class="bg-gray-50 rounded-xl p-4 mb-4">
       <p class="text-sm text-gray-500 mb-3">ดึงรายการซื้อที่ผ่านการยืนยันแล้วจากชีตบัญชี (RAW_OCR) มาสร้างเป็นรายการ "รับเข้า" ให้อัตโนมัติ —
         รายการที่ชื่อไม่ตรงกับสินค้าในระบบ จะให้ Gemini ช่วยแนะนำ แล้วต้องกดยืนยันเองก่อนถึงจะสร้างจริง</p>
       <label class="block text-xs font-medium text-gray-600 mb-1">นำเข้าให้สาขา</label>
       <select id="purchase-sync-branch" class="w-full px-3 py-2.5 border rounded-lg text-sm mb-3">${branchOptions}</select>
+      <label class="block text-xs font-medium text-gray-600 mb-1">ดึงเฉพาะรายการตั้งแต่วันที่ (กันดึงประวัติเก่าย้อนหลังทั้งหมด)</label>
+      <input type="date" id="purchase-sync-since" value="${defaultSince}" class="w-full px-3 py-2.5 border rounded-lg text-sm mb-3">
       <button id="purchase-sync-btn" onclick="runPurchaseSync()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold">ดึงรายการรับเข้าจากชีตบัญชี</button>
     </div>
     <div id="purchase-sync-results"></div>
@@ -1749,12 +1753,13 @@ async function renderAdminPurchaseTab() {
 async function runPurchaseSync() {
   const btn = document.getElementById('purchase-sync-btn');
   const branchId = document.getElementById('purchase-sync-branch').value;
+  const sinceDate = document.getElementById('purchase-sync-since').value;
   if (!branchId) { showToast('กรุณาเลือกสาขาก่อน', 'error'); return; }
   btn.disabled = true; btn.textContent = 'กำลังดึงข้อมูล...';
   const resultsEl = document.getElementById('purchase-sync-results');
   resultsEl.innerHTML = '';
   try {
-    const res = await jsonpGet('previewPurchaseSync', { password: adminPassword, branch_id: branchId });
+    const res = await jsonpGet('previewPurchaseSync', { password: adminPassword, branch_id: branchId, since_date: sinceDate });
     if (!res || !res.ok) throw new Error(res && res.error || 'sync_failed');
     purchaseSyncResult = { branchId, needsReview: res.needsReview || [] };
     renderPurchaseSyncResults_(res);
