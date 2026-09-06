@@ -697,7 +697,7 @@ function computeFlag_(actual, predicted, bufferPct) {
 /* =========================================================
    Network helpers (JSONP GET / no-cors POST)
    ========================================================= */
-function jsonpGet(action, params) {
+function jsonpGet(action, params, timeoutMs) {
   return new Promise((resolve, reject) => {
     if (!GOOGLE_SHEET_WEBAPP_URL || GOOGLE_SHEET_WEBAPP_URL.startsWith('แปะ')) { reject(new Error('NO_URL')); return; }
     const cb = 'cb_' + Date.now() + '_' + Math.floor(Math.random()*10000);
@@ -716,7 +716,7 @@ function jsonpGet(action, params) {
       reject(new Error('JSONP_FAILED'));
     };
     document.body.appendChild(script);
-    setTimeout(() => { if (!done) reject(new Error('TIMEOUT')); }, 20000);
+    setTimeout(() => { if (!done) reject(new Error('TIMEOUT')); }, timeoutMs || 20000);
   });
 }
 
@@ -1759,7 +1759,9 @@ async function runPurchaseSync() {
   const resultsEl = document.getElementById('purchase-sync-results');
   resultsEl.innerHTML = '';
   try {
-    const res = await jsonpGet('previewPurchaseSync', { password: adminPassword, branch_id: branchId, since_date: sinceDate });
+    // ตัวนี้อาจต้องเรียก Gemini ทีละรายการหลายสิบครั้ง (ชื่อในสลิปไม่ตรงกับสินค้าในระบบ) จึงช้ากว่าปกติมาก
+    // ให้เวลารอ 90 วิ แทนค่าเริ่มต้น 20 วิ กันขึ้น error ทั้งที่หลังบ้านกำลังทำงานอยู่จริง
+    const res = await jsonpGet('previewPurchaseSync', { password: adminPassword, branch_id: branchId, since_date: sinceDate }, 90000);
     if (!res || !res.ok) throw new Error(res && res.error || 'sync_failed');
     purchaseSyncResult = { branchId, needsReview: res.needsReview || [] };
     renderPurchaseSyncResults_(res);
