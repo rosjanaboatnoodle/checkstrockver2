@@ -1778,6 +1778,11 @@ function closeAdminGate() {
 }
 async function submitAdminLogin() {
   const pw = document.getElementById('admin-password-input').value;
+  // ยิง unlock (เช็ครหัสผ่าน) พร้อมๆ กับดึงรายการสินค้าของแท็บแรกที่จะเห็นทันทีที่เข้าหน้าแอดมิน
+  // แทนที่จะรอ unlock เสร็จก่อนค่อยเริ่มดึง — listItemsAdmin เช็ครหัสผ่านเองอยู่แล้วฝั่งเซิร์ฟเวอร์
+  // (ปลอดภัยเท่าเดิม) แค่ยิงคู่ขนานแทนต่อคิว ลดเวลารอเปิดหน้าแอดมินได้เกือบครึ่งเมื่อรหัสถูก
+  const prefetchScope = adminItemScope;
+  const prefetchItems = jsonpGet('listItemsAdmin', { password: pw, scope: prefetchScope }).catch(() => null);
   try {
     const res = await jsonpGet('unlock', { password: pw });
     document.getElementById('admin-password-input').value = '';
@@ -1787,7 +1792,7 @@ async function submitAdminLogin() {
       currentRole = 'admin';
       localStorage.setItem('role', 'admin');
       closeAdminGate();
-      openAdminModal();
+      openAdminModal(prefetchItems, prefetchScope);
     } else {
       showToast(t('wrongPassword'), 'error');
     }
@@ -1795,14 +1800,14 @@ async function submitAdminLogin() {
 }
 let catalogDirty = false; // true = ต้อง loadCatalog() ใหม่ตอนปิด admin modal (เพราะแก้แคตตาล็อกระหว่างอยู่ในนี้)
 
-function openAdminModal() {
+function openAdminModal(prefetchItems, prefetchScope) {
   // เริ่มเซสชันแอดมินใหม่ทุกครั้ง — บังคับให้ดึงข้อมูลสดอย่างน้อย 1 ครั้ง แต่หลังจากนั้นสลับแท็บได้เร็วโดยไม่ยิงซ้ำ
   adminItemsLoadedScope = null;
   branchesLoaded = false;
   bufferConfigLoaded = false;
   reorderConfigLoaded = false;
   document.getElementById('admin-modal').classList.remove('hidden');
-  switchAdminTab('items');
+  switchAdminTab('items', prefetchItems, prefetchScope);
 }
 async function closeAdminModal() {
   document.getElementById('admin-modal').classList.add('hidden');
@@ -1813,7 +1818,7 @@ async function closeAdminModal() {
   }
 }
 
-function switchAdminTab(tab) {
+function switchAdminTab(tab, prefetchItems, prefetchScope) {
   document.querySelectorAll('.admin-tab').forEach(el => el.classList.toggle('active', el.getAttribute('data-tab')===tab));
   document.getElementById('admin-tab-items').classList.toggle('hidden', tab!=='items');
   document.getElementById('admin-tab-branches').classList.toggle('hidden', tab!=='branches');
@@ -1821,7 +1826,7 @@ function switchAdminTab(tab) {
   document.getElementById('admin-tab-buffer').classList.toggle('hidden', tab!=='buffer');
   document.getElementById('admin-tab-purchase').classList.toggle('hidden', tab!=='purchase');
   document.getElementById('admin-tab-password').classList.toggle('hidden', tab!=='password');
-  if (tab==='items') renderAdminItemsTab();
+  if (tab==='items') renderAdminItemsTab(prefetchItems, prefetchScope);
   if (tab==='branches') renderAdminBranchesTab();
   if (tab==='translations') renderAdminTranslationsTab();
   if (tab==='buffer') renderAdminBufferTab();
@@ -2362,7 +2367,7 @@ async function persistReorderConfig() {
   catch (e) { showToast(t('error'), 'error'); }
 }
 
-async function renderAdminItemsTab() {
+async function renderAdminItemsTab(prefetchItems, prefetchScope) {
   const el = document.getElementById('admin-tab-items');
   if (adminItemsLoadedScope === adminItemScope) { renderAdminItemsTabFromCache_(); return; } // สลับแท็บกลับมา scope เดิม ใช้แคชได้เลย
   if (!branches.length) {
@@ -2370,7 +2375,10 @@ async function renderAdminItemsTab() {
   }
   el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">กำลังโหลด...</div>`;
   try {
-    const res = await jsonpGet('listItemsAdmin', { password: adminPassword, scope: adminItemScope });
+    // ถ้ามีผลที่ยิงคู่ขนานไว้ตั้งแต่ตอน login แล้ว (scope ตรงกับที่กำลังจะโชว์) ใช้อันนั้นเลย ไม่ต้องยิงซ้ำ
+    const res = (prefetchItems && prefetchScope === adminItemScope)
+      ? await prefetchItems
+      : await jsonpGet('listItemsAdmin', { password: adminPassword, scope: adminItemScope });
     adminScopeItems = (res && res.ok) ? res.items : [];
     adminItemsLoadedScope = adminItemScope;
   } catch (e) { adminScopeItems = []; }
