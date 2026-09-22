@@ -1258,10 +1258,13 @@ async function saveStock() {
 
     const lineText = buildLineReportText_(stockEntries);
     const wasteText = buildWasteReportText_(stockEntries);
-    await postNoCors({ action:'create', branch_id: currentBranchId, type:'check', category: currentCategory, checker_name: checkerName, date: new Date().toISOString(), items: stockEntries, line_text: lineText, line_text_waste: wasteText });
+    // ยิงคำขอบันทึกแบบไม่รอผลกลับ (fire-and-forget) — กันไม่ให้ผู้ใช้ต้องรอ Apps Script ประมวลผล/ยิง LINE
+    // เสร็จก่อนถึงจะเห็นผลบนหน้าจอ (ผลตอบกลับอ่านไม่ได้อยู่แล้วเพราะเป็น mode: 'no-cors')
+    postNoCors({ action:'create', branch_id: currentBranchId, type:'check', category: currentCategory, checker_name: checkerName, date: new Date().toISOString(), items: stockEntries, line_text: lineText, line_text_waste: wasteText })
+      .catch(err => console.warn('save check failed', err));
     showToast(t('saved'), 'success');
-    await syncHistory();
     goHome();
+    syncHistory();
   } catch (err) {
     console.error(err);
     showToast(t('error'), 'error');
@@ -1446,7 +1449,7 @@ function buildMovementReportText_(entries) {
   return lines.join('\n');
 }
 
-async function submitMovementQuickAdjust() {
+function submitMovementQuickAdjust() {
   const name = document.getElementById('mv-item').value;
   const direction = document.getElementById('mv-direction').value;
   const rawQty = document.getElementById('mv-qty').value.trim();
@@ -1455,25 +1458,22 @@ async function submitMovementQuickAdjust() {
   const parsed = parseQuantity_(rawQty);
   if (!name || !parsed.ok || rawQty === '' || parsed.value <= 0) { showToast(t('invalidQty'), 'error'); return; }
   const entry = { name, direction, quantity: parsed.value, unit, reason };
-  const btn = document.getElementById('mv-save-btn');
-  btn.disabled = true;
-  try {
-    const lineText = buildMovementReportText_([entry]);
-    await postNoCors({ action:'createMovement', branch_id: currentBranchId, category:'ปรับสต็อค', checker_name: checkerName, date: new Date().toISOString(), entries: [entry], line_text: lineText });
-    // อัปเดตตัวเลขคงเหลือในหน้าจอทันทีแบบ optimistic ไม่ต้องรอโหลดใหม่จากเซิร์ฟเวอร์
-    const level = currentStockLevels[name] || { qty: 0, unit, category: ITEM_META_BY_NAME[name] && ITEM_META_BY_NAME[name].category, hasBaseline: false };
-    if (direction === 'in') level.qty = Number(level.qty || 0) + parsed.value;
-    else if (direction === 'out') level.qty = Number(level.qty || 0) - parsed.value;
-    else level.qty = parsed.value;
-    level.hasBaseline = true;
-    level.unit = unit || level.unit;
-    currentStockLevels[name] = level;
-    showToast(t('saved'), 'success');
-    closeMovementQuickAdjust();
-    renderMovementItemList();
-  } catch (e) {
-    showToast(t('error'), 'error');
-  } finally { btn.disabled = false; }
+  const lineText = buildMovementReportText_([entry]);
+  // ยิงคำขอแบบไม่รอผลกลับ (fire-and-forget) — ไม่ต้องให้ผู้ใช้รอ Apps Script ประมวลผล/ยิง LINE เสร็จก่อน
+  // ถึงจะเห็นผลบนหน้าจอ (ผลตอบกลับอ่านไม่ได้อยู่แล้วเพราะเป็น mode: 'no-cors')
+  postNoCors({ action:'createMovement', branch_id: currentBranchId, category:'ปรับสต็อค', checker_name: checkerName, date: new Date().toISOString(), entries: [entry], line_text: lineText })
+    .catch(e => console.warn('createMovement failed', e));
+  // อัปเดตตัวเลขคงเหลือในหน้าจอทันทีแบบ optimistic
+  const level = currentStockLevels[name] || { qty: 0, unit, category: ITEM_META_BY_NAME[name] && ITEM_META_BY_NAME[name].category, hasBaseline: false };
+  if (direction === 'in') level.qty = Number(level.qty || 0) + parsed.value;
+  else if (direction === 'out') level.qty = Number(level.qty || 0) - parsed.value;
+  else level.qty = parsed.value;
+  level.hasBaseline = true;
+  level.unit = unit || level.unit;
+  currentStockLevels[name] = level;
+  showToast(t('saved'), 'success');
+  closeMovementQuickAdjust();
+  renderMovementItemList();
 }
 
 /* =========================================================
