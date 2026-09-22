@@ -305,62 +305,62 @@
       </div>
     </div>
 
-    <!-- หน้าปรับสต็อค -->
+    <!-- หน้ารายการเบิกสินค้า -->
     <div id="movement-page" class="min-h-full p-4 md:p-6 pt-20 hidden">
       <div class="max-w-2xl mx-auto fade-in">
-        <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center justify-between mb-1">
           <button onclick="goToNamePage()" class="flex items-center gap-2 text-orange-700 hover:text-orange-800 transition-colors">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
             <span data-t="back">กลับ</span>
           </button>
           <div class="px-4 py-2 rounded-full text-white text-sm font-medium bg-purple-500" data-t="movement">ปรับสต็อค</div>
         </div>
+        <p class="text-sm text-gray-500 mb-4"><span data-t="staffChecker">ผู้เช็คสต็อก:</span> <span id="mv-display-checker-name" class="font-medium"></span></p>
 
-        <div class="bg-white rounded-2xl shadow-lg p-5 mb-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-            <div class="relative">
-              <label class="block text-sm font-medium text-gray-700 mb-1" data-t="chooseItem">เลือกสินค้า</label>
-              <input id="mv-item-search" type="text" autocomplete="off" placeholder="พิมพ์ค้นหาสินค้า..."
-                class="w-full px-3 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-                oninput="filterMovementItemList(this.value)" onfocus="openMovementItemDropdown()">
-              <input type="hidden" id="mv-item">
-              <div id="mv-item-dropdown" class="hidden absolute z-30 mt-1 w-full max-h-64 overflow-y-auto bg-white border-2 border-gray-200 rounded-xl shadow-lg"></div>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1" data-t="movementType">ประเภท</label>
-              <select id="mv-direction" class="w-full px-3 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none">
-                <option value="in" data-t="movementIn">รับเข้า</option>
-                <option value="out" data-t="movementOut">เบิกออก</option>
-                <option value="adjust" data-t="movementAdjust">ปรับยอด</option>
-              </select>
-            </div>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1" data-t="quantity">จำนวน</label>
-              <input id="mv-qty" type="text" inputmode="decimal" onkeydown="if(event.key==='Enter') addMovementLine()" placeholder="0" class="w-full px-3 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none">
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1" data-t="unit">หน่วย</label>
-              <select id="mv-unit" class="w-full px-3 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"></select>
-            </div>
-          </div>
-          <div class="mb-3">
-            <label class="block text-sm font-medium text-gray-700 mb-1" data-t="reason">เหตุผล/หมายเหตุ</label>
-            <input id="mv-reason" type="text" onkeydown="if(event.key==='Enter') addMovementLine()" class="w-full px-3 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none">
-          </div>
-          <button onclick="addMovementLine()" class="w-full bg-purple-500 text-white py-3 rounded-xl font-semibold hover:bg-purple-600" data-t="addLine">เพิ่มรายการ</button>
+        <div class="mb-3">
+          <input id="mv-quick-search" type="text" autocomplete="off" placeholder="ค้นหาด่วน: พิมพ์ชื่อสินค้าที่จะปรับ..."
+            class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+            oninput="filterMovementQuickSearch(this.value)">
         </div>
 
-        <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
-          <div class="p-4 bg-gray-50 border-b">
-            <p class="text-sm opacity-90"><span data-t="staffChecker">ผู้เช็คสต็อก:</span> <span id="mv-display-checker-name" class="font-semibold"></span></p>
+        <div id="mv-category-chips" class="flex gap-2 overflow-x-auto pb-1 mb-4"></div>
+
+        <div id="mv-item-list" class="space-y-3"></div>
+      </div>
+    </div>
+
+    <!-- โมดัลปรับสต็อกด่วนต่อรายการ -->
+    <div id="mv-quick-adjust-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeMovementQuickAdjust()">
+      <div class="modal-box p-5 mt-16 mb-10">
+        <div class="flex items-center justify-between mb-1">
+          <h3 id="mv-modal-item-name" class="text-lg font-bold text-gray-800"></h3>
+          <button onclick="closeMovementQuickAdjust()" class="text-gray-400 hover:text-gray-600 text-3xl leading-none w-10 h-10 flex items-center justify-center -m-2">&times;</button>
+        </div>
+        <input type="hidden" id="mv-item">
+        <p id="mv-modal-current-qty" class="text-sm text-gray-500 mb-4"></p>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1" data-t="movementType">ประเภท</label>
+            <select id="mv-direction" class="w-full px-3 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none">
+              <option value="out" data-t="movementOut">เบิกออก</option>
+              <option value="in" data-t="movementIn">รับเข้า</option>
+              <option value="adjust" data-t="movementAdjust">ปรับยอด</option>
+            </select>
           </div>
-          <div id="mv-cart-list" class="divide-y divide-gray-100"></div>
-          <div class="p-4 bg-gray-50">
-            <button id="mv-save-btn" onclick="saveMovement()" class="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 rounded-xl font-semibold text-lg hover:from-green-600 hover:to-green-700 transition-all shadow-md hover:shadow-lg" data-t="save">บันทึกข้อมูล</button>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1" data-t="unit">หน่วย</label>
+            <select id="mv-unit" class="w-full px-3 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"></select>
           </div>
         </div>
+        <div class="mb-3">
+          <label class="block text-sm font-medium text-gray-700 mb-1" data-t="quantity">จำนวน</label>
+          <input id="mv-qty" type="text" inputmode="decimal" onkeydown="if(event.key==='Enter') submitMovementQuickAdjust()" placeholder="0" class="w-full px-3 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none">
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1" data-t="reason">เหตุผล/หมายเหตุ</label>
+          <input id="mv-reason" type="text" onkeydown="if(event.key==='Enter') submitMovementQuickAdjust()" class="w-full px-3 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none">
+        </div>
+        <button id="mv-save-btn" onclick="submitMovementQuickAdjust()" class="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-xl font-semibold hover:from-green-600 hover:to-green-700" data-t="save">บันทึกข้อมูล</button>
       </div>
     </div>
 
@@ -523,7 +523,7 @@ const UI_TH = {
   scopeGlobal:'ส่วนกลาง (ทุกสาขา)', scopeLabel:'ขอบเขต',
   movement:'ปรับสต็อค', movementDesc:'บันทึกรับเข้า / เบิกออก / ปรับยอด',
   movementIn:'รับเข้า', movementOut:'เบิกออก', movementAdjust:'ปรับยอด', reason:'เหตุผล/หมายเหตุ',
-  addLine:'เพิ่มรายการ', chooseItem:'เลือกสินค้า', admin:'แอดมิน', adminPasswordPrompt:'กรอกรหัสผ่านแอดมิน',
+  admin:'แอดมิน', adminPasswordPrompt:'กรอกรหัสผ่านแอดมิน', remaining:'คงเหลือ', currentlyRemaining:'ตอนนี้คงเหลือ',
   wrongPassword:'รหัสผ่านไม่ถูกต้อง', manageItems:'จัดการรายการสินค้า', manageBranches:'จัดการสาขา',
   manageTranslations:'จัดการคำแปล', addItem:'เพิ่มรายการสินค้า', edit:'แก้ไข', delete:'ลบ',
   confirmDelete:'ยืนยันการลบรายการนี้?', addBranch:'เพิ่มสาขา', branchName:'ชื่อสาขา',
@@ -548,7 +548,6 @@ let dict = { ui:{}, items:{}, units:{}, categories:{} };
 let allRecords = [];
 let currentCategory = '';
 let checkerName = '';
-let movementCart = [];
 let adminPassword = sessionStorage.getItem('admin_pw') || '';
 window.__currentDetailRecordId = null;
 
@@ -1102,10 +1101,14 @@ async function startChecking() {
 
   if (currentCategory === '__movement__') {
     document.getElementById('mv-display-checker-name').textContent = checkerName;
-    movementCart = [];
-    renderMovementItemSelect();
-    renderMovementCart();
+    mvCategoryFilter = '';
+    mvSearchQuery = '';
+    document.getElementById('mv-quick-search').value = '';
+    renderMovementCategoryChips();
+    document.getElementById('mv-item-list').innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-gray-400">กำลังโหลด...</div>`;
     showPage('movement-page');
+    await loadCurrentStockLevels();
+    renderMovementItemList();
     return;
   }
 
@@ -1328,102 +1331,101 @@ function buildWasteReportText_(stockEntries) {
 }
 
 /* =========================================================
-   หน้าปรับสต็อค (รับเข้า/เบิกออก/ปรับยอด)
+   หน้ารายการเบิกสินค้า (เบิกออก/รับเข้า/ปรับยอด — เลือกจากลิสต์สินค้าแล้วปรับทีละรายการ)
    ========================================================= */
-let movementItemFlatList = []; // [{category, name}]
+let currentStockLevels = {}; // ชื่อสินค้า -> {qty, unit, category, hasBaseline}
+let mvCategoryFilter = '';   // '' = ทั้งหมด
+let mvSearchQuery = '';
 
-function renderMovementItemSelect() {
-  movementItemFlatList = [];
-  Object.keys(catalogByCategory).forEach(cat => {
-    (catalogByCategory[cat]||[]).filter(it => String(it.is_header).toUpperCase() !== 'TRUE').forEach(it => {
-      movementItemFlatList.push({ category: cat, name: it.name });
-    });
-  });
-  if (movementItemFlatList.length) {
-    const first = movementItemFlatList[0];
-    document.getElementById('mv-item').value = first.name;
-    document.getElementById('mv-item-search').value = tItem(first.name);
-  } else {
-    document.getElementById('mv-item').value = '';
-    document.getElementById('mv-item-search').value = '';
+async function loadCurrentStockLevels() {
+  try {
+    const res = await jsonpGet('getCurrentStockLevels', { branch_id: currentBranchId });
+    currentStockLevels = (res && res.ok) ? (res.levels || {}) : {};
+  } catch (e) {
+    console.warn('loadCurrentStockLevels failed', e);
+    currentStockLevels = {};
   }
-  updateMovementUnitOptions();
 }
 
-/* dropdown ค้นหาสินค้า — หัวข้อหมวดหมู่ก่อน แล้วค่อยรายการ กรองสดตามพิมพ์ */
-function renderMovementItemDropdownList(query) {
-  const dd = document.getElementById('mv-item-dropdown');
-  const q = query.trim().toLowerCase();
-  const byCat = {};
-  movementItemFlatList.forEach(it => {
-    const label = tItem(it.name).toLowerCase();
-    if (q && !label.includes(q)) return;
-    (byCat[it.category] = byCat[it.category] || []).push(it);
-  });
-  let html = '';
-  Object.keys(byCat).forEach(cat => {
-    html += `<div class="px-3 py-1.5 text-xs font-bold text-gray-400 bg-gray-50 sticky top-0">${tCategory(cat)}</div>`;
-    byCat[cat].forEach(it => {
-      html += `<div class="px-3 py-2 text-sm cursor-pointer hover:bg-orange-50" onmousedown="selectMovementItem('${it.name.replace(/'/g,"\\'")}')">${tItem(it.name)}</div>`;
+function renderMovementCategoryChips() {
+  const el = document.getElementById('mv-category-chips');
+  const chip = (value, label, activeClass) => {
+    const active = mvCategoryFilter === value;
+    return `<button onclick="selectMovementCategory('${value.replace(/'/g,"\\'")}')"
+      class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${active ? activeClass + ' text-white' : 'bg-white text-gray-600 border border-gray-200'}">${label}</button>`;
+  };
+  let html = chip('', t('all') || 'ทั้งหมด', 'bg-orange-500');
+  Object.keys(catalogByCategory).forEach(cat => { html += chip(cat, tCategory(cat), categoryStyle_(cat).bg); });
+  el.innerHTML = html;
+}
+
+function selectMovementCategory(cat) {
+  mvCategoryFilter = cat;
+  renderMovementCategoryChips();
+  renderMovementItemList();
+}
+
+function filterMovementQuickSearch(val) {
+  mvSearchQuery = val.trim().toLowerCase();
+  renderMovementItemList();
+}
+
+function movementItemQtyDisplay_(name) {
+  const level = currentStockLevels[name];
+  if (!level || !level.hasBaseline) return { text: '—', cls: 'text-gray-400' };
+  const n = Number(level.qty);
+  return { text: fmtQty(n), cls: n <= 0 ? 'text-red-600' : 'text-gray-800' };
+}
+
+function renderMovementItemList() {
+  const el = document.getElementById('mv-item-list');
+  let items = [];
+  Object.keys(catalogByCategory).forEach(cat => {
+    if (mvCategoryFilter && cat !== mvCategoryFilter) return;
+    (catalogByCategory[cat]||[]).filter(it => String(it.is_header).toUpperCase() !== 'TRUE').forEach(it => {
+      if (mvSearchQuery && !tItem(it.name).toLowerCase().includes(mvSearchQuery)) return;
+      items.push(it);
     });
   });
-  dd.innerHTML = html || `<div class="px-3 py-3 text-sm text-gray-400">ไม่พบรายการ</div>`;
+  if (!items.length) { el.innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-gray-400">ไม่พบรายการ</div>`; return; }
+  el.innerHTML = items.map(it => {
+    const level = currentStockLevels[it.name];
+    const qtyDisp = movementItemQtyDisplay_(it.name);
+    const unit = (level && level.unit) || it.unit || '';
+    return `
+    <div class="bg-white rounded-xl shadow-md p-4 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <p class="font-medium text-gray-800 truncate">${tItem(it.name)}</p>
+        <p class="text-sm text-gray-400">${tCategory(it.category)}</p>
+      </div>
+      <div class="text-right shrink-0">
+        <p class="text-2xl font-bold ${qtyDisp.cls}">${qtyDisp.text}</p>
+        <p class="text-xs text-gray-400 mb-1">${tUnit(unit)} ${t('remaining') || 'คงเหลือ'}</p>
+        <button onclick="openMovementQuickAdjust('${it.name.replace(/'/g,"\\'")}')" class="bg-purple-500 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-purple-600" data-t="movement">ปรับสต็อค</button>
+      </div>
+    </div>`;
+  }).join('');
 }
-function filterMovementItemList(val) {
-  renderMovementItemDropdownList(val);
-  document.getElementById('mv-item-dropdown').classList.remove('hidden');
-}
-function openMovementItemDropdown() {
-  renderMovementItemDropdownList('');
-  document.getElementById('mv-item-dropdown').classList.remove('hidden');
-}
-function selectMovementItem(name) {
-  document.getElementById('mv-item').value = name;
-  document.getElementById('mv-item-search').value = tItem(name);
-  document.getElementById('mv-item-dropdown').classList.add('hidden');
-  updateMovementUnitOptions();
-}
-document.addEventListener('click', (e) => {
-  const dd = document.getElementById('mv-item-dropdown');
-  const input = document.getElementById('mv-item-search');
-  if (dd && input && e.target !== input && !dd.contains(e.target)) dd.classList.add('hidden');
-});
 
-function updateMovementUnitOptions() {
-  const name = document.getElementById('mv-item').value;
+function openMovementQuickAdjust(name) {
+  document.getElementById('mv-item').value = name;
+  document.getElementById('mv-modal-item-name').textContent = tItem(name);
   const meta = ITEM_META_BY_NAME[name];
-  const opts = name ? getItemUnits_(name, meta && meta.defaultUnit) : [''];
-  document.getElementById('mv-unit').innerHTML = opts.map(u => `<option value="${u}">${tUnit(u)}</option>`).join('');
-}
-function addMovementLine() {
-  const name = document.getElementById('mv-item').value;
-  const direction = document.getElementById('mv-direction').value;
-  const rawQty = document.getElementById('mv-qty').value.trim();
-  const unit = document.getElementById('mv-unit').value;
-  const reason = document.getElementById('mv-reason').value.trim();
-  const parsed = parseQuantity_(rawQty);
-  if (!name || !parsed.ok || rawQty === '') { showToast(t('invalidQty'), 'error'); return; }
-  movementCart.push({ name, direction, quantity: parsed.value, unit, reason });
+  const qtyDisp = movementItemQtyDisplay_(name);
+  const level = currentStockLevels[name];
+  const unit = (level && level.unit) || (meta && meta.defaultUnit) || '';
+  document.getElementById('mv-modal-current-qty').textContent = (t('currentlyRemaining') || 'ตอนนี้คงเหลือ') + ': ' + qtyDisp.text + ' ' + tUnit(unit);
+  document.getElementById('mv-direction').value = 'out';
+  document.getElementById('mv-unit').innerHTML = getItemUnits_(name, meta && meta.defaultUnit).map(u => `<option value="${u}">${tUnit(u)}</option>`).join('');
   document.getElementById('mv-qty').value = '';
   document.getElementById('mv-reason').value = '';
-  renderMovementCart();
+  document.getElementById('mv-quick-adjust-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('mv-qty').focus(), 50);
 }
-function removeMovementLine(idx) { movementCart.splice(idx,1); renderMovementCart(); }
-function renderMovementCart() {
-  const el = document.getElementById('mv-cart-list');
-  const dirLabel = { in:t('movementIn'), out:t('movementOut'), adjust:t('movementAdjust') };
-  const dirColor = { in:'text-green-600', out:'text-red-600', adjust:'text-blue-600' };
-  if (!movementCart.length) { el.innerHTML = `<div class="p-4 text-center text-gray-400 text-sm">— ยังไม่มีรายการ —</div>`; return; }
-  el.innerHTML = movementCart.map((m, idx) => `
-    <div class="flex items-center justify-between px-4 py-3">
-      <div>
-        <p class="font-medium text-gray-800">${tItem(m.name)} <span class="${dirColor[m.direction]} font-semibold">(${dirLabel[m.direction]})</span></p>
-        <p class="text-sm text-gray-500">${fmtQty(m.quantity)} ${tUnit(m.unit)} ${m.reason ? '· ' + m.reason : ''}</p>
-      </div>
-      <button onclick="removeMovementLine(${idx})" class="text-red-500 text-sm font-medium">${t('delete')}</button>
-    </div>
-  `).join('');
+function closeMovementQuickAdjust() {
+  document.getElementById('mv-quick-adjust-modal').classList.add('hidden');
 }
+
 /** สร้างข้อความสรุปปรับสต็อค (รับเข้า/เบิกออก/ปรับยอด) ส่งเข้า LINE — ใช้ชื่อ/หน่วยแบบดิบเสมอ (ภาษาไทย)
    เช่นเดียวกับรายงานเช็คสต็อก ไม่ผ่านตัวแปลภาษา ไม่ว่าเด็กจะตั้งค่าแอปเป็นภาษาไหนก็ตาม */
 function buildMovementReportText_(entries) {
@@ -1444,15 +1446,31 @@ function buildMovementReportText_(entries) {
   return lines.join('\n');
 }
 
-async function saveMovement() {
-  if (!movementCart.length) { showToast('กรุณาเพิ่มอย่างน้อย 1 รายการ', 'error'); return; }
+async function submitMovementQuickAdjust() {
+  const name = document.getElementById('mv-item').value;
+  const direction = document.getElementById('mv-direction').value;
+  const rawQty = document.getElementById('mv-qty').value.trim();
+  const unit = document.getElementById('mv-unit').value;
+  const reason = document.getElementById('mv-reason').value.trim();
+  const parsed = parseQuantity_(rawQty);
+  if (!name || !parsed.ok || rawQty === '' || parsed.value <= 0) { showToast(t('invalidQty'), 'error'); return; }
+  const entry = { name, direction, quantity: parsed.value, unit, reason };
   const btn = document.getElementById('mv-save-btn');
   btn.disabled = true;
   try {
-    const lineText = buildMovementReportText_(movementCart);
-    await postNoCors({ action:'createMovement', branch_id: currentBranchId, category:'ปรับสต็อค', checker_name: checkerName, date: new Date().toISOString(), entries: movementCart, line_text: lineText });
+    const lineText = buildMovementReportText_([entry]);
+    await postNoCors({ action:'createMovement', branch_id: currentBranchId, category:'ปรับสต็อค', checker_name: checkerName, date: new Date().toISOString(), entries: [entry], line_text: lineText });
+    // อัปเดตตัวเลขคงเหลือในหน้าจอทันทีแบบ optimistic ไม่ต้องรอโหลดใหม่จากเซิร์ฟเวอร์
+    const level = currentStockLevels[name] || { qty: 0, unit, category: ITEM_META_BY_NAME[name] && ITEM_META_BY_NAME[name].category, hasBaseline: false };
+    if (direction === 'in') level.qty = Number(level.qty || 0) + parsed.value;
+    else if (direction === 'out') level.qty = Number(level.qty || 0) - parsed.value;
+    else level.qty = parsed.value;
+    level.hasBaseline = true;
+    level.unit = unit || level.unit;
+    currentStockLevels[name] = level;
     showToast(t('saved'), 'success');
-    setTimeout(() => { goHome(); syncHistory(); }, 800);
+    closeMovementQuickAdjust();
+    renderMovementItemList();
   } catch (e) {
     showToast(t('error'), 'error');
   } finally { btn.disabled = false; }
