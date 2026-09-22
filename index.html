@@ -1408,14 +1408,14 @@ function movementRowHtml_(it) {
           ${dirBtn('out', t('movementOut') || 'ออก')}
           ${dirBtn('adjust', t('movementAdjust') || 'ปรับ')}
         </div>
-        <p class="text-sm font-bold ${qtyDisp.cls}" style="text-align:right;min-width:50px">${qtyDisp.text}<br><span class="text-xs text-gray-400 font-normal">${tUnit(unit)}</span></p>
+        <p class="text-2xl font-bold ${qtyDisp.cls}" style="text-align:right;min-width:64px">${qtyDisp.text}<br><span class="text-xs text-gray-400 font-normal">${tUnit(unit)}</span></p>
       </div>
       <div class="flex items-center justify-between gap-2">
         <p class="text-xs text-gray-400 mv-truncate flex-half">${tCategory(it.category)}</p>
         <input type="text" inputmode="decimal" placeholder="จำนวน" value="${pending.quantity ? String(pending.quantity).replace(/"/g,'&quot;') : ''}" ${locked?'disabled':''}
           oninput="mvSetQty('${esc(name)}', this.value)"
           class="w-20 px-2 py-1 border-2 border-gray-200 rounded-lg text-sm mv-qty-input" style="text-align:center">
-        <button type="button" onclick="mvToggleLock('${esc(name)}')" class="mv-lock-btn ${locked?'locked':''}">${locked?'✓':''}</button>
+        <button type="button" onclick="mvToggleLock('${esc(name)}')" title="${locked ? 'ยืนยันแล้ว กดอีกครั้งเพื่อแก้ไข' : 'กดยืนยัน/ล็อครายการนี้'}" class="mv-lock-btn ${locked?'locked':''}">✓</button>
       </div>
     </div>`;
 }
