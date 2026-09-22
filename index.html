@@ -812,7 +812,7 @@ function buildCatalog_() {
   sorted.forEach(it => {
     if (!catalogByCategory[it.category]) catalogByCategory[it.category] = [];
     catalogByCategory[it.category].push(it);
-    if (String(it.is_header) !== 'TRUE') {
+    if (String(it.is_header).toUpperCase() !== 'TRUE') {
       ITEM_META_BY_NAME[it.name] = { defaultUnit: it.unit || '', category: it.category };
     }
   });
@@ -1140,7 +1140,7 @@ function renderStockTable() {
   let html = '', index = 0;
   const colspan = 4;
   items.forEach(item => {
-    if (String(item.is_header) === 'TRUE') {
+    if (String(item.is_header).toUpperCase() === 'TRUE') {
       if (html !== '') html += `<tr><td colspan="${colspan}" class="h-1"></td></tr>`;
       html += `<tr class="bg-gray-100"><td colspan="${colspan}" class="px-4 py-3 font-bold text-gray-700 text-base">${tItem(item.name)}</td></tr>`;
       return;
@@ -1226,7 +1226,7 @@ async function saveStock() {
   try {
     const items = catalogByCategory[currentCategory] || [];
     const missingEls = [], invalidEls = [];
-    const stockEntries = items.filter(it => String(it.is_header) !== 'TRUE').map(item => {
+    const stockEntries = items.filter(it => String(it.is_header).toUpperCase() !== 'TRUE').map(item => {
       const qtyEl = document.querySelector(`input[data-item="${item.name}"][data-field="quantity_raw"]`);
       const noteEl = document.querySelector(`input[data-item="${item.name}"][data-field="note"]`);
       const wasteEl = document.querySelector(`input[data-item="${item.name}"][data-field="waste_raw"]`);
@@ -1335,7 +1335,7 @@ let movementItemFlatList = []; // [{category, name}]
 function renderMovementItemSelect() {
   movementItemFlatList = [];
   Object.keys(catalogByCategory).forEach(cat => {
-    (catalogByCategory[cat]||[]).filter(it => String(it.is_header) !== 'TRUE').forEach(it => {
+    (catalogByCategory[cat]||[]).filter(it => String(it.is_header).toUpperCase() !== 'TRUE').forEach(it => {
       movementItemFlatList.push({ category: cat, name: it.name });
     });
   });
@@ -1782,7 +1782,7 @@ function renderPurchaseSyncResults_(res) {
   const autoCount = (res.autoMatched || []).length;
   const reviewList = res.needsReview || [];
   const skipCount = res.skippedCount || 0;
-  const catalogNames = Object.values(catalogByCategory).flat().filter(it => String(it.is_header) !== 'TRUE').map(it => it.name);
+  const catalogNames = Object.values(catalogByCategory).flat().filter(it => String(it.is_header).toUpperCase() !== 'TRUE').map(it => it.name);
   const datalistHtml = `<datalist id="purchase-item-datalist">${catalogNames.map(n => `<option value="${n}">`).join('')}</datalist>`;
   let html = datalistHtml;
   html += `<div class="bg-green-50 border border-green-200 rounded-xl p-3 mb-3 text-sm text-green-700">
@@ -1906,7 +1906,7 @@ async function renderAdminBufferTab() {
       <div><button class="toggle-sw ${bufferConfig.categoryPredict[cat] ? 'on' : ''}" data-buf-cat-toggle="${cat}"></button></div>
     </div>`).join('');
 
-  const allItems = categories.flatMap(cat => (catalogByCategory[cat]||[]).filter(it => String(it.is_header)!=='TRUE').map(it => ({...it, category:cat})));
+  const allItems = categories.flatMap(cat => (catalogByCategory[cat]||[]).filter(it => String(it.is_header).toUpperCase() !== 'TRUE').map(it => ({...it, category:cat})));
   const overrideRowHtml = (it) => {
     const ov = bufferConfig.itemOverride[it.name];
     const predictOv = bufferConfig.itemPredictOverride[it.name];
@@ -2153,11 +2153,11 @@ function renderAdminItemsTabFromCache_() {
 
   const itemRowHtml = (it, idx, catItems) => `
     <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-100">
-      <span class="${String(it.is_header)==='TRUE' ? 'font-semibold' : ''}">${it.name} ${it.unit ? '· '+it.unit : ''} ${unitConfig[it.name] ? `<span class="text-xs text-indigo-600">(หน่วยหลัก: ${unitConfig[it.name].primary})</span>` : ''}</span>
+      <span class="${String(it.is_header).toUpperCase() === 'TRUE' ? 'font-semibold' : ''}">${it.name} ${it.unit ? '· '+it.unit : ''} ${unitConfig[it.name] ? `<span class="text-xs text-indigo-600">(หน่วยหลัก: ${unitConfig[it.name].primary})</span>` : ''}</span>
       <div class="flex items-center gap-2 flex-shrink-0">
         <button onclick="moveItemOrder_('${it.category.replace(/'/g,"\\'")}', ${idx}, -1)" class="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-sm px-1" ${idx===0 ? 'disabled' : ''}>▲</button>
         <button onclick="moveItemOrder_('${it.category.replace(/'/g,"\\'")}', ${idx}, 1)" class="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-sm px-1" ${idx===catItems.length-1 ? 'disabled' : ''}>▼</button>
-        ${String(it.is_header)==='TRUE' ? '' : `<button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold">⚖️ หน่วย</button>`}
+        ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `<button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold">⚖️ หน่วย</button>`}
         <button onclick="removeItem('${it.id}')" class="text-red-500 text-xs">${t('delete')}</button>
       </div>
     </div>`;
