@@ -1744,10 +1744,64 @@ async function renderAdminPurchaseTab() {
       <select id="purchase-sync-branch" class="w-full px-3 py-2.5 border rounded-lg text-sm mb-3">${branchOptions}</select>
       <label class="block text-xs font-medium text-gray-600 mb-1">ดึงเฉพาะรายการตั้งแต่วันที่ (กันดึงประวัติเก่าย้อนหลังทั้งหมด)</label>
       <input type="date" id="purchase-sync-since" value="${defaultSince}" class="w-full px-3 py-2.5 border rounded-lg text-sm mb-3">
+      <button type="button" onclick="togglePurchaseExcludeSettings_()" class="text-xs text-indigo-600 underline mb-3">⚙️ ตั้งค่าหมวดที่ไม่นำเข้าสต็อค (เช่น ค่าน้ำ ค่าไฟ ค่าแรง)</button>
+      <div id="purchase-exclude-settings" class="hidden mb-3"></div>
       <button id="purchase-sync-btn" onclick="runPurchaseSync()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold">ดึงรายการรับเข้าจากชีตบัญชี</button>
     </div>
     <div id="purchase-sync-results"></div>
   `;
+}
+
+/** เปิด/ปิดแผงตั้งค่าหมวดที่ไม่นำเข้าสต็อค — โหลดจาก CONFIG ในชีตบัญชี (เขียนกลับผ่านปุ่มบันทึก ไม่ต้องเข้าไปแก้ชีตเอง) */
+async function togglePurchaseExcludeSettings_() {
+  const panel = document.getElementById('purchase-exclude-settings');
+  if (!panel.classList.contains('hidden')) { panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+  panel.innerHTML = '<p class="text-sm text-gray-400 bg-gray-50 rounded-xl p-3">กำลังโหลด...</p>';
+  try {
+    const res = await jsonpGet('getPurchaseExcludeSettings', { password: adminPassword });
+    if (!res || !res.ok) throw new Error(res && res.error || 'load_failed');
+    renderPurchaseExcludeSettings_(res);
+  } catch (e) {
+    panel.innerHTML = `<p class="text-sm text-red-500 bg-red-50 rounded-xl p-3">โหลดไม่สำเร็จ: ${(e && e.message) || e}</p>`;
+  }
+}
+
+function renderPurchaseExcludeSettings_(res) {
+  const panel = document.getElementById('purchase-exclude-settings');
+  const mkCheckboxes = (list, excluded, prefix) => (list && list.length)
+    ? list.map(v => `
+      <label class="flex items-center gap-2 text-sm py-1">
+        <input type="checkbox" data-purchase-exclude="${prefix}" value="${v}" ${(excluded || []).includes(v) ? 'checked' : ''}>
+        <span>${v}</span>
+      </label>`).join('')
+    : `<p class="text-xs text-gray-400">ยังไม่มีข้อมูลหมวดนี้ในชีตบัญชี</p>`;
+  panel.innerHTML = `
+    <div class="bg-gray-50 rounded-xl p-3">
+      <p class="text-xs text-gray-500 mb-2">ติ๊กหมวดที่<b>ไม่ต้องการ</b>ให้ดึงเข้าสต็อค — จะข้ามรายการหมวดนี้ไปเลยทุกครั้งที่กดดึง</p>
+      <p class="text-xs font-semibold text-gray-700 mt-2 mb-1">หมวดหลัก (Main Category)</p>
+      <div class="max-h-32 overflow-y-auto border rounded-lg p-2 bg-white">${mkCheckboxes(res.mainCategories, res.excludeMain, 'main')}</div>
+      <p class="text-xs font-semibold text-gray-700 mt-3 mb-1">หมวดย่อย (Subcategory)</p>
+      <div class="max-h-32 overflow-y-auto border rounded-lg p-2 bg-white">${mkCheckboxes(res.subCategories, res.excludeSub, 'sub')}</div>
+      <button type="button" onclick="savePurchaseExcludeSettings_(this)" class="w-full mt-3 bg-indigo-600 text-white text-sm font-semibold py-2 rounded-lg">บันทึกการตั้งค่า</button>
+    </div>
+  `;
+}
+
+async function savePurchaseExcludeSettings_(btn) {
+  const panel = document.getElementById('purchase-exclude-settings');
+  const mainChecked = [...panel.querySelectorAll('input[data-purchase-exclude="main"]:checked')].map(cb => cb.value);
+  const subChecked = [...panel.querySelectorAll('input[data-purchase-exclude="sub"]:checked')].map(cb => cb.value);
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    const res = await jsonpGet('savePurchaseExcludeSettings', { password: adminPassword, exclude_main: mainChecked.join(','), exclude_sub: subChecked.join(',') });
+    if (!res || !res.ok) throw new Error('save_failed');
+    showToast('บันทึกการตั้งค่าแล้ว', 'success');
+  } catch (e) {
+    showToast('บันทึกไม่สำเร็จ', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'บันทึกการตั้งค่า';
+  }
 }
 
 async function runPurchaseSync() {
