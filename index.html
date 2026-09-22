@@ -1782,10 +1782,7 @@ function renderPurchaseSyncResults_(res) {
   const autoCount = (res.autoMatched || []).length;
   const reviewList = res.needsReview || [];
   const skipCount = res.skippedCount || 0;
-  const catalogNames = Object.values(catalogByCategory).flat().filter(it => String(it.is_header).toUpperCase() !== 'TRUE').map(it => it.name);
-  const datalistHtml = `<datalist id="purchase-item-datalist">${catalogNames.map(n => `<option value="${n}">`).join('')}</datalist>`;
-  let html = datalistHtml;
-  html += `<div class="bg-green-50 border border-green-200 rounded-xl p-3 mb-3 text-sm text-green-700">
+  let html = `<div class="bg-green-50 border border-green-200 rounded-xl p-3 mb-3 text-sm text-green-700">
     ✅ จับคู่อัตโนมัติสำเร็จ ${autoCount} รายการ (สร้างรายการรับเข้าให้แล้ว)
     ${skipCount ? `<br>⏭️ ข้าม ${skipCount} รายการ (เคยนำเข้าไปแล้วก่อนหน้านี้)` : ''}
   </div>`;
@@ -1793,30 +1790,133 @@ function renderPurchaseSyncResults_(res) {
     html += `<p class="text-center text-gray-400 text-sm py-4">ไม่มีรายการที่ต้องตรวจสอบเพิ่ม</p>`;
   } else {
     html += `<p class="text-sm font-semibold text-gray-700 mb-2">🔎 ต้องตรวจสอบ ${reviewList.length} รายการ (ชื่อไม่ตรงกับสินค้าที่มีในระบบ)</p>`;
+    const categories = Object.keys(catalogByCategory);
+    const catOptionsHtml = categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
     html += reviewList.map(row => `
       <div class="bg-white border border-gray-200 rounded-xl p-3 mb-2" data-purchase-row="${row.rowId}">
         <p class="text-sm text-gray-800"><b>${row.rawName}</b> — ${fmtQty(row.qty)} ${row.unit || ''} <span class="text-gray-400">(${row.slipDate || ''})</span></p>
         ${row.suggested ? `<p class="text-xs text-indigo-600 mb-1">💡 Gemini แนะนำ: ${row.suggested}</p>` : ''}
-        <div class="flex items-center gap-2 mt-1">
-          <input list="purchase-item-datalist" class="flex-1 px-2 py-1.5 border rounded-lg text-sm" data-purchase-item-input value="${row.suggested || ''}" placeholder="เลือก/พิมพ์ชื่อสินค้าในระบบ">
-          <button onclick="confirmPurchaseRow('${row.rowId}', this)" class="bg-indigo-600 text-white text-sm font-semibold px-3 py-1.5 rounded-lg">ยืนยัน</button>
+
+        <label class="block text-xs font-medium text-gray-600 mt-2 mb-1">หมวดหมู่</label>
+        <div class="flex items-center gap-2">
+          <select data-purchase-cat-select class="flex-1 px-2 py-1.5 border rounded-lg text-sm" onchange="onPurchaseCatChange_('${row.rowId}', this)">
+            <option value="">-- เลือกหมวดหมู่ --</option>
+            ${catOptionsHtml}
+          </select>
+          <button type="button" onclick="togglePurchaseNewCat_('${row.rowId}')" title="สร้างหมวดหมู่ใหม่" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold w-9 h-9 rounded-lg flex-shrink-0">➕</button>
+        </div>
+        <input type="text" data-purchase-new-cat placeholder="ชื่อหมวดหมู่ใหม่" class="hidden w-full mt-2 px-2 py-1.5 border-2 border-orange-300 rounded-lg text-sm">
+
+        <div data-purchase-item-section class="hidden">
+          <label class="block text-xs font-medium text-gray-600 mt-2 mb-1">รายการสินค้า</label>
+          <div class="flex items-center gap-2">
+            <select data-purchase-item-select class="flex-1 px-2 py-1.5 border rounded-lg text-sm" onchange="onPurchaseItemChange_('${row.rowId}', this)"></select>
+            <button type="button" onclick="togglePurchaseNewItem_('${row.rowId}')" title="สร้างรายการสินค้าใหม่ในหมวดนี้" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold w-9 h-9 rounded-lg flex-shrink-0">➕</button>
+          </div>
+        </div>
+        <div data-purchase-new-item-section class="hidden mt-2 flex items-center gap-2">
+          <input type="text" data-purchase-new-item-name placeholder="ชื่อสินค้าใหม่" class="flex-1 px-2 py-1.5 border-2 border-orange-300 rounded-lg text-sm">
+          <input type="text" data-purchase-new-item-unit placeholder="หน่วย เช่น กิโลกรัม" class="w-28 px-2 py-1.5 border-2 border-orange-300 rounded-lg text-sm">
+        </div>
+
+        <div class="flex items-center gap-2 mt-2">
+          <button onclick="confirmPurchaseRow('${row.rowId}', this)" class="flex-1 bg-indigo-600 text-white text-sm font-semibold px-3 py-1.5 rounded-lg">ยืนยัน</button>
           <button onclick="skipPurchaseRow('${row.rowId}', this)" class="bg-gray-200 text-gray-600 text-sm font-semibold px-3 py-1.5 rounded-lg">ข้าม</button>
         </div>
       </div>`).join('');
   }
   el.innerHTML = html;
+  // ถ้า Gemini แนะนำชื่อสินค้ามา หาว่าอยู่หมวดไหนแล้ว preselect ให้เลย ลดคลิกที่ต้องทำ
+  reviewList.forEach(row => {
+    if (!row.suggested) return;
+    const card = el.querySelector(`[data-purchase-row="${row.rowId}"]`);
+    if (!card) return;
+    const foundCat = Object.keys(catalogByCategory).find(cat => (catalogByCategory[cat] || []).some(it => it.name === row.suggested));
+    if (!foundCat) return;
+    const catSelect = card.querySelector('[data-purchase-cat-select]');
+    catSelect.value = foundCat;
+    onPurchaseCatChange_(row.rowId, catSelect, row.suggested);
+  });
+}
+
+/** พอเลือกหมวดหมู่ (ที่มีอยู่แล้ว) ให้โชว์ dropdown รายการสินค้าภายในหมวดนั้น */
+function onPurchaseCatChange_(rowId, selectEl, preselectItemName) {
+  const card = document.querySelector(`[data-purchase-row="${rowId}"]`);
+  const cat = selectEl.value;
+  const newCatInput = card.querySelector('[data-purchase-new-cat]');
+  const itemSection = card.querySelector('[data-purchase-item-section]');
+  const newItemSection = card.querySelector('[data-purchase-new-item-section]');
+  newCatInput.classList.add('hidden');
+  newCatInput.value = '';
+  if (!cat) {
+    itemSection.classList.add('hidden');
+    newItemSection.classList.add('hidden');
+    return;
+  }
+  const items = (catalogByCategory[cat] || []).filter(it => String(it.is_header).toUpperCase() !== 'TRUE');
+  const itemSelect = card.querySelector('[data-purchase-item-select]');
+  itemSelect.innerHTML = '<option value="">-- เลือกสินค้า --</option>' +
+    items.map(it => `<option value="${it.name}" ${it.name === preselectItemName ? 'selected' : ''}>${it.name}${it.unit ? ' · ' + it.unit : ''}</option>`).join('');
+  itemSection.classList.remove('hidden');
+  newItemSection.classList.add('hidden');
+}
+
+function onPurchaseItemChange_(rowId, selectEl) {
+  if (!selectEl.value) return;
+  const card = document.querySelector(`[data-purchase-row="${rowId}"]`);
+  card.querySelector('[data-purchase-new-item-section]').classList.add('hidden');
+}
+
+/** กด ➕ ข้างหมวดหมู่ — สลับไปโหมดพิมพ์ชื่อหมวดใหม่ (หมวดใหม่ยังไม่มีสินค้าเลย เลยข้ามไปให้กรอกชื่อสินค้าใหม่ตรงๆ) */
+function togglePurchaseNewCat_(rowId) {
+  const card = document.querySelector(`[data-purchase-row="${rowId}"]`);
+  card.querySelector('[data-purchase-cat-select]').value = '';
+  const newCatInput = card.querySelector('[data-purchase-new-cat]');
+  newCatInput.classList.remove('hidden');
+  newCatInput.focus();
+  card.querySelector('[data-purchase-item-section]').classList.add('hidden');
+  card.querySelector('[data-purchase-new-item-section]').classList.remove('hidden');
+}
+
+/** กด ➕ ข้างรายการสินค้า — สลับไปโหมดพิมพ์ชื่อ+หน่วยสินค้าใหม่ ในหมวดที่เลือกไว้อยู่แล้ว */
+function togglePurchaseNewItem_(rowId) {
+  const card = document.querySelector(`[data-purchase-row="${rowId}"]`);
+  card.querySelector('[data-purchase-item-select]').value = '';
+  card.querySelector('[data-purchase-new-item-section]').classList.remove('hidden');
+  card.querySelector('[data-purchase-new-item-name]').focus();
 }
 
 async function confirmPurchaseRow(rowId, btn) {
   const card = btn.closest('[data-purchase-row]');
-  const itemName = card.querySelector('[data-purchase-item-input]').value.trim();
-  if (!itemName) { showToast('กรุณาเลือกชื่อสินค้า', 'error'); return; }
+  const newCatInput = card.querySelector('[data-purchase-new-cat]');
+  const isNewCat = !newCatInput.classList.contains('hidden');
+  const category = isNewCat ? newCatInput.value.trim() : card.querySelector('[data-purchase-cat-select]').value;
+  const isNewItem = !card.querySelector('[data-purchase-new-item-section]').classList.contains('hidden');
+  const newItemName = card.querySelector('[data-purchase-new-item-name]').value.trim();
+  const newItemUnit = card.querySelector('[data-purchase-new-item-unit]').value.trim();
+  const itemName = isNewItem ? newItemName : card.querySelector('[data-purchase-item-select]').value;
+
+  if (!category) { showToast('กรุณาเลือกหรือกรอกหมวดหมู่', 'error'); return; }
+  if (!itemName) { showToast('กรุณาเลือกหรือกรอกชื่อสินค้า', 'error'); return; }
+  if (isNewItem && !newItemUnit) { showToast('กรุณากรอกหน่วยของสินค้าใหม่', 'error'); return; }
+
   btn.disabled = true;
   try {
+    if (isNewItem) {
+      const saveRes = await jsonpGet('saveItem', {
+        password: adminPassword, category, name: itemName, unit: newItemUnit,
+        branch_id: purchaseSyncResult.branchId, is_header: 'FALSE'
+      });
+      if (!saveRes || !saveRes.ok) throw new Error('save_item_failed');
+      // เพิ่มเข้าแคตตาล็อกในหน่วยความจำทันที กันต้อง loadCatalog() ใหม่ทั้งก้อนแค่เพราะเพิ่ง 1 รายการ
+      catalogFlat.push(saveRes.item);
+      if (!catalogByCategory[category]) catalogByCategory[category] = [];
+      catalogByCategory[category].push(saveRes.item);
+    }
     const res = await jsonpGet('confirmPurchaseMatch', { password: adminPassword, branch_id: purchaseSyncResult.branchId, row_id: rowId, item_name: itemName });
     if (!res || !res.ok) throw new Error('confirm_failed');
     card.remove();
-    showToast('ยืนยันแล้ว สร้างรายการรับเข้าให้แล้ว', 'success');
+    showToast(isNewItem ? 'สร้างสินค้าใหม่และยืนยันรายการรับเข้าแล้ว' : 'ยืนยันแล้ว สร้างรายการรับเข้าให้แล้ว', 'success');
   } catch (e) {
     showToast('ยืนยันไม่สำเร็จ', 'error');
     btn.disabled = false;
