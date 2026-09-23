@@ -735,17 +735,22 @@ function t(key) {
   if (currentLanguage === 'th' || !dict.ui[key]) return UI_TH[key] || key;
   return dict.ui[key];
 }
+// เทียบด้วยชื่อที่ตัดช่องว่างหัว-ท้ายแล้วเสมอ (ฝั่ง Code.gs ก็ trim() ตอนสร้าง dict/แคชคำแปลเหมือนกัน)
+// กันกรณีชื่อสินค้า/หมวดหมู่/หน่วยในชีทมีช่องว่างแฝงติดมา ทำให้เทียบ string แบบเป๊ะตัวอักษรไม่ตรงแล้วหาคำแปลไม่เจอ
 function tItem(name) {
   if (currentLanguage === 'th') return name;
-  return (dict.items && dict.items[name]) || name;
+  const key = String(name || '').trim();
+  return (dict.items && dict.items[key]) || name;
 }
 function tUnit(unit) {
   if (currentLanguage === 'th' || !unit) return unit || '';
-  return (dict.units && dict.units[unit]) || unit;
+  const key = String(unit || '').trim();
+  return (dict.units && dict.units[key]) || unit;
 }
 function tCategory(cat) {
   if (currentLanguage === 'th') return cat;
-  return (dict.categories && dict.categories[cat]) || cat;
+  const key = String(cat || '').trim();
+  return (dict.categories && dict.categories[key]) || cat;
 }
 
 function applyStaticTranslations() {
