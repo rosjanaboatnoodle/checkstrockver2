@@ -2859,7 +2859,9 @@ async function runTranslateAll(lang) {
   const btn = document.getElementById('translate-btn-'+lang);
   btn.disabled = true; btn.textContent = t('translating');
   try {
-    const res = await jsonpGet('translateAll', { password: adminPassword, lang });
+    // แปลหลายคำพร้อมกัน (ยิง Gemini เป็นชุด) อาจใช้เวลานานกว่า timeout ปกติ (20s) โดยเฉพาะรอบที่มีคำใหม่เยอะ
+    // ทำให้ฝั่งเว็บรอไม่ทันแล้วเด้ง error ทั้งที่จริง Apps Script แปลสำเร็จและบันทึกแคชไปแล้วเบื้องหลัง
+    const res = await jsonpGet('translateAll', { password: adminPassword, lang }, 60000);
     if (res && res.ok) {
       showToast(t('saveOk'), 'success');
       if (currentLanguage === lang) { dict = res.dict; applyStaticTranslations(); rerenderVisiblePages(); }
