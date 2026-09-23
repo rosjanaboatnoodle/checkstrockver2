@@ -687,11 +687,7 @@ function effectiveBufferPct_(itemName, category) {
    ถ้าต่อยอดสูตรเมนู (Recipes×DailySales) ในอนาคต ให้แทนที่ฟังก์ชันนี้เป็นค่าที่คำนวณจากสูตรแทน) */
 function computePrediction_(itemName, category) {
   if (!isPredictionEnabled_(itemName, category)) return null;
-  const prevRecord = getPreviousRecord(category, new Date().toISOString());
-  if (!prevRecord) return null;
-  const prevItem = getItemFromRecord(prevRecord, itemName);
-  if (!prevItem) return null;
-  return getComparableQty_(prevItem);
+  return getExpectedQtyBefore_(category, itemName, new Date());
 }
 function computeFlag_(actual, predicted, bufferPct) {
   if (predicted === null || predicted === undefined || !isFinite(predicted) || predicted === 0) return '';
@@ -1307,7 +1303,6 @@ async function saveStock() {
 
 /** สร้างข้อความสรุปเช็คสต็อก ส่งแนบไปกับ action:'create' ให้ backend ยิงต่อเข้า LINE ทันที (ไม่โชว์ในหน้าเว็บอีกต่อไป) */
 function buildLineReportText_(stockEntries) {
-  const prevRecord = getPreviousRecord(currentCategory, new Date().toISOString());
   let lines = [];
   lines.push('🚣 รายงานเช็คสต็อก');
   lines.push('━━━━━━━━━━━━━━━━');
@@ -1320,9 +1315,8 @@ function buildLineReportText_(stockEntries) {
   let shortCount = 0, overCount = 0, criticalCount = 0;
   stockEntries.forEach(entry => {
     let predicted = null;
-    if (isPredictionEnabled_(entry.name, currentCategory) && prevRecord) {
-      const p = getItemFromRecord(prevRecord, entry.name);
-      if (p) predicted = getComparableQty_(p);
+    if (isPredictionEnabled_(entry.name, currentCategory)) {
+      predicted = getExpectedQtyBefore_(currentCategory, entry.name, new Date());
     }
     let line = `• ${entry.name}: ${fmtQty(entry.quantity_base)} ${entry.unit}`;
     if (predicted !== null) {
@@ -1665,16 +1659,63 @@ function renderHistory() {
   }).join('');
 }
 
-function getPreviousRecord(category, currentDate) {
-  const curr = currentDate ? new Date(currentDate).getTime() : null;
-  const filtered = allRecords.filter(r => r.category === category && r.type !== 'movement').sort((a,b) => new Date(b.date)-new Date(a.date));
-  if (!filtered.length) return null;
-  if (!curr) return filtered.length > 1 ? filtered[1] : null;
-  return filtered.find(r => new Date(r.date).getTime() < curr) || null;
-}
 function getItemFromRecord(record, itemName) {
   const items = JSON.parse(record.items || '[]');
   return items.find(i => i.name === itemName);
+}
+
+/** ปรับ "ค่าฐานเปรียบเทียบ" ด้วยรายการปรับสต็อค (รับเข้า/เบิกออก/ปรับยอด) ที่เกิดขึ้นในช่วง (afterDate, uptoDate]
+   ใช้ร่วมกันทั้งหน้ารายละเอียดประวัติ, รายงาน LINE หลังเช็คสต็อก, และค่า "คาด" — กันไม่ให้ระบบเข้าใจว่ายอดหาย
+   ผิดปกติ ทั้งที่จริงมีการปรับสต็อคด้วยมือระหว่างสองรอบเช็คไปแล้ว (ต้อง sync ตรรกะเดียวกับ getCurrentStockLevels_
+   ฝั่ง Code.gs ที่ใช้กับหน้ารายการเบิกสินค้า) */
+function applyMovementsToQty_(baseQty, itemName, afterDate, uptoDate) {
+  let qty = baseQty;
+  const after = afterDate ? new Date(afterDate).getTime() : null;
+  const upto = uptoDate ? new Date(uptoDate).getTime() : null;
+  const movementRecords = allRecords.filter(r => r.type === 'movement').slice().sort((a,b) => new Date(a.date) - new Date(b.date));
+  movementRecords.forEach(r => {
+    const rt = new Date(r.date).getTime();
+    if (after !== null && rt <= after) return;
+    if (upto !== null && rt > upto) return;
+    let its = [];
+    try { its = JSON.parse(r.items || '[]'); } catch (e) { return; }
+    its.forEach(it => {
+      if (it.name !== itemName) return;
+      const q = Number(it.quantity);
+      if (it.direction === 'in') qty += q;
+      else if (it.direction === 'out') qty -= q;
+      else if (it.direction === 'adjust') qty = q;
+    });
+  });
+  return qty;
+}
+
+/** หา "ค่าที่คาดว่าควรจะเป็น" ของสินค้าหนึ่งในหมวดหนึ่ง ก่อนเวลา beforeDate:
+   1) เริ่มจากรอบเช็คสต็อกล่าสุดของหมวดนี้ก่อน beforeDate (ถ้ามี) เอาจำนวนสินค้านั้นในรอบนั้นเป็นฐาน
+   2) ถ้าไม่เคยมีรอบเช็คมาก่อนเลย ลองหารายการ "ปรับยอด" ล่าสุดของสินค้านี้ก่อน beforeDate แทน (ปรับยอด = ตั้งฐานใหม่ตรงๆ)
+   3) เอาฐานที่ได้บวก/ลบ/ปรับต่อด้วยรายการปรับสต็อคอื่นที่เกิดขึ้นหลังจากนั้นจนถึงก่อน beforeDate
+   คืนค่า null ถ้าหาฐานอะไรเทียบไม่ได้เลยจริงๆ (ไม่เคยเช็ค ไม่เคยปรับยอดมาก่อน) */
+function getExpectedQtyBefore_(category, itemName, beforeDate) {
+  const before = new Date(beforeDate);
+  const checkRecords = allRecords.filter(r => r.type !== 'movement' && r.category === category && new Date(r.date) < before)
+    .sort((a,b) => new Date(b.date) - new Date(a.date));
+  let baseQty = null, baseDate = null;
+  if (checkRecords.length) {
+    const it = getItemFromRecord(checkRecords[0], itemName);
+    if (it) { baseQty = getComparableQty_(it); baseDate = checkRecords[0].date; }
+  }
+  if (baseQty === null) {
+    const movementsBefore = allRecords.filter(r => r.type === 'movement' && new Date(r.date) < before)
+      .sort((a,b) => new Date(b.date) - new Date(a.date));
+    for (const r of movementsBefore) {
+      let its = [];
+      try { its = JSON.parse(r.items || '[]'); } catch (e) { continue; }
+      const found = its.find(it => it.name === itemName && it.direction === 'adjust');
+      if (found) { baseQty = Number(found.quantity); baseDate = r.date; break; }
+    }
+  }
+  if (baseQty === null) return null;
+  return applyMovementsToQty_(baseQty, itemName, baseDate, new Date(before.getTime() - 1));
 }
 
 function showHistoryDetail(id) {
@@ -1710,7 +1751,12 @@ function showHistoryDetail(id) {
     return;
   }
 
-  const previousRecord = getPreviousRecord(record.category, record.date);
+  // ค่าเปรียบเทียบ: ใช้ "ค่าที่คาดว่าควรจะเป็น" ต่อรายการ (รอบเช็คก่อนหน้า/รายการปรับยอดล่าสุด + รายการปรับสต็อคที่เกิด
+  // ขึ้นระหว่างนั้น) แทนการเทียบยอดนับดิบของรอบก่อนหน้าตรงๆ ไม่งั้นถ้ามีการปรับสต็อคคั่นระหว่างสองรอบเช็ค ตัวเลข
+  // "เปลี่ยนแปลง" จะเพี้ยน (นับรวมยอดที่ปรับสต็อคไปแล้วซ้ำเป็นเหมือนเปลี่ยนแปลงผิดปกติ)
+  const expectedQtyByItem_ = {};
+  items.forEach(item => { expectedQtyByItem_[item.name] = getExpectedQtyBefore_(record.category, item.name, new Date(record.date)); });
+  const anyExpected = Object.values(expectedQtyByItem_).some(v => v !== null);
   const editButtonHtml = adminPassword ? `<button onclick="toggleEditMode()" class="text-sm bg-white/20 px-3 py-1.5 rounded-lg" >${t('editRecord')}</button>` : '';
 
   content.innerHTML = `
@@ -1728,19 +1774,19 @@ function showHistoryDetail(id) {
           <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">${t('item')}</th>
           <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">${t('quantity')}</th>
           <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">${t('unit')}</th>
-          ${previousRecord ? `<th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">${t('compared')}</th><th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">${t('changeLabel')}</th>` : ''}
+          ${anyExpected ? `<th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">${t('compared')}</th><th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">${t('changeLabel')}</th>` : ''}
           <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">${t('note')}</th>
           <th class="px-4 py-3 w-10"></th>
         </tr></thead>
         <tbody class="divide-y divide-gray-100">
           ${items.map(item => {
             let comparison = '';
-            if (previousRecord) {
-              const prevItem = getItemFromRecord(previousRecord, item.name);
-              if (prevItem) {
-                const diff = getComparableQty_(item) - getComparableQty_(prevItem);
+            if (anyExpected) {
+              const expectedQty = expectedQtyByItem_[item.name];
+              if (expectedQty !== null) {
+                const diff = getComparableQty_(item) - expectedQty;
                 const trend = diff > 0 ? `<span class="trend-up">⬆ +${fmtQty(diff)}</span>` : diff < 0 ? `<span class="trend-down">⬇ ${fmtQty(diff)}</span>` : `<span class="trend-neutral">- ${t('noChange')}</span>`;
-                comparison = `<td class="px-4 py-3 text-center font-semibold text-gray-600">${fmtQty(prevItem.quantity)} ${tUnit(prevItem.unit)}</td><td class="px-4 py-3 text-center font-semibold">${trend}</td>`;
+                comparison = `<td class="px-4 py-3 text-center font-semibold text-gray-600">${fmtQty(expectedQty)} ${tUnit(item.unit)}</td><td class="px-4 py-3 text-center font-semibold">${trend}</td>`;
               } else {
                 comparison = `<td class="px-4 py-3 text-center text-gray-400">-</td><td class="px-4 py-3 text-center"><span class="text-xs text-blue-600">${t('noPrevious')}</span></td>`;
               }
