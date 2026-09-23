@@ -76,6 +76,9 @@
     .mv-qty-input:disabled{ opacity:.6;background:#f9fafb; }
     .mv-batch-bar{ position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:50;background:#111827;color:#fff;padding:12px 22px;border-radius:999px;font-weight:700;font-size:14px;box-shadow:0 12px 32px rgba(0,0,0,.35);cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;border:none; }
     .mv-batch-bar.hidden{ display:none !important; }
+    /* ป้ายแจ้งมีเวอร์ชันใหม่ — ลอยด้านบนกลางจอ กดเพื่อโหลดหน้าใหม่ทันที (แยกตำแหน่งจาก .mv-batch-bar ที่อยู่ล่าง กันซ้อนกัน) */
+    .app-update-banner{ position:fixed;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:300;background:#16a34a;color:#fff;padding:10px 20px;border-radius:999px;font-weight:700;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.35);cursor:pointer;border:none;display:flex;align-items:center;gap:8px;white-space:nowrap; }
+    .app-update-banner.hidden{ display:none !important; }
     /* จอแคบ (มือถือ/แท็บเล็ตแนวตั้ง): การ์ดวางซ้อนกัน แทนตารางที่ต้องเลื่อนซ้าย-ขวา */
     @media (max-width: 767px) {
       #stock-table thead{ display:none; }
@@ -444,6 +447,9 @@
       <span id="toast-message">บันทึกสำเร็จ!</span>
     </div>
 
+    <!-- ป้ายแจ้งมีเวอร์ชันใหม่ (โผล่เมื่อระบบตรวจพบว่าไฟล์บนเซิร์ฟเวอร์เปลี่ยนไปจากที่โหลดไว้) -->
+    <button id="app-update-banner" class="app-update-banner hidden" onclick="location.reload()">🔄 <span data-t="newVersionAvailable">มีเวอร์ชันใหม่ กดเพื่ออัปเดต</span></button>
+
     <!-- โมดัลจัดการหน่วย + อัตราแปลง + หน่วยหลัก -->
     <div id="unit-editor-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeUnitEditor()">
       <div class="modal-box p-5 mt-16 mb-10">
@@ -537,7 +543,8 @@ const UI_TH = {
   fillBranchNameAndPassword:'กรอกชื่อสาขาและรหัสผ่านสาขา', firstBranchNameHint:'ชื่อสาขา เช่น สาขาหลัก',
   adminPasswordShort:'รหัสผ่านแอดมิน', enterNamePlaceholder:'กรอกชื่อของคุณ',
   mvQuickSearchPlaceholder:'ค้นหาด่วน: พิมพ์ชื่อสินค้าที่จะปรับ...', qtyInputHint:'* ช่อง "จำนวน" ใส่ได้เฉพาะ 0-9 และสัญลักษณ์ . / + -',
-  lockedTooltip:'ยืนยันแล้ว กดอีกครั้งเพื่อแก้ไข', lockTooltip:'กดยืนยัน/ล็อครายการนี้'
+  lockedTooltip:'ยืนยันแล้ว กดอีกครั้งเพื่อแก้ไข', lockTooltip:'กดยืนยัน/ล็อครายการนี้',
+  newVersionAvailable:'มีเวอร์ชันใหม่ กดเพื่ออัปเดต'
 };
 const CAT_TH = { 'หน้าเรือ':'หน้าเรือ', 'อาหารตามสั่ง':'อาหารตามสั่ง', 'เด็กเสิร์ฟ':'เด็กเสิร์ฟ' };
 
@@ -736,24 +743,32 @@ function postNoCors(payload) {
 /* =========================================================
    Translation helpers
    ========================================================= */
+/** หน้าแอดมินมีแต่เจ้าของร้าน/คนไทยใช้ ไม่จำเป็นต้องแปล เปลืองโควตา Gemini เปล่าๆ
+   เช็คว่าตอนนี้เปิดโมดัลแอดมิน (หรือหน้าจอกรอกรหัสผ่านแอดมิน) อยู่หรือไม่ ถ้าใช่บังคับเป็นไทยเสมอ
+   ไม่ว่าตั้งค่าภาษาแอปเป็นอะไร — เช็คจุดเดียวตรงนี้ครอบคลุมทั้งหมด ไม่ต้องไล่แก้ทีละจุดในโค้ดแอดมิน */
+function isAdminUiOpen_() {
+  const a = document.getElementById('admin-modal');
+  const g = document.getElementById('admin-gate-modal');
+  return (a && !a.classList.contains('hidden')) || (g && !g.classList.contains('hidden'));
+}
 function t(key) {
-  if (currentLanguage === 'th' || !dict.ui[key]) return UI_TH[key] || key;
+  if (currentLanguage === 'th' || isAdminUiOpen_() || !dict.ui[key]) return UI_TH[key] || key;
   return dict.ui[key];
 }
 // เทียบด้วยชื่อที่ตัดช่องว่างหัว-ท้ายแล้วเสมอ (ฝั่ง Code.gs ก็ trim() ตอนสร้าง dict/แคชคำแปลเหมือนกัน)
 // กันกรณีชื่อสินค้า/หมวดหมู่/หน่วยในชีทมีช่องว่างแฝงติดมา ทำให้เทียบ string แบบเป๊ะตัวอักษรไม่ตรงแล้วหาคำแปลไม่เจอ
 function tItem(name) {
-  if (currentLanguage === 'th') return name;
+  if (currentLanguage === 'th' || isAdminUiOpen_()) return name;
   const key = String(name || '').trim();
   return (dict.items && dict.items[key]) || name;
 }
 function tUnit(unit) {
-  if (currentLanguage === 'th' || !unit) return unit || '';
+  if (currentLanguage === 'th' || isAdminUiOpen_() || !unit) return unit || '';
   const key = String(unit || '').trim();
   return (dict.units && dict.units[key]) || unit;
 }
 function tCategory(cat) {
-  if (currentLanguage === 'th') return cat;
+  if (currentLanguage === 'th' || isAdminUiOpen_()) return cat;
   const key = String(cat || '').trim();
   return (dict.categories && dict.categories[key]) || cat;
 }
@@ -1787,10 +1802,12 @@ function openAdminGate() {
   // ต้องเคลียร์ช่องกรอกรหัสทุกครั้งที่เปิด ไม่งั้นรหัสที่เคยพิมพ์ไว้จะค้างอยู่ในช่อง กดตกลง/Enter ผ่านได้เลยโดยไม่ต้องพิมพ์ใหม่
   document.getElementById('admin-password-input').value = '';
   document.getElementById('admin-gate-modal').classList.remove('hidden');
+  applyStaticTranslations(); // บังคับ label ในหน้าแอดมินกลับเป็นไทยตอนนี้ (isAdminUiOpen_ จะเป็น true แล้ว)
 }
 function closeAdminGate() {
   document.getElementById('admin-password-input').value = '';
   document.getElementById('admin-gate-modal').classList.add('hidden');
+  applyStaticTranslations(); // คืนค่าภาษาที่ตั้งไว้ให้ label กลุ่มนี้ ตอนออกจากหน้าแอดมินแล้ว
 }
 async function submitAdminLogin() {
   const pw = document.getElementById('admin-password-input').value;
@@ -1823,10 +1840,12 @@ function openAdminModal(prefetchItems, prefetchScope) {
   bufferConfigLoaded = false;
   reorderConfigLoaded = false;
   document.getElementById('admin-modal').classList.remove('hidden');
+  applyStaticTranslations(); // บังคับ label ในหน้าแอดมิน (หัวข้อ/แท็บ) กลับเป็นไทยตอนนี้ (isAdminUiOpen_ จะเป็น true แล้ว)
   switchAdminTab('items', prefetchItems, prefetchScope);
 }
 async function closeAdminModal() {
   document.getElementById('admin-modal').classList.add('hidden');
+  applyStaticTranslations(); // คืนค่าภาษาที่ตั้งไว้ให้ label กลุ่มนี้ ตอนออกจากหน้าแอดมินแล้ว
   if (catalogDirty) { // รีเฟรชข้อมูลฝั่งเช็คสต็อกแค่ตอนปิด ไม่ใช่ทุกคลิก
     await loadCatalog();
     catalogDirty = false;
@@ -2924,6 +2943,26 @@ async function init() {
     if (onHistoryPage && document.visibilityState === 'visible') syncHistory();
   }, 15000);
 }
+
+/* =========================================================
+   ตรวจสอบเวอร์ชันใหม่
+   -----------------------------------------------------------
+   ใช้ ETag/Last-Modified ที่เซิร์ฟเวอร์ส่งมาเทียบกัน แทนการฝังเลขเวอร์ชันในโค้ดเอง
+   (เลขเวอร์ชันฝังโค้ดต้องมาคอยอัปเดตเองทุกครั้งที่ deploy ซึ่งลืมง่าย ส่วน ETag เซิร์ฟเวอร์เปลี่ยนให้เองอัตโนมัติ
+   ทุกครั้งที่ไฟล์เปลี่ยน ไม่ต้องดูแลอะไรเพิ่ม) เช็คทุก 10 นาทีระหว่างเปิดแท็บทิ้งไว้ + ทุกครั้งที่สลับกลับมาที่แท็บนี้
+   เพื่อให้ร้านอื่นๆ ที่เอาแอปนี้ไปใช้ รู้ตัวว่ามีอัปเดตใหม่โดยไม่ต้องมีใครไปบอกเขาเอง */
+let appEtag_ = null;
+async function checkForAppUpdate_() {
+  try {
+    const res = await fetch(location.href, { cache: 'no-store', method: 'HEAD' });
+    const tag = res.headers.get('etag') || res.headers.get('last-modified');
+    if (!tag) return;
+    if (appEtag_ === null) { appEtag_ = tag; return; } // ครั้งแรกแค่จำไว้เทียบ ยังไม่ต้องเช็ค
+    if (tag !== appEtag_) document.getElementById('app-update-banner').classList.remove('hidden');
+  } catch (e) { /* ออฟไลน์/เน็ตมีปัญหาชั่วคราว ข้ามไปเช็ครอบหน้า */ }
+}
+setInterval(checkForAppUpdate_, 10 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForAppUpdate_(); });
 
 // กด Esc ปิดโมดัลที่เปิดอยู่ได้เสมอ (เผื่อคลิกปุ่ม X ไม่โดน)
 document.addEventListener('keydown', (e) => {
