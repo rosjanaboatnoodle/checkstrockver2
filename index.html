@@ -215,9 +215,9 @@
 
         <div id="branch-first-run" class="hidden bg-white rounded-2xl p-5 shadow-md mt-4">
           <p class="text-gray-600 mb-3 text-sm" data-t="setupFirstBranch">ยังไม่มีสาขาในระบบ ตั้งค่าสาขาแรก (ใช้รหัสผ่านแอดมิน)</p>
-          <input id="first-branch-name" type="text" onkeydown="if(event.key==='Enter') createFirstBranch()" placeholder="ชื่อสาขา เช่น สาขาหลัก" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none">
-          <input id="first-branch-staffpw" type="text" onkeydown="if(event.key==='Enter') createFirstBranch()" placeholder="รหัสผ่านประจำสาขา (ให้พนักงานใช้)" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none">
-          <input id="first-branch-adminpw" type="password" onkeydown="if(event.key==='Enter') createFirstBranch()" placeholder="รหัสผ่านแอดมิน" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none">
+          <input id="first-branch-name" type="text" onkeydown="if(event.key==='Enter') createFirstBranch()" data-t-placeholder="firstBranchNameHint" placeholder="ชื่อสาขา เช่น สาขาหลัก" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none">
+          <input id="first-branch-staffpw" type="text" onkeydown="if(event.key==='Enter') createFirstBranch()" data-t-placeholder="branchPasswordLabel" placeholder="รหัสผ่านประจำสาขา (ให้พนักงานใช้)" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none">
+          <input id="first-branch-adminpw" type="password" onkeydown="if(event.key==='Enter') createFirstBranch()" data-t-placeholder="adminPasswordShort" placeholder="รหัสผ่านแอดมิน" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none">
           <button onclick="createFirstBranch()" class="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600" data-t="createBranch">สร้างสาขา</button>
         </div>
       </div>
@@ -228,7 +228,7 @@
       <div class="max-w-lg mx-auto">
         <div class="flex items-center justify-between mb-6">
           <div>
-            <h1 id="shop-title" class="text-2xl md:text-3xl font-bold text-orange-800">📋 ระบบเช็คสต็อกสินค้า</h1>
+            <h1 id="shop-title" class="text-2xl md:text-3xl font-bold text-orange-800">📋 <span data-t="shopTitle">ระบบเช็คสต็อกสินค้า</span></h1>
             <p data-t="dailyCheck" class="text-orange-600 text-sm mt-1">เช็คสต็อกประจำวัน</p>
             <button onclick="branchSwitchLabelClick()" id="branch-switch-label" class="text-xs text-gray-500 underline mt-1"></button>
           </div>
@@ -276,7 +276,7 @@
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2" data-t="fullName">ชื่อ-นามสกุล</label>
-              <input type="text" id="checker-name" onkeydown="if(event.key==='Enter') startChecking()" placeholder="กรอกชื่อของคุณ" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-lg">
+              <input type="text" id="checker-name" onkeydown="if(event.key==='Enter') startChecking()" data-t-placeholder="enterNamePlaceholder" placeholder="กรอกชื่อของคุณ" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-lg">
             </div>
             <button onclick="startChecking()" class="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold text-lg hover:bg-orange-600 transition-colors shadow-md hover:shadow-lg" data-t="startChecking">เริ่มเช็คสต็อก</button>
           </div>
@@ -317,7 +317,7 @@
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
               <span data-t="save">บันทึกข้อมูล</span>
             </button>
-            <p class="text-xs text-gray-500 mt-2">* ช่อง "จำนวน" ใส่ได้เฉพาะ 0-9 และสัญลักษณ์ . / + -</p>
+            <p class="text-xs text-gray-500 mt-2" data-t="qtyInputHint">* ช่อง "จำนวน" ใส่ได้เฉพาะ 0-9 และสัญลักษณ์ . / + -</p>
           </div>
         </div>
       </div>
@@ -336,7 +336,7 @@
         <p class="text-sm text-gray-500 mb-4"><span data-t="staffChecker">ผู้เช็คสต็อก:</span> <span id="mv-display-checker-name" class="font-medium"></span></p>
 
         <div class="mb-3">
-          <input id="mv-quick-search" type="text" autocomplete="off" placeholder="ค้นหาด่วน: พิมพ์ชื่อสินค้าที่จะปรับ..."
+          <input id="mv-quick-search" type="text" autocomplete="off" data-t-placeholder="mvQuickSearchPlaceholder" placeholder="ค้นหาด่วน: พิมพ์ชื่อสินค้าที่จะปรับ..."
             class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
             oninput="filterMovementQuickSearch(this.value)">
         </div>
@@ -532,7 +532,12 @@ const UI_TH = {
   saveEdit:'บันทึกการแก้ไข', cancel:'ยกเลิก', saveOk:'บันทึกสำเร็จ',
   movementType:'ประเภท', movementHistory:'รายการปรับสต็อค', editedNote:'แก้ไขล่าสุดโดย',
   noCategoriesYet:'ยังไม่มีหมวดหมู่สินค้า กรุณาไปเพิ่มรายการสินค้าในหน้าแอดมินก่อน',
-  checkStockGeneric:'เช็คสต็อกวัตถุดิบในหมวดนี้'
+  checkStockGeneric:'เช็คสต็อกวัตถุดิบในหมวดนี้',
+  shopTitle:'ระบบเช็คสต็อกสินค้า', loading:'กำลังโหลด...', fillAllQty:'กรุณากรอกจำนวนให้ครบทุกช่อง',
+  fillBranchNameAndPassword:'กรอกชื่อสาขาและรหัสผ่านสาขา', firstBranchNameHint:'ชื่อสาขา เช่น สาขาหลัก',
+  adminPasswordShort:'รหัสผ่านแอดมิน', enterNamePlaceholder:'กรอกชื่อของคุณ',
+  mvQuickSearchPlaceholder:'ค้นหาด่วน: พิมพ์ชื่อสินค้าที่จะปรับ...', qtyInputHint:'* ช่อง "จำนวน" ใส่ได้เฉพาะ 0-9 และสัญลักษณ์ . / + -',
+  lockedTooltip:'ยืนยันแล้ว กดอีกครั้งเพื่อแก้ไข', lockTooltip:'กดยืนยัน/ล็อครายการนี้'
 };
 const CAT_TH = { 'หน้าเรือ':'หน้าเรือ', 'อาหารตามสั่ง':'อาหารตามสั่ง', 'เด็กเสิร์ฟ':'เด็กเสิร์ฟ' };
 
@@ -759,6 +764,10 @@ function applyStaticTranslations() {
   });
   document.querySelectorAll('[data-t-cat]').forEach(el => {
     el.textContent = tCategory(el.getAttribute('data-t-cat'));
+  });
+  // data-t เปลี่ยนแค่ textContent ไม่แตะ placeholder — ช่องกรอกที่ต้องแปล placeholder ต้องใช้ data-t-placeholder แยกต่างหาก
+  document.querySelectorAll('[data-t-placeholder]').forEach(el => {
+    el.placeholder = t(el.getAttribute('data-t-placeholder'));
   });
 }
 
@@ -1113,7 +1122,7 @@ async function startChecking() {
     document.getElementById('mv-quick-search').value = '';
     renderMovementCategoryChips();
     updateMovementBatchBar_();
-    document.getElementById('mv-item-list').innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-gray-400">กำลังโหลด...</div>`;
+    document.getElementById('mv-item-list').innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-gray-400">${t('loading')}</div>`;
     showPage('movement-page');
     await loadCurrentStockLevels();
     renderMovementItemList();
@@ -1261,7 +1270,7 @@ async function saveStock() {
       };
     });
 
-    if (missingEls.length) { missingEls[0].scrollIntoView({behavior:'smooth',block:'center'}); showToast('กรุณากรอกจำนวนให้ครบทุกช่อง', 'error'); return; }
+    if (missingEls.length) { missingEls[0].scrollIntoView({behavior:'smooth',block:'center'}); showToast(t('fillAllQty'), 'error'); return; }
     if (invalidEls.length) { invalidEls[0].scrollIntoView({behavior:'smooth',block:'center'}); showToast(t('invalidQty'), 'error'); return; }
 
     const lineText = buildLineReportText_(stockEntries);
@@ -1401,7 +1410,9 @@ function movementRowHtml_(it) {
   const locked = !!pending.locked;
   const level = currentStockLevels[name];
   const qtyDisp = movementItemQtyDisplay_(name);
-  const unit = (level && level.unit) || it.unit || '';
+  // it.unit อาจเป็นสตริงรวมหลายหน่วยคั่นด้วย "/" (เช่น "กิโลกรัม/กรัม") ถ้ายังไม่มี baseline จาก currentStockLevels
+  // ต้องใช้หน่วยหลักตัวเดียว ไม่ใช่เอาสตริงรวมทั้งดุ้นไปแสดง/แปล เพราะ tUnit() หาคำแปลของสตริงรวมแบบนั้นไม่เจอ
+  const unit = (level && level.unit) || getPrimaryUnit_(name, it.unit) || '';
   const esc = s => String(s).replace(/'/g,"\\'");
   const dirBtn = (dir, label) => `<button type="button" ${locked ? 'disabled' : ''} data-dir="${dir}" data-active="${pending.direction===dir?'1':'0'}" onclick="mvSelectDirection('${esc(name)}','${dir}')" class="mv-dir-btn">${label}</button>`;
   return `
@@ -1417,10 +1428,10 @@ function movementRowHtml_(it) {
       </div>
       <div class="flex items-center justify-between gap-2">
         <p class="text-xs text-gray-400 mv-truncate flex-half">${tCategory(it.category)}</p>
-        <input type="text" inputmode="decimal" placeholder="จำนวน" value="${pending.quantity ? String(pending.quantity).replace(/"/g,'&quot;') : ''}" ${locked?'disabled':''}
+        <input type="text" inputmode="decimal" placeholder="${t('quantity')}" value="${pending.quantity ? String(pending.quantity).replace(/"/g,'&quot;') : ''}" ${locked?'disabled':''}
           oninput="mvSetQty('${esc(name)}', this.value)"
           class="w-20 px-2 py-1 border-2 border-gray-200 rounded-lg text-sm mv-qty-input" style="text-align:center">
-        <button type="button" onclick="mvToggleLock('${esc(name)}')" title="${locked ? 'ยืนยันแล้ว กดอีกครั้งเพื่อแก้ไข' : 'กดยืนยัน/ล็อครายการนี้'}" class="mv-lock-btn ${locked?'locked':''}">✓</button>
+        <button type="button" onclick="mvToggleLock('${esc(name)}')" title="${locked ? t('lockedTooltip') : t('lockTooltip')}" class="mv-lock-btn ${locked?'locked':''}">✓</button>
       </div>
     </div>`;
 }
@@ -1595,7 +1606,7 @@ function renderHistoryCategoryFilter() {
 async function showHistory() {
   showPage('history-page');
   renderHistoryCategoryFilter();
-  document.getElementById('history-list').innerHTML = `<div class="bg-white rounded-xl p-4 shadow-md text-center text-gray-500">กำลังโหลด...</div>`;
+  document.getElementById('history-list').innerHTML = `<div class="bg-white rounded-xl p-4 shadow-md text-center text-gray-500">${t('loading')}</div>`;
   await syncHistory();
   renderHistory();
 }
@@ -1877,7 +1888,7 @@ async function togglePurchaseExcludeSettings_() {
   const panel = document.getElementById('purchase-exclude-settings');
   if (!panel.classList.contains('hidden')) { panel.classList.add('hidden'); return; }
   panel.classList.remove('hidden');
-  panel.innerHTML = '<p class="text-sm text-gray-400 bg-gray-50 rounded-xl p-3">กำลังโหลด...</p>';
+  panel.innerHTML = `<p class="text-sm text-gray-400 bg-gray-50 rounded-xl p-3">${t('loading')}</p>`;
   try {
     const res = await jsonpGet('getPurchaseExcludeSettings', { password: adminPassword });
     if (!res || !res.ok) throw new Error(res && res.error || 'load_failed');
@@ -2162,7 +2173,7 @@ async function submitChangePassword() {
 async function renderAdminBufferTab() {
   const el = document.getElementById('admin-tab-buffer');
   if (!bufferConfigLoaded) {
-    el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">กำลังโหลด...</div>`;
+    el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">${t('loading')}</div>`;
     await loadBufferConfig();
     bufferConfigLoaded = true;
   }
@@ -2378,7 +2389,7 @@ async function renderAdminItemsTab(prefetchItems, prefetchScope) {
   if (!branches.length) {
     try { const r = await jsonpGet('listBranches', { password: adminPassword }); if (r && r.ok) { branches = r.branches; branchesLoaded = true; } } catch(e){}
   }
-  el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">กำลังโหลด...</div>`;
+  el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">${t('loading')}</div>`;
   try {
     // ถ้ามีผลที่ยิงคู่ขนานไว้ตั้งแต่ตอน login แล้ว (scope ตรงกับที่กำลังจะโชว์) ใช้อันนั้นเลย ไม่ต้องยิงซ้ำ
     const res = (prefetchItems && prefetchScope === adminItemScope)
@@ -2758,7 +2769,7 @@ let editingBranchId = ''; // สาขาที่กำลังแก้ไข
 async function renderAdminBranchesTab() {
   const el = document.getElementById('admin-tab-branches');
   if (!branchesLoaded) {
-    el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">กำลังโหลด...</div>`;
+    el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">${t('loading')}</div>`;
     try {
       const res = await jsonpGet('listBranches', { password: adminPassword });
       if (res && res.ok) { branches = res.branches; branchesLoaded = true; }
@@ -2799,7 +2810,7 @@ async function renderAdminBranchesTab() {
 async function submitNewBranch() {
   const name = document.getElementById('new-branch-name').value.trim();
   const staffPw = document.getElementById('new-branch-staffpw').value.trim();
-  if (!name || !staffPw) { showToast('กรอกชื่อสาขาและรหัสผ่านสาขา', 'error'); return; }
+  if (!name || !staffPw) { showToast(t('fillBranchNameAndPassword'), 'error'); return; }
   try {
     const res = await jsonpGet('addBranch', { password: adminPassword, name, staff_password: staffPw });
     if (res && res.ok) { branches = res.branches; renderAdminBranchesTab(); showToast(t('saveOk'),'success'); }
@@ -2811,7 +2822,7 @@ function cancelEditBranch() { editingBranchId = ''; renderAdminBranchesTab(); }
 async function submitEditBranch(id) {
   const name = document.getElementById('edit-branch-name').value.trim();
   const staffPw = document.getElementById('edit-branch-staffpw').value.trim();
-  if (!name || !staffPw) { showToast('กรอกชื่อสาขาและรหัสผ่านสาขา', 'error'); return; }
+  if (!name || !staffPw) { showToast(t('fillBranchNameAndPassword'), 'error'); return; }
   try {
     const res = await jsonpGet('updateBranch', { password: adminPassword, id, name, staff_password: staffPw });
     if (res && res.ok) {
