@@ -1340,7 +1340,6 @@ function buildLineReportText_(stockEntries) {
   if (shortCount) summaryParts.push(`${shortCount} รายการขาด 🔽`);
   if (overCount) summaryParts.push(`${overCount} รายการเกิน 🔼`);
   lines.push(summaryParts.length ? `ที่ต้องดู: ${summaryParts.join(', ')}` : '✅ ทุกรายการอยู่ในเกณฑ์ปกติ');
-  lines.push(`🔄 เทียบกับรอบ: ${prevRecord ? formatFullDate(prevRecord.date, currentLanguage) : 'ไม่มีรอบก่อนหน้า'}`);
   return lines.join('\n');
 }
 
@@ -1369,11 +1368,14 @@ let mvPending = {}; // ชื่อสินค้า -> {direction, quantity, l
 
 async function loadCurrentStockLevels() {
   try {
-    const res = await jsonpGet('getCurrentStockLevels', { branch_id: currentBranchId });
+    // getCurrentStockLevels_ ฝั่ง Code.gs ต้องไล่ทุกสินค้า x ทุกรายการปรับสต็อคที่เคยมี อาจช้ากว่า timeout
+    // ปกติ (20s) ได้เมื่อประวัติเยอะขึ้น — ให้เวลาไว้เหมือนกับ action หนักๆ อื่นในแอป (translateAll)
+    const res = await jsonpGet('getCurrentStockLevels', { branch_id: currentBranchId }, 60000);
     currentStockLevels = (res && res.ok) ? (res.levels || {}) : {};
   } catch (e) {
     console.warn('loadCurrentStockLevels failed', e);
     currentStockLevels = {};
+    showToast(t('error'), 'error'); // ไม่งั้นทุกรายการจะโชว์ "—" เฉยๆ โดยไม่มีคำอธิบายว่าทำไมดึงจำนวนคงเหลือไม่ได้
   }
 }
 
