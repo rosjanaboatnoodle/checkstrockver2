@@ -2936,10 +2936,21 @@ async function confirmImportFromCentral() {
   btn.disabled = true; btn.textContent = 'กำลังนำเข้า...';
   try {
     const CHUNK = 40;
+    let successCount = 0;
+    let hadFailure = false;
+    // เดิมไม่เช็คผลลัพธ์ที่ได้กลับมาเลย (ไม่ว่าเซิร์ฟเวอร์จะสำเร็จหรือพังก็ขึ้น "นำเข้าสำเร็จ" เหมือนกันหมด)
+    // ทำให้ตอน bulkSeedItems ล้มเหลวจริงๆ (เช่น branch_id ผิด/เซิร์ฟเวอร์ error) ผู้ใช้เห็นข้อความสำเร็จลวงๆ
+    // ทั้งที่ไม่มีอะไรถูกบันทึกเลยสักรายการ — เป็นสาเหตุที่ทำให้งงว่าทำไมนำเข้าแล้วรายการไม่ขึ้น
     for (let i = 0; i < itemsToImport.length; i += CHUNK) {
-      await jsonpGet('bulkSeedItems', { password: adminPassword, branch_id: adminItemScope, items: JSON.stringify(itemsToImport.slice(i, i + CHUNK)) });
+      const chunk = itemsToImport.slice(i, i + CHUNK);
+      const res = await jsonpGet('bulkSeedItems', { password: adminPassword, branch_id: adminItemScope, items: JSON.stringify(chunk) });
+      if (res && res.ok) successCount += chunk.length; else hadFailure = true;
     }
-    showToast(`นำเข้าสำเร็จ ${itemsToImport.length} รายการ`, 'success');
+    if (hadFailure) {
+      showToast(successCount > 0 ? `นำเข้าได้บางส่วน (${successCount}/${itemsToImport.length} รายการ)` : 'นำเข้าไม่สำเร็จ ลองใหม่อีกครั้ง', 'error');
+    } else {
+      showToast(`นำเข้าสำเร็จ ${successCount} รายการ`, 'success');
+    }
     closeImportFromCentralModal();
     adminItemsLoadedScope = null; // ต้องดึง adminScopeItems ของสโคปนี้ใหม่จากเซิร์ฟเวอร์ ไม่ใช้แคชเดิม
     catalogDirty = true;
