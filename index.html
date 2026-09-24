@@ -1426,9 +1426,9 @@ function movementRowHtml_(it) {
   const locked = !!pending.locked;
   const level = currentStockLevels[name];
   const qtyDisp = movementItemQtyDisplay_(name);
-  // it.unit อาจเป็นสตริงรวมหลายหน่วยคั่นด้วย "/" (เช่น "กิโลกรัม/กรัม") ถ้ายังไม่มี baseline จาก currentStockLevels
-  // ต้องใช้หน่วยหลักตัวเดียว ไม่ใช่เอาสตริงรวมทั้งดุ้นไปแสดง/แปล เพราะ tUnit() หาคำแปลของสตริงรวมแบบนั้นไม่เจอ
-  const unit = (level && level.unit) || getPrimaryUnit_(name, it.unit) || '';
+  // ใช้หน่วยหลักที่แอดมินตั้งไว้ใน "⚖️ หน่วย" (หน่วยที่ใช้ส่งเข้าไลน์) เสมอ ไม่ใช้ level.unit ที่อาจเป็นหน่วยดิบ
+  // ของรอบก่อนหน้าที่ยังไม่ตรงกับหน่วยหลักที่ตั้งไว้ล่าสุด — กันไม่ให้หน้านี้โชว์คนละหน่วยกับรายงาน LINE
+  const unit = getPrimaryUnit_(name, it.unit) || (level && level.unit) || '';
   const esc = s => String(s).replace(/'/g,"\\'");
   const dirBtn = (dir, label) => `<button type="button" ${locked ? 'disabled' : ''} data-dir="${dir}" data-active="${pending.direction===dir?'1':'0'}" onclick="mvSelectDirection('${esc(name)}','${dir}')" class="mv-dir-btn">${label}</button>`;
   return `
@@ -1517,8 +1517,8 @@ function mvToggleLock(name) {
 function mvBatchEntries_() {
   return Object.keys(mvPending).filter(name => mvPending[name].locked).map(name => {
     const meta = ITEM_META_BY_NAME[name] || {};
-    const level = currentStockLevels[name];
-    const unit = (level && level.unit) || meta.defaultUnit || '';
+    // ผูกกับหน่วยหลักที่แอดมินตั้งไว้เสมอ เพื่อให้รายงาน LINE ของการปรับสต็อคใช้หน่วยเดียวกับที่ตั้งไว้ให้ใช้ส่งเข้าไลน์
+    const unit = getPrimaryUnit_(name, meta.defaultUnit) || '';
     const parsed = parseQuantity_(String(mvPending[name].quantity || '').trim());
     return { name, direction: mvPending[name].direction, quantity: parsed.ok ? parsed.value : 0, unit };
   });
