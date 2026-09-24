@@ -526,7 +526,12 @@
 /* =========================================================
    ตั้งค่า
    ========================================================= */
-const GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycby5rf0vBp-WQoB7x6YlqLtvrBQgXt4GLqjOGPEew-VxYwdz2mkulK680xLjiUXNjbrg/exec";
+// Phase 1 Supabase cutover: เดิมชี้ไป Google Apps Script web app แทนที่ด้วย URL ของ Supabase
+// Edge Function "api" (Dashboard -> Edge Functions -> api -> คัดลอก URL ที่ได้)
+// SUPABASE_ANON_KEY เอาจาก Dashboard -> Project Settings -> API -> anon public key
+// (ยังไม่ได้ใส่จริง ต้องแก้ 2 บรรทัดนี้ก่อนใช้งาน ไม่งั้น jsonpGet/postNoCors จะโยน error NO_URL)
+const SUPABASE_API_URL = "แปะ URL ของ Supabase Edge Function ตรงนี้";
+const SUPABASE_ANON_KEY = "แปะ anon public key ของโปรเจกต์ Supabase ตรงนี้";
 
 /* =========================================================
    ข้อความ UI (ต้นฉบับภาษาไทย - ใช้ตอนยังไม่มีคำแปล / lang=th)
@@ -722,37 +727,43 @@ function computeFlag_(actual, predicted, bufferPct) {
 }
 
 /* =========================================================
-   Network helpers (JSONP GET / no-cors POST)
+   Network helpers (Supabase Edge Function — real fetch + CORS)
+   -----------------------------------------------------------
+   เดิมสองฟังก์ชันนี้คุยกับ Google Apps Script ผ่าน JSONP (เลี่ยงข้อจำกัดที่ Apps Script
+   ตอบ CORS header ให้ GET ไม่ได้เต็มรูปแบบ) และ no-cors POST (เลี่ยงที่ Apps Script ตอบ
+   CORS ให้ POST ไม่ได้เลย ต้องยิงแบบไม่อ่าน response) ตอนนี้ backend เป็น Supabase Edge
+   Function ของเราเอง ตั้ง CORS header ได้เต็มที่ เลยเปลี่ยนเป็น fetch() ปกติทั้งคู่ — ยังคงชื่อ
+   ฟังก์ชันเดิม (jsonpGet/postNoCors) ไว้เพื่อไม่ต้องไปแก้ ~40 จุดที่เรียกใช้อยู่ทั่วไฟล์ แม้ชื่อ
+   จะไม่ตรงกับพฤติกรรมจริงแล้วก็ตาม (คุยกันไว้แล้วว่าโอเคที่จะเก็บชื่อเดิม)
    ========================================================= */
+async function supabaseCall_(action, params, timeoutMs) {
+  if (!SUPABASE_API_URL || SUPABASE_API_URL.startsWith('แปะ')) throw new Error('NO_URL');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs || 20000);
+  try {
+    const res = await fetch(SUPABASE_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      body: JSON.stringify({ action, ...(params || {}) }),
+      signal: controller.signal
+    });
+    return await res.json();
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('TIMEOUT');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function jsonpGet(action, params, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    if (!GOOGLE_SHEET_WEBAPP_URL || GOOGLE_SHEET_WEBAPP_URL.startsWith('แปะ')) { reject(new Error('NO_URL')); return; }
-    const cb = 'cb_' + Date.now() + '_' + Math.floor(Math.random()*10000);
-    const qs = new URLSearchParams({ action, callback: cb, ...(params||{}) }).toString();
-    const script = document.createElement('script');
-    script.src = GOOGLE_SHEET_WEBAPP_URL + '?' + qs;
-    let done = false;
-    window[cb] = function(data) {
-      done = true;
-      try { delete window[cb]; } catch(e){ window[cb] = undefined; }
-      if (script.parentNode) script.parentNode.removeChild(script);
-      resolve(data);
-    };
-    script.onerror = function() {
-      if (script.parentNode) script.parentNode.removeChild(script);
-      reject(new Error('JSONP_FAILED'));
-    };
-    document.body.appendChild(script);
-    setTimeout(() => { if (!done) reject(new Error('TIMEOUT')); }, timeoutMs || 20000);
-  });
+  return supabaseCall_(action, params, timeoutMs);
 }
 
 function postNoCors(payload) {
-  return fetch(GOOGLE_SHEET_WEBAPP_URL, {
-    method: 'POST', mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload)
-  });
+  // payload มาพร้อม action อยู่แล้ว (เช่น {action:'create', ...}) — ยิงแบบ fire-and-forget
+  // เหมือนเดิม (ตัว caller ทั้งสองจุดหลัก ไม่ await ผลลัพธ์นี้อยู่แล้ว)
+  return supabaseCall_(payload.action, payload, 20000);
 }
 
 /* =========================================================
