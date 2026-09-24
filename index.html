@@ -508,6 +508,18 @@
         </div>
       </div>
     </div>
+
+    <!-- โมดัลดึงรายการสินค้าจากส่วนกลางเข้าสาขาที่กำลังดูอยู่ (ให้เลือกเป็นรายหมวดหมู่) -->
+    <div id="import-central-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeImportFromCentralModal()">
+      <div class="modal-box p-5 mt-10 mb-10">
+        <div class="flex items-center justify-between mb-1">
+          <h3 class="text-lg font-bold text-gray-800">📥 ดึงรายการจากส่วนกลาง</h3>
+          <button onclick="closeImportFromCentralModal()" class="text-gray-400 hover:text-gray-600 text-3xl leading-none w-10 h-10 flex items-center justify-center -m-2">&times;</button>
+        </div>
+        <p class="text-xs text-gray-500 mb-3">เลือกหมวดหมู่ที่ต้องการคัดลอกรายการสินค้าจากส่วนกลางเข้ามาที่สาขานี้ — รายการที่ชื่อซ้ำกับที่มีอยู่แล้วในสาขานี้จะข้ามให้อัตโนมัติ</p>
+        <div id="import-central-body"></div>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -2490,8 +2502,11 @@ function renderAdminItemsTabFromCache_() {
     .concat(branches.map(b => `<option value="${b.id}" ${adminItemScope===b.id?'selected':''}>${b.name}</option>`)).join('');
 
   let seedBtn = `<button onclick="openAiImportModal()" class="mb-3 w-full bg-amber-500 text-white py-2 rounded-lg font-semibold">📄 นำเข้ารายการจากไฟล์ (Excel/PDF/รูปภาพ) ด้วย AI</button>`;
+  // ปุ่มนี้มีความหมายเฉพาะตอนดูสโคปของสาขาใดสาขาหนึ่ง (ไม่ใช่ส่วนกลางเอง) — เอาไว้ตั้งค่าสาขาใหม่ให้เร็ว
+  // โดยไม่ต้องมานั่งพิมพ์รายการสินค้าใหม่ทั้งหมดทีละสาขา
+  let importCentralBtn = adminItemScope ? `<button onclick="openImportFromCentralModal()" class="mb-3 w-full bg-indigo-500 text-white py-2 rounded-lg font-semibold">📥 ดึงรายการจากส่วนกลาง</button>` : '';
 
-  let html = seedBtn + `
+  let html = seedBtn + importCentralBtn + `
     <div class="mb-3">
       <label class="block text-sm font-medium text-gray-700 mb-1">${t('scopeLabel')}</label>
       <select id="admin-item-scope" onchange="onAdminScopeChange()" class="w-full px-3 py-2 border rounded-lg text-sm">${scopeOptions}</select>
@@ -2829,6 +2844,84 @@ async function confirmAiImport() {
     renderAdminItemsTab();
   } catch (e) {
     showToast('นำเข้าไม่สำเร็จ', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* =========================================================
+   ดึงรายการสินค้าจากส่วนกลางเข้าสาขาที่กำลังตั้งค่าอยู่
+   -----------------------------------------------------------
+   ใช้แก้ปัญหา: สร้างสาขาใหม่แล้วต้องมานั่งพิมพ์รายการสินค้าใหม่ทั้งหมดทีละสาขา
+   ทั้งที่ส่วนกลางมีรายการอยู่แล้ว — ให้เลือกเป็นรายหมวดหมู่แล้วคัดลอก (ใช้ action bulkSeedItems
+   ตัวเดียวกับที่ใช้นำเข้าจากไฟล์ด้วย AI อยู่แล้ว ไม่ต้องเพิ่ม action ใหม่ฝั่ง Code.gs)
+   ========================================================= */
+let importCentralItems_ = [];
+
+async function openImportFromCentralModal() {
+  if (!adminItemScope) return; // ปุ่มนี้กดได้เฉพาะตอนดูสโคปของสาขา ไม่ใช่ส่วนกลางเอง
+  document.getElementById('import-central-modal').classList.remove('hidden');
+  document.getElementById('import-central-body').innerHTML = `<div class="text-center text-gray-400 text-sm py-4">${t('loading')}</div>`;
+  try {
+    const res = await jsonpGet('listItemsAdmin', { password: adminPassword, scope: '' });
+    importCentralItems_ = (res && res.ok) ? res.items : [];
+  } catch (e) { importCentralItems_ = []; }
+  renderImportCentralBody_();
+}
+function closeImportFromCentralModal() { document.getElementById('import-central-modal').classList.add('hidden'); }
+
+function renderImportCentralBody_() {
+  const body = document.getElementById('import-central-body');
+  if (!importCentralItems_.length) { body.innerHTML = `<p class="text-sm text-gray-400 text-center py-6">ส่วนกลางยังไม่มีรายการสินค้า</p>`; return; }
+  const existingNames = new Set(adminScopeItems.map(it => it.name));
+  const byCat = {};
+  importCentralItems_.forEach(it => { (byCat[it.category] = byCat[it.category] || []).push(it); });
+  const cats = Object.keys(byCat);
+  const esc = s => String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+  body.innerHTML = `
+    <div class="flex items-center gap-3 mb-2">
+      <button type="button" onclick="toggleAllImportCats_(true)" class="text-xs text-indigo-600 font-semibold">เลือกทั้งหมด</button>
+      <button type="button" onclick="toggleAllImportCats_(false)" class="text-xs text-gray-400 font-semibold">ไม่เลือกเลย</button>
+    </div>
+    <div class="space-y-1 mb-3 max-h-72 overflow-y-auto">
+      ${cats.map(cat => {
+        const items = byCat[cat];
+        const newCount = items.filter(it => !existingNames.has(it.name)).length;
+        const noneNew = newCount === 0;
+        return `<label class="flex items-center justify-between gap-2 text-sm py-1.5 border-b border-gray-100 ${noneNew ? 'opacity-50' : ''}">
+          <span class="flex items-center gap-2"><input type="checkbox" class="import-cat-chk" value="${esc(cat)}" ${noneNew ? 'disabled' : 'checked'}> ${tCategory(cat)}</span>
+          <span class="text-xs text-gray-400">${noneNew ? 'มีอยู่แล้วทั้งหมด' : `${newCount} รายการใหม่ / ${items.length}`}</span>
+        </label>`;
+      }).join('')}
+    </div>
+    <button onclick="confirmImportFromCentral()" id="import-central-confirm-btn" class="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold">นำเข้าเข้าสาขานี้</button>
+  `;
+}
+function toggleAllImportCats_(checked) {
+  document.querySelectorAll('.import-cat-chk:not(:disabled)').forEach(chk => chk.checked = checked);
+}
+async function confirmImportFromCentral() {
+  const selectedCats = Array.from(document.querySelectorAll('.import-cat-chk:checked')).map(chk => chk.value);
+  if (!selectedCats.length) { showToast('เลือกอย่างน้อย 1 หมวดหมู่', 'error'); return; }
+  const existingNames = new Set(adminScopeItems.map(it => it.name));
+  const itemsToImport = importCentralItems_
+    .filter(it => selectedCats.includes(it.category) && !existingNames.has(it.name))
+    .map(it => ({ category: it.category, name: it.name, unit: it.unit || '', is_header: it.is_header || 'FALSE' }));
+  if (!itemsToImport.length) { showToast('ไม่มีรายการใหม่ให้นำเข้า', 'error'); return; }
+  const btn = document.getElementById('import-central-confirm-btn');
+  btn.disabled = true; btn.textContent = 'กำลังนำเข้า...';
+  try {
+    const CHUNK = 40;
+    for (let i = 0; i < itemsToImport.length; i += CHUNK) {
+      await jsonpGet('bulkSeedItems', { password: adminPassword, branch_id: adminItemScope, items: JSON.stringify(itemsToImport.slice(i, i + CHUNK)) });
+    }
+    showToast(`นำเข้าสำเร็จ ${itemsToImport.length} รายการ`, 'success');
+    closeImportFromCentralModal();
+    adminItemsLoadedScope = null; // ต้องดึง adminScopeItems ของสโคปนี้ใหม่จากเซิร์ฟเวอร์ ไม่ใช้แคชเดิม
+    catalogDirty = true;
+    await renderAdminItemsTab();
+  } catch (e) {
+    showToast(t('error'), 'error');
   } finally {
     btn.disabled = false;
   }
