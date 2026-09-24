@@ -2943,7 +2943,9 @@ async function confirmImportFromCentral() {
     // ทั้งที่ไม่มีอะไรถูกบันทึกเลยสักรายการ — เป็นสาเหตุที่ทำให้งงว่าทำไมนำเข้าแล้วรายการไม่ขึ้น
     for (let i = 0; i < itemsToImport.length; i += CHUNK) {
       const chunk = itemsToImport.slice(i, i + CHUNK);
-      const res = await jsonpGet('bulkSeedItems', { password: adminPassword, branch_id: adminItemScope, items: JSON.stringify(chunk) });
+      // bulkSeedItems อาจเช็คชื่อซ้ำโดยไล่สแกนทั้งชีท ยิ่งชีทมีแถวเยอะยิ่งช้า ให้เวลาไว้เหมือน action หนักๆ อื่น
+      // (ปกติ 20s เจอ timeout จริงตอนสาขามีรายการสะสมเยอะแล้วลองนำเข้าทีละหลายรายการพร้อมกัน)
+      const res = await jsonpGet('bulkSeedItems', { password: adminPassword, branch_id: adminItemScope, items: JSON.stringify(chunk) }, 60000);
       // เซิร์ฟเวอร์ตอบ ok:true ได้ทั้งที่ added:0 จริง (เช่นเจอชื่อซ้ำกับแถวเดิมที่ถูกลบแบบซ่อนไว้/active=FALSE
       // แล้วเซิร์ฟเวอร์ข้ามไม่เพิ่มให้) เช็คแค่ res.ok อย่างเดียวไม่พอ ต้องเช็คจำนวนที่เพิ่มจริงด้วย
       const added = (res && res.ok && typeof res.added === 'number') ? res.added : (res && res.ok ? chunk.length : 0);
@@ -2962,7 +2964,12 @@ async function confirmImportFromCentral() {
     catalogDirty = true;
     await renderAdminItemsTab();
   } catch (e) {
-    showToast(t('error'), 'error');
+    // TIMEOUT ฝั่งเว็บไม่ได้แปลว่าเซิร์ฟเวอร์ล้มเหลวเสมอไป (Apps Script อาจยังทำงานต่อเบื้องหลังจนสำเร็จ
+    // แล้วแค่ตอบกลับมาไม่ทันที่ฝั่งเว็บรอ) เลยรีเฟรชรายการในสโคปนี้ใหม่ให้เลย เผื่อจริงๆ บันทึกผ่านแล้ว
+    const isTimeout = String((e && e.message) || '').includes('TIMEOUT');
+    showToast(isTimeout ? 'รอนานเกินไป (อาจกำลังทำงานอยู่เบื้องหลัง) ลองปิดแล้วเปิดแท็บรายการสินค้าใหม่เพื่อเช็คผล' : t('error'), 'error');
+    adminItemsLoadedScope = null;
+    await renderAdminItemsTab();
   } finally {
     btn.disabled = false;
   }
