@@ -1574,10 +1574,15 @@ function submitMovementBatch() {
   const entries = mvBatchEntries_();
   if (!entries.length) { showToast('กรุณาเลือกอย่างน้อย 1 รายการ', 'error'); return; }
   const lineText = buildMovementReportText_(entries);
+  const saveDate = new Date().toISOString();
   // ยิงคำขอแบบไม่รอผลกลับ (fire-and-forget) — ไม่ต้องให้ผู้ใช้รอ Apps Script ประมวลผล/ยิง LINE เสร็จก่อน
   // ถึงจะเห็นผลบนหน้าจอ (ผลตอบกลับอ่านไม่ได้อยู่แล้วเพราะเป็น mode: 'no-cors')
-  postNoCors({ action:'createMovement', branch_id: currentBranchId, category:'ปรับสต็อค', checker_name: checkerName, date: new Date().toISOString(), entries, line_text: lineText })
+  postNoCors({ action:'createMovement', branch_id: currentBranchId, category:'ปรับสต็อค', checker_name: checkerName, date: saveDate, entries, line_text: lineText })
     .catch(e => console.warn('createMovement failed', e));
+  // เติมรายการนี้ลงใน allRecords ในเครื่องทันที (optimistic) — ไม่งั้นถ้าไปนับสต็อคต่อจากรายการนี้เลย (หน้าจอ/
+  // เครื่องเดียวกัน) การคำนวณ "ค่าคาด" (getExpectedQtyBefore_) จะยังไม่เห็นรายการปรับสต็อคที่เพิ่งบันทึกไป
+  // เพราะ allRecords ยังไม่ได้ดึงใหม่จากเซิร์ฟเวอร์ (ไม่อยากยิง sync แบบรอผลตรงนี้ เพราะจะทำให้บันทึกช้าลง)
+  allRecords.push({ id: 'local_' + saveDate, branch_id: currentBranchId, type: 'movement', category: 'ปรับสต็อค', checker_name: checkerName, date: saveDate, items: JSON.stringify(entries) });
   // อัปเดตตัวเลขคงเหลือของทุกรายการในหน้าจอทันทีแบบ optimistic แล้วล้างสถานะที่ล็อคไว้
   entries.forEach(en => {
     const level = currentStockLevels[en.name] || { qty: 0, unit: en.unit, category: ITEM_META_BY_NAME[en.name] && ITEM_META_BY_NAME[en.name].category, hasBaseline: false };
@@ -1591,8 +1596,7 @@ function submitMovementBatch() {
   });
   showToast(t('saved'), 'success');
   closeMovementReview();
-  updateMovementBatchBar_();
-  renderMovementItemList();
+  setTimeout(() => { goHome(); syncHistory(); }, 800); // sync พื้นหลังกันกรณีมีคนปรับสต็อคจากเครื่องอื่นพร้อมกัน
 }
 
 /* =========================================================
