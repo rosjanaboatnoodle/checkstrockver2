@@ -2504,7 +2504,9 @@ function renderAdminItemsTabFromCache_() {
   let seedBtn = `<button onclick="openAiImportModal()" class="mb-3 w-full bg-amber-500 text-white py-2 rounded-lg font-semibold">📄 นำเข้ารายการจากไฟล์ (Excel/PDF/รูปภาพ) ด้วย AI</button>`;
   // ปุ่มนี้มีความหมายเฉพาะตอนดูสโคปของสาขาใดสาขาหนึ่ง (ไม่ใช่ส่วนกลางเอง) — เอาไว้ตั้งค่าสาขาใหม่ให้เร็ว
   // โดยไม่ต้องมานั่งพิมพ์รายการสินค้าใหม่ทั้งหมดทีละสาขา
-  let importCentralBtn = adminItemScope ? `<button onclick="openImportFromCentralModal()" class="mb-3 w-full bg-indigo-500 text-white py-2 rounded-lg font-semibold">📥 ดึงรายการจากส่วนกลาง</button>` : '';
+  // เดิมใช้ bg-indigo-500 ซึ่งไม่ใช่คลาส Tailwind ที่ compile ไว้ในไฟล์นี้ (มีแค่ 50/600) ปุ่มเลยไม่มีพื้นหลัง
+  // กลายเป็นตัวหนังสือสีขาวบนพื้นขาว มองไม่เห็น เหลือแต่อิโมจิ — เปลี่ยนเป็น bg-indigo-600 ที่ compile ไว้แล้ว
+  let importCentralBtn = adminItemScope ? `<button onclick="openImportFromCentralModal()" class="mb-3 w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold">📥 นำรายการจากส่วนกลางมาใช้ในสาขานี้</button>` : '';
 
   let html = seedBtn + importCentralBtn + `
     <div class="mb-3">
@@ -2883,12 +2885,13 @@ function renderImportCentralBody_() {
       <button type="button" onclick="toggleAllImportCats_(true)" class="text-xs text-indigo-600 font-semibold">เลือกทั้งหมด</button>
       <button type="button" onclick="toggleAllImportCats_(false)" class="text-xs text-gray-400 font-semibold">ไม่เลือกเลย</button>
     </div>
-    <div class="space-y-1 mb-3 max-h-72 overflow-y-auto">
+    <div class="space-y-2 mb-3 max-h-72 overflow-y-auto">
       ${cats.map(cat => {
         const items = byCat[cat];
         const newCount = items.filter(it => !existingNames.has(it.name)).length;
         const noneNew = newCount === 0;
-        return `<label class="flex items-center justify-between gap-2 text-sm py-1.5 border-b border-gray-100 ${noneNew ? 'opacity-50' : ''}">
+        // ใช้ style="opacity" ตรงๆ แทนคลาส opacity-50/py-1.5 ของ Tailwind เพราะทั้งสองคลาสนี้ไม่ได้ compile ไว้ในไฟล์นี้
+        return `<label class="flex items-center justify-between gap-2 text-sm py-2 border-b border-gray-100" style="${noneNew ? 'opacity:.5' : ''}">
           <span class="flex items-center gap-2"><input type="checkbox" class="import-cat-chk" value="${esc(cat)}" ${noneNew ? 'disabled' : 'checked'}> ${tCategory(cat)}</span>
           <span class="text-xs text-gray-400">${noneNew ? 'มีอยู่แล้วทั้งหมด' : `${newCount} รายการใหม่ / ${items.length}`}</span>
         </label>`;
