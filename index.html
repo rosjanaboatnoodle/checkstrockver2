@@ -2944,10 +2944,16 @@ async function confirmImportFromCentral() {
     for (let i = 0; i < itemsToImport.length; i += CHUNK) {
       const chunk = itemsToImport.slice(i, i + CHUNK);
       const res = await jsonpGet('bulkSeedItems', { password: adminPassword, branch_id: adminItemScope, items: JSON.stringify(chunk) });
-      if (res && res.ok) successCount += chunk.length; else hadFailure = true;
+      // เซิร์ฟเวอร์ตอบ ok:true ได้ทั้งที่ added:0 จริง (เช่นเจอชื่อซ้ำกับแถวเดิมที่ถูกลบแบบซ่อนไว้/active=FALSE
+      // แล้วเซิร์ฟเวอร์ข้ามไม่เพิ่มให้) เช็คแค่ res.ok อย่างเดียวไม่พอ ต้องเช็คจำนวนที่เพิ่มจริงด้วย
+      const added = (res && res.ok && typeof res.added === 'number') ? res.added : (res && res.ok ? chunk.length : 0);
+      successCount += added;
+      if (!res || !res.ok || added === 0) hadFailure = true;
     }
     if (hadFailure) {
-      showToast(successCount > 0 ? `นำเข้าได้บางส่วน (${successCount}/${itemsToImport.length} รายการ)` : 'นำเข้าไม่สำเร็จ ลองใหม่อีกครั้ง', 'error');
+      showToast(successCount > 0
+        ? `นำเข้าได้บางส่วน (${successCount}/${itemsToImport.length} รายการ)`
+        : 'นำเข้าไม่สำเร็จสักรายการ — อาจมีชื่อซ้ำกับรายการเดิมที่เคยลบไปแล้วในสาขานี้ ลองลบแถวเก่าที่ซ้ำชื่อออกจากชีท Items ให้หมดก่อนค่อยนำเข้าใหม่', 'error');
     } else {
       showToast(`นำเข้าสำเร็จ ${successCount} รายการ`, 'success');
     }
