@@ -2518,8 +2518,11 @@ function renderAdminItemsTabFromCache_() {
   // เดิมใช้ bg-indigo-500 ซึ่งไม่ใช่คลาส Tailwind ที่ compile ไว้ในไฟล์นี้ (มีแค่ 50/600) ปุ่มเลยไม่มีพื้นหลัง
   // กลายเป็นตัวหนังสือสีขาวบนพื้นขาว มองไม่เห็น เหลือแต่อิโมจิ — เปลี่ยนเป็น bg-indigo-600 ที่ compile ไว้แล้ว
   let importCentralBtn = adminItemScope ? `<button onclick="openImportFromCentralModal()" class="mb-3 w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold">📥 นำรายการจากส่วนกลางมาใช้ในสาขานี้</button>` : '';
+  // ปุ่มลบทั้งหมดในสโคปนี้ — ไว้เคลียร์รายการที่เพี้ยน (เช่นตอนนำเข้าจากส่วนกลางแล้วเจอบั๊ก is_header) รวดเดียว
+  // แทนที่จะต้องกดลบทีละรายการ จำกัดไว้เฉพาะสโคปของสาขาใดสาขาหนึ่งเท่านั้น กันพลาดไปลบส่วนกลางทั้งหมด
+  let bulkDeleteBtn = (adminItemScope && adminScopeItems.length) ? `<button onclick="bulkDeleteScopeItems_()" class="mb-3 w-full bg-red-500 text-white py-2 rounded-lg font-semibold text-sm">🗑️ ลบรายการทั้งหมดในสโคปนี้ (${adminScopeItems.length} รายการ)</button>` : '';
 
-  let html = seedBtn + importCentralBtn + `
+  let html = seedBtn + importCentralBtn + bulkDeleteBtn + `
     <div class="mb-3">
       <label class="block text-sm font-medium text-gray-700 mb-1">${t('scopeLabel')}</label>
       <select id="admin-item-scope" onchange="onAdminScopeChange()" class="w-full px-3 py-2 border rounded-lg text-sm">${scopeOptions}</select>
@@ -2974,6 +2977,28 @@ async function removeItem(id) {
       renderAdminItemsTabFromCache_();
     } else showToast(t('wrongPassword'),'error');
   } catch(e){ showToast(t('error'),'error'); }
+}
+
+/** ลบรายการสินค้าทั้งหมดในสโคปที่กำลังดูอยู่ (ทีละรายการ ไม่ยิงพร้อมกันเพื่อไม่ให้ Apps Script โดนถล่ม)
+ *  ไว้เคลียร์รายการที่เพี้ยนรวดเดียว เช่นตอนนำเข้าจากส่วนกลางแล้วเจอบั๊ก แทนที่จะกดลบทีละรายการเป็นสิบๆ ครั้ง */
+async function bulkDeleteScopeItems_() {
+  if (!adminItemScope) return; // กันพลาดไปลบส่วนกลางทั้งหมดโดยไม่ตั้งใจ
+  const items = [...adminScopeItems];
+  if (!items.length) return;
+  if (!confirm(`ยืนยันลบรายการสินค้าทั้งหมด ${items.length} รายการในสโคปนี้? การลบนี้กู้คืนไม่ได้`)) return;
+  const btn = document.querySelector('button[onclick="bulkDeleteScopeItems_()"]');
+  let okCount = 0;
+  for (let i = 0; i < items.length; i++) {
+    if (btn) btn.textContent = `กำลังลบ... (${i + 1}/${items.length})`;
+    try {
+      const res = await jsonpGet('deleteItem', { password: adminPassword, id: items[i].id });
+      if (res && res.ok) okCount++;
+    } catch (e) { /* ข้ามรายการที่ลบไม่สำเร็จ ไปลบรายการถัดไปต่อ */ }
+  }
+  adminScopeItems = []; // พยายามลบครบทุกรายการในสโคปนี้ไปแล้ว เคลียร์แคชทิ้งไปเลย
+  catalogDirty = true;
+  renderAdminItemsTabFromCache_();
+  showToast(okCount === items.length ? `ลบสำเร็จทั้งหมด ${okCount} รายการ` : `ลบสำเร็จ ${okCount}/${items.length} รายการ (บางรายการลบไม่สำเร็จ)`, okCount === items.length ? 'success' : 'error');
 }
 let editingBranchId = ''; // สาขาที่กำลังแก้ไขชื่อ/รหัสผ่านอยู่ (แสดงฟอร์มแก้ไขแทนแถวปกติ)
 async function renderAdminBranchesTab() {
