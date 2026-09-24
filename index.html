@@ -2920,7 +2920,14 @@ async function confirmImportFromCentral() {
   const existingNames = new Set(adminScopeItems.map(it => it.name));
   const itemsToImport = importCentralItems_
     .filter(it => selectedCats.includes(it.category) && !existingNames.has(it.name))
-    .map(it => ({ category: it.category, name: it.name, unit: it.unit || '', is_header: it.is_header || 'FALSE' }));
+    .map(it => {
+      const out = { category: it.category, name: it.name, unit: it.unit || '' };
+      // ส่ง is_header เฉพาะตอนเป็นหัวข้อจริงๆ เท่านั้น (เหมือนที่ "นำเข้าไฟล์ด้วย AI" ทำมาตลอด) — ห้ามส่งสตริง
+      // "FALSE" ไปเฉยๆ เพราะถ้าฝั่ง Code.gs เช็คแบบ if(it.is_header) แบบ truthy ธรรมดา สตริง "FALSE" ก็ truthy
+      // (ไม่ใช่สตริงว่าง) ทำให้ทุกรายการที่ไม่ใช่หัวข้อโดนตั้งเป็นหัวข้อไปด้วยหมด (บั๊กที่เจอจริงจากผู้ใช้)
+      if (String(it.is_header).toUpperCase() === 'TRUE') out.is_header = 'TRUE';
+      return out;
+    });
   if (!itemsToImport.length) { showToast('ไม่มีรายการใหม่ให้นำเข้า', 'error'); return; }
   const btn = document.getElementById('import-central-confirm-btn');
   btn.disabled = true; btn.textContent = 'กำลังนำเข้า...';
