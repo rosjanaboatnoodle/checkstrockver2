@@ -1323,7 +1323,8 @@ async function saveStock() {
 /** สร้างข้อความสรุปเช็คสต็อก ส่งแนบไปกับ action:'create' ให้ backend ยิงต่อเข้า LINE ทันที (ไม่โชว์ในหน้าเว็บอีกต่อไป) */
 function buildLineReportText_(stockEntries) {
   let lines = [];
-  lines.push('🚣 รายงานเช็คสต็อก');
+  // ใส่ชื่อสาขาต่อท้ายหัวข้อ ไม่งั้นร้านที่มีหลายสาขาเจ้าของร้านจะไม่รู้ว่ารายงานที่ส่งเข้ามาเป็นของสาขาไหน
+  lines.push('🚣 รายงานเช็คสต็อก' + (currentBranchName ? ` - สาขา ${currentBranchName}` : ''));
   lines.push('━━━━━━━━━━━━━━━━');
   lines.push(`👤 ผู้เช็ค: ${checkerName}`);
   lines.push(`📋 หมวด: ${currentCategory}`);
@@ -1574,7 +1575,7 @@ function buildMovementReportText_(entries) {
   const dirLabel = { in: 'รับเข้า', out: 'เบิกออก', adjust: 'ปรับยอด' };
   const dirIcon = { in: '📥', out: '📤', adjust: '🔧' };
   let lines = [];
-  lines.push('📦 รายงานปรับสต็อค');
+  lines.push('📦 รายงานปรับสต็อค' + (currentBranchName ? ` - สาขา ${currentBranchName}` : ''));
   lines.push('━━━━━━━━━━━━━━━━');
   lines.push(`👤 ผู้บันทึก: ${checkerName}`);
   lines.push(`📅 ${formatFullDate(new Date(), currentLanguage)}`);
