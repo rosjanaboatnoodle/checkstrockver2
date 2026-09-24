@@ -603,9 +603,9 @@ const DEFAULT_BUFFER_CONFIG = {
 };
 let bufferConfig = JSON.parse(JSON.stringify(DEFAULT_BUFFER_CONFIG));
 
-async function loadBufferConfig() {
+async function loadBufferConfig(prefetch) {
   try {
-    const res = await jsonpGet('getBufferConfig', { password: adminPassword });
+    const res = prefetch ? await prefetch : await jsonpGet('getBufferConfig', { password: adminPassword });
     if (res && res.ok && res.config) { bufferConfig = res.config; return; }
     throw new Error('no_server_config');
   } catch (e) {
@@ -1880,13 +1880,20 @@ function closeAdminGate() {
   document.getElementById('admin-gate-modal').classList.add('hidden');
   applyStaticTranslations(); // คืนค่าภาษาที่ตั้งไว้ให้ label กลุ่มนี้ ตอนออกจากหน้าแอดมินแล้ว
 }
+// เก็บ promise ที่ prefetch ไว้ตอน login ให้แท็บอื่นๆ (นอกจากแท็บ "รายการสินค้า" ที่ส่งผ่านพารามิเตอร์อยู่แล้ว)
+// มาหยิบไปใช้ตอนถูกเปิดจริง — ไม่งั้นแต่ละแท็บจะเพิ่งเริ่มยิง network ตอนกดเข้าแท็บนั้นเป็นครั้งแรก ทำให้รอซ้ำอีกรอบ
+let adminPrefetchBuffer_ = null;
+let adminPrefetchReorder_ = null;
+
 async function submitAdminLogin() {
   const pw = document.getElementById('admin-password-input').value;
-  // ยิง unlock (เช็ครหัสผ่าน) พร้อมๆ กับดึงรายการสินค้าของแท็บแรกที่จะเห็นทันทีที่เข้าหน้าแอดมิน
-  // แทนที่จะรอ unlock เสร็จก่อนค่อยเริ่มดึง — listItemsAdmin เช็ครหัสผ่านเองอยู่แล้วฝั่งเซิร์ฟเวอร์
-  // (ปลอดภัยเท่าเดิม) แค่ยิงคู่ขนานแทนต่อคิว ลดเวลารอเปิดหน้าแอดมินได้เกือบครึ่งเมื่อรหัสถูก
+  // ยิง unlock (เช็ครหัสผ่าน) พร้อมๆ กับดึงข้อมูลของแท็บต่างๆ ที่เดี๋ยวจะได้ใช้ในเซสชันแอดมินนี้
+  // แทนที่จะรอ unlock เสร็จก่อนค่อยเริ่มดึงทีละแท็บตอนกดเข้า — action เหล่านี้เช็ครหัสผ่านเองอยู่แล้วฝั่งเซิร์ฟเวอร์
+  // (ปลอดภัยเท่าเดิม) แค่ยิงคู่ขนานแทนต่อคิว ลดเวลารอสลับแท็บครั้งแรกของแต่ละแท็บได้มาก
   const prefetchScope = adminItemScope;
   const prefetchItems = jsonpGet('listItemsAdmin', { password: pw, scope: prefetchScope }).catch(() => null);
+  adminPrefetchBuffer_ = jsonpGet('getBufferConfig', { password: pw }).catch(() => null);
+  adminPrefetchReorder_ = jsonpGet('getReorderConfig', { password: pw }).catch(() => null);
   try {
     const res = await jsonpGet('unlock', { password: pw });
     document.getElementById('admin-password-input').value = '';
@@ -1895,6 +1902,9 @@ async function submitAdminLogin() {
       sessionStorage.setItem('admin_pw', pw);
       currentRole = 'admin';
       localStorage.setItem('role', 'admin');
+      // unlock ของแอดมินส่งรายชื่อสาขามาด้วยอยู่แล้ว (เหมือนตอนล็อกอินเลือกสาขาปกติ) ใช้ตรงนี้เลย
+      // ไม่ต้องยิง listBranches ซ้ำตอนกดเข้าแท็บ "จัดการสาขา" หรือ "นำเข้าจากบัญชี" อีกรอบ
+      if (res.branches) { branches = res.branches; branchesLoaded = true; }
       closeAdminGate();
       openAdminModal(prefetchItems, prefetchScope);
     } else {
@@ -1906,8 +1916,9 @@ let catalogDirty = false; // true = ต้อง loadCatalog() ใหม่ต�
 
 function openAdminModal(prefetchItems, prefetchScope) {
   // เริ่มเซสชันแอดมินใหม่ทุกครั้ง — บังคับให้ดึงข้อมูลสดอย่างน้อย 1 ครั้ง แต่หลังจากนั้นสลับแท็บได้เร็วโดยไม่ยิงซ้ำ
+  // (ไม่รีเซ็ต branchesLoaded ตรงนี้ เพราะ submitAdminLogin ได้รายชื่อสาขาสดๆ มาจาก unlock() อยู่แล้วทุกครั้ง
+  // ที่เข้าหน้าแอดมิน — รีเซ็ตซ้ำตรงนี้จะทำให้ต้องยิง listBranches เพิ่มอีกรอบโดยไม่จำเป็นตอนกดแท็บ "จัดการสาขา")
   adminItemsLoadedScope = null;
-  branchesLoaded = false;
   bufferConfigLoaded = false;
   reorderConfigLoaded = false;
   document.getElementById('admin-modal').classList.remove('hidden');
@@ -2262,14 +2273,14 @@ async function submitChangePassword() {
    ========================================================= */
 async function renderAdminBufferTab() {
   const el = document.getElementById('admin-tab-buffer');
-  if (!bufferConfigLoaded) {
+  if (!bufferConfigLoaded || !reorderConfigLoaded) {
     el.innerHTML = `<div class="text-center text-gray-400 text-sm py-4">${t('loading')}</div>`;
-    await loadBufferConfig();
-    bufferConfigLoaded = true;
-  }
-  if (!reorderConfigLoaded) {
-    await loadReorderConfig();
-    reorderConfigLoaded = true;
+    // เดิมรอ loadBufferConfig เสร็จก่อนค่อยเริ่ม loadReorderConfig (ยิงทีละอันต่อคิว) ทำให้รอนานเป็นสองเท่า
+    // เปลี่ยนเป็นยิงคู่ขนาน และใช้ผลที่ prefetch ไว้ตั้งแต่ตอน login ถ้ามี (เข้าแท็บนี้เป็นครั้งแรกแทบไม่ต้องรอเลย)
+    const bufferPromise = bufferConfigLoaded ? null : loadBufferConfig(adminPrefetchBuffer_).then(() => { bufferConfigLoaded = true; });
+    const reorderPromise = reorderConfigLoaded ? null : loadReorderConfig(adminPrefetchReorder_).then(() => { reorderConfigLoaded = true; });
+    adminPrefetchBuffer_ = null; adminPrefetchReorder_ = null; // ใช้ได้แค่ครั้งแรกหลัง login เท่านั้น กันเอาผลเก่ามาใช้ซ้ำ
+    await Promise.all([bufferPromise, reorderPromise]);
   }
 
   const categories = Object.keys(catalogByCategory);
@@ -2461,9 +2472,9 @@ const DEFAULT_REORDER_CONFIG = {
   scopeMode: 'per_branch' // 'per_branch' | 'combined'
 };
 let reorderConfig = JSON.parse(JSON.stringify(DEFAULT_REORDER_CONFIG));
-async function loadReorderConfig() {
+async function loadReorderConfig(prefetch) {
   try {
-    const res = await jsonpGet('getReorderConfig', { password: adminPassword });
+    const res = prefetch ? await prefetch : await jsonpGet('getReorderConfig', { password: adminPassword });
     if (res && res.ok && res.config) { reorderConfig = Object.assign({}, DEFAULT_REORDER_CONFIG, res.config); return; }
   } catch (e) {}
   reorderConfig = JSON.parse(JSON.stringify(DEFAULT_REORDER_CONFIG));
