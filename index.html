@@ -2343,14 +2343,14 @@ async function renderAdminBufferTab() {
         <p class="text-xs text-gray-500 mb-1">เงื่อนไขการส่ง</p>
         <label class="flex items-center gap-2 text-sm mb-1.5">
           <input type="radio" name="reorder-trigger" value="after_all_categories" ${reorderConfig.triggerMode==='after_all_categories'?'checked':''}>
-          ทันทีที่เช็คครบทุกหมวดของวันนั้น
+          ส่งทันทีทุกครั้งที่เช็คครบทุกหมวดของวันนั้น
         </label>
         <label class="flex items-center gap-2 text-sm mb-1.5">
           <input type="radio" name="reorder-trigger" value="after_n_rounds" ${reorderConfig.triggerMode==='after_n_rounds'?'checked':''}>
-          หลังเช็คครบทุกหมวดติดต่อกัน
+          ไม่ส่งทุกวัน — รอสะสมครบก่อนค่อยส่งเป็นสรุป
         </label>
         <div id="reorder-rounds-fields" class="${reorderConfig.triggerMode==='after_n_rounds'?'':'hidden'} pl-6 mb-3">
-          <label class="block text-xs text-gray-500 mb-1">ส่งทุกๆ กี่รอบ (1 รอบ = เช็คครบทุกหมวดของสาขาใน 1 วัน)</label>
+          <label class="block text-xs text-gray-500 mb-1">ส่งแจ้งเตือนทุกๆ กี่วันที่เช็คครบทุกหมวด — เช่น ใส่ 5 = พอเช็คครบทุกหมวดสะสมได้ 5 วัน จะส่งสรุปให้ทีเดียว แล้วเริ่มนับใหม่</label>
           <input type="number" id="reorder-rounds-target" min="1" max="30" value="${reorderConfig.roundsTarget || 3}"
             class="w-24 px-2 py-1.5 border rounded-lg text-sm">
         </div>
