@@ -173,6 +173,10 @@
     html[data-theme="dark"] .mv-lock-btn{ background:#1a1f24;border-color:#3a434c;color:#454f59; }
     html[data-theme="dark"] .mv-row.locked{ background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.5); }
     html[data-theme="dark"] .mv-qty-input:disabled{ background:#242b32; }
+    /* บังคับ font-size ขั้นต่ำ 16px ให้ input/select/textarea ทุกตัวในแอป — iOS Safari จะซูมหน้าจอเข้าอัตโนมัติ
+       ทุกครั้งที่แตะช่องกรอกที่ font-size ต่ำกว่า 16px แล้วผู้ใช้ต้องซูมออกเองทุกครั้งหลังกรอกเสร็จ เสียเวลามาก
+       ใช้ !important เพราะต้อง override คลาส text-sm/text-xs ของ Tailwind ซึ่ง specificity สูงกว่า element selector เฉยๆ */
+    input, select, textarea { font-size: 16px !important; }
   </style>
   <style>@view-transition { navigation: auto; }</style>
 </head>
