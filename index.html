@@ -526,12 +526,11 @@
 /* =========================================================
    ตั้งค่า
    ========================================================= */
-// Phase 1 Supabase cutover: เดิมชี้ไป Google Apps Script web app แทนที่ด้วย URL ของ Supabase
-// Edge Function "api" (Dashboard -> Edge Functions -> api -> คัดลอก URL ที่ได้)
-// SUPABASE_ANON_KEY เอาจาก Dashboard -> Project Settings -> API -> anon public key
-// (ยังไม่ได้ใส่จริง ต้องแก้ 2 บรรทัดนี้ก่อนใช้งาน ไม่งั้น jsonpGet/postNoCors จะโยน error NO_URL)
-const SUPABASE_API_URL = "แปะ URL ของ Supabase Edge Function ตรงนี้";
-const SUPABASE_ANON_KEY = "แปะ anon public key ของโปรเจกต์ Supabase ตรงนี้";
+// Phase 1 Supabase cutover: เดิมชี้ไป Google Apps Script web app เปลี่ยนเป็น Supabase Edge
+// Function "api" แทน — ปลอดภัยที่จะฝังตรงนี้ เพราะเป็น publishable key (เทียบเท่า anon key เดิม)
+// ที่ออกแบบมาให้ฝังฝั่งเว็บได้อยู่แล้ว ตัวข้อมูลจริงถูกป้องกันด้วย RLS deny-all ในฐานข้อมูล
+const SUPABASE_API_URL = "https://anzpzgvlexeeitmwpxpw.supabase.co/functions/v1/api";
+const SUPABASE_ANON_KEY = "sb_publishable_vGq8fukQvgOkjgmcj1P0dw_PUQIbeAb";
 
 /* =========================================================
    ข้อความ UI (ต้นฉบับภาษาไทย - ใช้ตอนยังไม่มีคำแปล / lang=th)
@@ -743,7 +742,7 @@ async function supabaseCall_(action, params, timeoutMs) {
   try {
     const res = await fetch(SUPABASE_API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'apikey': SUPABASE_ANON_KEY },
       body: JSON.stringify({ action, ...(params || {}) }),
       signal: controller.signal
     });
