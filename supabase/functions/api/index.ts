@@ -120,7 +120,17 @@ async function handleListBranches(p: Record<string, unknown>) {
 }
 
 async function handleAddBranch(p: Record<string, unknown>) {
-  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const pw = String(p.password ?? "");
+  const existingHash = await getSetting<string | null>(ADMIN_PW_KEY, null);
+  if (existingHash) {
+    if (!(await checkPassword(existingHash, pw))) return json({ ok: false });
+  } else {
+    // ยังไม่เคยตั้งรหัสผ่านแอดมินมาก่อน (ระบบใหม่เอี่ยม) — รหัสผ่านที่กรอกตอนสร้างสาขาแรก
+    // (หน้า "ตั้งค่าสาขาแรก") จะกลายเป็นรหัสผ่านแอดมินไปเลย ตรงกับที่ UI ฝั่งเว็บออกแบบไว้
+    // (ให้กรอกรหัสผ่านแอดมินใหม่พร้อมกับตั้งสาขาแรกทีเดียว ไม่ได้คาดหวังว่าจะมีอยู่ก่อนแล้ว)
+    if (!pw) return json({ ok: false, error: "missing_password" });
+    await setSetting(ADMIN_PW_KEY, await hashPassword(pw));
+  }
   const name = String(p.name ?? "").trim();
   const staffPw = String(p.staff_password ?? "");
   if (!name || !staffPw) return json({ ok: false, error: "missing_fields" });
