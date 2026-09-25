@@ -23,16 +23,6 @@ returns boolean language sql as $$
   select crypt(plain, hash) = hash;
 $$;
 
--- Atomically append one entry to a check_records row's edit_history jsonb array —
--- avoids a separate fetch-modify-write from the Edge Function.
-create or replace function append_edit_history(p_record_id uuid, p_entry jsonb)
-returns void language sql as $$
-  update check_records
-  set edit_history = edit_history || jsonb_build_array(p_entry),
-      updated_at = now()
-  where id = p_record_id;
-$$;
-
 -- ============================================================
 -- Branches
 -- ============================================================
@@ -98,6 +88,16 @@ create table if not exists check_record_items (
   waste_qty      numeric
 );
 create index if not exists check_record_items_name_idx on check_record_items (item_name, record_id);
+
+-- Atomically append one entry to a check_records row's edit_history jsonb array —
+-- avoids a separate fetch-modify-write from the Edge Function.
+create or replace function append_edit_history(p_record_id uuid, p_entry jsonb)
+returns void language sql as $$
+  update check_records
+  set edit_history = edit_history || jsonb_build_array(p_entry),
+      updated_at = now()
+  where id = p_record_id;
+$$;
 
 -- ============================================================
 -- Stock movements (รับเข้า / เบิกออก / ปรับยอด)
