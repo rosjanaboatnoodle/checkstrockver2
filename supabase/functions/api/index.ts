@@ -443,6 +443,203 @@ async function handleGetCurrentStockLevels(p: Record<string, unknown>) {
 }
 
 // ============================================================
+// Phase 2: Gemini-backed translation + AI item import
+// ============================================================
+
+const GEMINI_MODEL = "gemini-2.5-flash";
+
+async function callGemini(parts: unknown[], opts: { jsonMode?: boolean } = {}): Promise<string> {
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
+  const body: Record<string, unknown> = { contents: [{ parts }] };
+  if (opts.jsonMode) body.generationConfig = { responseMimeType: "application/json" };
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || `gemini_http_${res.status}`);
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error("gemini_empty_response");
+  return text;
+}
+
+// Same fixed UI label set as UI_TH in index.html (Thai source strings, keyed by the
+// same keys the client's t() function looks up) — duplicated here since translateAll
+// has no other way to know what the UI even says without the client sending it.
+const UI_TH: Record<string, string> = {
+  dailyCheck: "เช็คสต็อกประจำวัน", history: "ประวัติ", boatFrontDesc: "เช็คสต็อกวัตถุดิบหน้าเรือ",
+  customFoodDesc: "เช็คสต็อกวัตถุดิบอาหารตามสั่ง", staffChildDesc: "เช็คสต็อกอุปกรณ์เด็กเสิร์ฟ",
+  backHome: "กลับหน้าหลัก", staffName: "ผู้เช็คสต็อก", enterName: "กรุณากรอกชื่อผู้ทำการเช็คสต็อก",
+  fullName: "ชื่อ-นามสกุล", startChecking: "เริ่มเช็คสต็อก", item: "รายการ", quantity: "จำนวน", unit: "หน่วย",
+  note: "หมายเหตุ", waste: "ของเสีย", save: "บันทึกข้อมูล", historyTitle: "ประวัติการเช็คสต็อก", selectDate: "เลือกวันที่",
+  category: "หมวดหมู่", all: "ทั้งหมด", staffChecker: "ผู้เช็คสต็อก:", date: "วันที่:", date2: "วันที่",
+  noHistory: "ไม่พบประวัติการเช็คสต็อก", saved: "บันทึกข้อมูลสำเร็จ!", error: "เกิดข้อผิดพลาด กรุณาลองใหม่",
+  fullLimit: "ไม่สามารถบันทึกได้ ข้อมูลเต็มแล้ว", enterName2: "กรุณากรอกชื่อ", back: "กลับ", backHistory: "กลับหน้าประวัติ",
+  compared: "เปรียบเทียบกับ", increased: "เพิ่มขึ้น", decreased: "ลดลง", noChange: "ไม่เปลี่ยนแปลง",
+  changeLabel: "เปลี่ยนแปลง", changePctLabel: "เทียบเป็น %", noPrevious: "ไม่มีรอบก่อนหน้า", invalidQty: "รูปแบบจำนวนไม่ถูกต้อง",
+  selectBranch: "เลือกสาขา", loginPrompt: "กรอกรหัสผ่านเพื่อเข้าใช้งาน", loginPasswordLabel: "รหัสผ่าน", login: "เข้าสู่ระบบ",
+  logout: "ออกจากระบบ", switchBranch: "สลับสาขา", setupFirstBranch: "ยังไม่มีสาขาในระบบ ตั้งค่าสาขาแรก (ใช้รหัสผ่านแอดมิน)",
+  branchNameLabel: "ชื่อสาขา", branchPasswordLabel: "รหัสผ่านประจำสาขา (ให้พนักงานใช้)", createBranch: "สร้างสาขา",
+  scopeGlobal: "ส่วนกลาง (ทุกสาขา)", scopeLabel: "ขอบเขต",
+  movement: "ปรับสต็อค", movementDesc: "บันทึกรับเข้า / เบิกออก / ปรับยอด",
+  movementIn: "รับเข้า", movementOut: "เบิกออก", movementAdjust: "ปรับยอด", reason: "เหตุผล/หมายเหตุ",
+  admin: "แอดมิน", adminPasswordPrompt: "กรอกรหัสผ่านแอดมิน", remaining: "คงเหลือ", currentlyRemaining: "ตอนนี้คงเหลือ",
+  reviewAndSave: "รายการ — ตรวจทาน/บันทึก", reviewBeforeSave: "ตรวจทานก่อนบันทึก",
+  wrongPassword: "รหัสผ่านไม่ถูกต้อง", manageItems: "จัดการรายการสินค้า", manageBranches: "จัดการสาขา",
+  manageTranslations: "จัดการคำแปล", addItem: "เพิ่มรายการสินค้า", edit: "แก้ไข", delete: "ลบ",
+  confirmDelete: "ยืนยันการลบรายการนี้?", addBranch: "เพิ่มสาขา", branchName: "ชื่อสาขา",
+  refreshTranslation: "อัปเดตคำแปลด้วย AI", translating: "กำลังแปล...", editRecord: "แก้ไขรายการนี้",
+  saveEdit: "บันทึกการแก้ไข", cancel: "ยกเลิก", saveOk: "บันทึกสำเร็จ",
+  movementType: "ประเภท", movementHistory: "รายการปรับสต็อค", editedNote: "แก้ไขล่าสุดโดย",
+  noCategoriesYet: "ยังไม่มีหมวดหมู่สินค้า กรุณาไปเพิ่มรายการสินค้าในหน้าแอดมินก่อน",
+  checkStockGeneric: "เช็คสต็อกวัตถุดิบในหมวดนี้",
+  shopTitle: "ระบบเช็คสต็อกสินค้า", loading: "กำลังโหลด...", fillAllQty: "กรุณากรอกจำนวนให้ครบทุกช่อง",
+  fillBranchNameAndPassword: "กรอกชื่อสาขาและรหัสผ่านสาขา", firstBranchNameHint: "ชื่อสาขา เช่น สาขาหลัก",
+  adminPasswordShort: "รหัสผ่านแอดมิน", enterNamePlaceholder: "กรอกชื่อของคุณ",
+  mvQuickSearchPlaceholder: "ค้นหาด่วน: พิมพ์ชื่อสินค้าที่จะปรับ...", qtyInputHint: "* ช่อง \"จำนวน\" ใส่ได้เฉพาะ 0-9 และสัญลักษณ์ . / + -",
+  lockedTooltip: "ยืนยันแล้ว กดอีกครั้งเพื่อแก้ไข", lockTooltip: "กดยืนยัน/ล็อครายการนี้",
+  newVersionAvailable: "มีเวอร์ชันใหม่ กดเพื่ออัปเดต",
+};
+
+const LANG_NAMES: Record<string, string> = {
+  en: "English", my: "Burmese (Myanmar language)", lo: "Lao", km: "Khmer", vi: "Vietnamese",
+};
+
+function identityMap(values: string[]): Record<string, string> {
+  return Object.fromEntries(values.map((v) => [v, v]));
+}
+
+// Keeps the model's translation when present and non-empty, falls back to the Thai
+// source otherwise — a partial/malformed Gemini response degrades to "untranslated"
+// instead of breaking the whole dict.
+function mergeWithFallback(source: Record<string, string>, result: unknown): Record<string, string> {
+  const r = (result && typeof result === "object") ? result as Record<string, unknown> : {};
+  const out: Record<string, string> = {};
+  for (const k of Object.keys(source)) {
+    const v = r[k];
+    out[k] = (typeof v === "string" && v.trim()) ? v : source[k];
+  }
+  return out;
+}
+
+async function handleTranslateAll(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const lang = String(p.lang ?? "");
+  const langName = LANG_NAMES[lang];
+  if (!langName) return json({ ok: false, error: "unsupported_lang" });
+
+  const { data: itemsData } = await supabase.from("items").select("name, unit, category").eq("active", true);
+  const items = (itemsData ?? []) as Array<{ name: string; unit: string; category: string }>;
+  const itemsSource = identityMap([...new Set(items.map((i) => i.name).filter(Boolean))]);
+  const unitsSource = identityMap([...new Set(items.map((i) => i.unit).filter(Boolean))]);
+  const categoriesSource = identityMap([...new Set(items.map((i) => i.category).filter(Boolean))]);
+
+  const prompt = `Translate the values in each of these JSON objects from Thai into ${langName}, keeping every key exactly as given (do not translate keys, only values). This is UI text and item/unit/category names for a Thai restaurant stock-checking app — keep translations short and natural for restaurant staff. Return ONLY a single JSON object of the exact shape {"ui": {...}, "items": {...}, "units": {...}, "categories": {...}}, with no other text.
+
+ui: ${JSON.stringify(UI_TH)}
+items: ${JSON.stringify(itemsSource)}
+units: ${JSON.stringify(unitsSource)}
+categories: ${JSON.stringify(categoriesSource)}`;
+
+  let parsed: unknown;
+  try {
+    const text = await callGemini([{ text: prompt }], { jsonMode: true });
+    parsed = JSON.parse(text);
+  } catch (e) {
+    return json({ ok: false, error: "translate_failed: " + String((e as Error).message ?? e) });
+  }
+  const p2 = (parsed && typeof parsed === "object") ? parsed as Record<string, unknown> : {};
+  const dict = {
+    ui: mergeWithFallback(UI_TH, p2.ui),
+    items: mergeWithFallback(itemsSource, p2.items),
+    units: mergeWithFallback(unitsSource, p2.units),
+    categories: mergeWithFallback(categoriesSource, p2.categories),
+  };
+
+  await supabase.from("translation_cache").upsert({ lang, dict, updated_at: new Date().toISOString() });
+  await logAdmin("translateAll", { lang });
+  return json({ ok: true, dict });
+}
+
+async function handleGetDictionary(p: Record<string, unknown>) {
+  const lang = String(p.lang ?? "");
+  const { data } = await supabase.from("translation_cache").select("dict").eq("lang", lang).maybeSingle();
+  return json({ ok: true, dict: data?.dict ?? { ui: {}, items: {}, units: {}, categories: {} } });
+}
+
+async function handleTranslateNote(p: Record<string, unknown>) {
+  const text = String(p.text ?? "").trim();
+  if (!text) return json({ ok: false, error: "empty_text" });
+  const targetLang = String(p.target_lang ?? "th");
+  const langName = targetLang === "th" ? "Thai" : (LANG_NAMES[targetLang] ?? targetLang);
+  try {
+    const prompt = `Translate this short note from a restaurant stock-check app into ${langName}. Reply with ONLY the translated text, no quotes, no explanation:\n\n${text}`;
+    const translated = (await callGemini([{ text: prompt }])).trim();
+    return json({ ok: true, translated });
+  } catch (e) {
+    return json({ ok: false, error: String((e as Error).message ?? e) });
+  }
+}
+
+async function runParseItemsAI(
+  type: string,
+  content: string,
+  mimeType: string,
+  existingCategories: string[],
+): Promise<Array<{ category: string; name: string; unit: string }>> {
+  const instructions = `You are reading a raw-material / stock list for a Thai restaurant. Extract every row as {"category": "...", "name": "...", "unit": "..."}, all in Thai. Reuse one of these existing categories when a row clearly fits one, otherwise propose a short new Thai category name: ${JSON.stringify(existingCategories)}. Skip rows that are not actual stock items (totals, section titles, blank rows). Return ONLY a JSON object of shape {"items": [{"category":"...","name":"...","unit":"..."}, ...]}.`;
+
+  const parts: unknown[] = type === "media"
+    ? [{ text: instructions }, { inlineData: { mimeType: mimeType || "application/pdf", data: content } }]
+    : [{ text: instructions + "\n\nSource data (CSV):\n" + content }];
+
+  const text = await callGemini(parts, { jsonMode: true });
+  const parsed = JSON.parse(text);
+  const items = Array.isArray((parsed as Record<string, unknown>)?.items) ? (parsed as { items: unknown[] }).items : [];
+  return items
+    .map((it) => {
+      const r = it as Record<string, unknown>;
+      return { category: String(r.category ?? "").trim(), name: String(r.name ?? "").trim(), unit: String(r.unit ?? "").trim() };
+    })
+    .filter((it) => it.name);
+}
+
+async function handleParseItemsAI(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const jobId = String(p.jobId ?? "");
+  if (!jobId) return json({ ok: false, error: "missing_jobId" });
+  const type = String(p.type ?? "text");
+  const content = String(p.content ?? "");
+  const mimeType = String(p.mimeType ?? "");
+  let existingCategories: string[] = [];
+  if (Array.isArray(p.existingCategories)) existingCategories = p.existingCategories as string[];
+  else { try { existingCategories = JSON.parse(String(p.existingCategories ?? "[]")); } catch { /* ignore */ } }
+
+  await supabase.from("ai_import_jobs").upsert({ job_id: jobId, status: "pending", items: null, error: null });
+
+  // Runs after the response is sent — parsing (especially a PDF/image via Gemini) can
+  // take well past the client's own request timeout, so the job is polled separately
+  // via getAiImportResult rather than awaited on this request.
+  const task = runParseItemsAI(type, content, mimeType, existingCategories)
+    .then((items) => supabase.from("ai_import_jobs").update({ status: "done", items }).eq("job_id", jobId))
+    .catch((e) => supabase.from("ai_import_jobs").update({ status: "error", error: String(e?.message ?? e) }).eq("job_id", jobId));
+  // deno-lint-ignore no-explicit-any
+  const rt = (globalThis as any).EdgeRuntime;
+  if (rt?.waitUntil) rt.waitUntil(task); else await task;
+
+  return json({ ok: true, jobId });
+}
+
+async function handleGetAiImportResult(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const jobId = String(p.jobId ?? "");
+  const { data } = await supabase.from("ai_import_jobs").select("status, items, error").eq("job_id", jobId).maybeSingle();
+  if (!data) return json({ ok: true, status: "pending", items: [] });
+  return json({ ok: true, status: data.status, items: data.items ?? [], error: data.error ?? undefined });
+}
+
+// ============================================================
 // Dispatch
 // ============================================================
 
@@ -468,6 +665,11 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   list: handleList,
   updateItemInRecord: handleUpdateItemInRecord,
   getCurrentStockLevels: handleGetCurrentStockLevels,
+  translateAll: handleTranslateAll,
+  getDictionary: handleGetDictionary,
+  translateNote: handleTranslateNote,
+  parseItemsAI: handleParseItemsAI,
+  getAiImportResult: handleGetAiImportResult,
 };
 
 Deno.serve(async (req) => {
