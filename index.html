@@ -479,11 +479,11 @@
     </div>
 
     <!-- โมดัลนำเข้ารายการสินค้าจากไฟล์ด้วย AI -->
-    <div id="ai-import-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeAiImportModal()">
+    <div id="ai-import-modal" class="modal-overlay hidden" onclick="if(event.target===this) requestCloseAiImportModal()">
       <div class="modal-box p-5 mt-10 mb-10">
         <div class="flex items-center justify-between mb-1">
           <h3 class="text-lg font-bold text-gray-800">📄 นำเข้ารายการจากไฟล์</h3>
-          <button onclick="closeAiImportModal()" class="text-gray-400 hover:text-gray-600 text-3xl leading-none w-10 h-10 flex items-center justify-center -m-2">&times;</button>
+          <button onclick="requestCloseAiImportModal()" class="text-gray-400 hover:text-gray-600 text-3xl leading-none w-10 h-10 flex items-center justify-center -m-2">&times;</button>
         </div>
         <p class="text-xs text-gray-500 mb-3">อัปโหลด Excel/CSV, PDF หรือรูปถ่ายรายการสินค้า ให้ AI ช่วยอ่านแล้วแปลงเป็นรายการให้ — ตรวจ/แก้ไขก่อนกดยืนยันได้เสมอ</p>
 
@@ -503,7 +503,7 @@
           <button onclick="addAiImportRow()" class="text-sm text-indigo-600 font-semibold mb-4">+ เพิ่มแถวว่าง</button>
           <div class="flex gap-2">
             <button onclick="confirmAiImport()" class="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold" id="ai-import-confirm-btn">ยืนยันนำเข้า</button>
-            <button onclick="closeAiImportModal()" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold">ยกเลิก</button>
+            <button onclick="requestCloseAiImportModal()" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold">ยกเลิก</button>
           </div>
         </div>
       </div>
@@ -2730,6 +2730,13 @@ function openAiImportModal() {
   document.getElementById('ai-import-modal').classList.remove('hidden');
 }
 function closeAiImportModal() { document.getElementById('ai-import-modal').classList.add('hidden'); }
+// กันเผลอปิดหน้าต่างแล้วรายการที่ AI อ่านมาหายหมด (เช่นคลิกโดนพื้นหลังโมดัลเผลอตอน copy/paste
+// ข้ามแถว) — ถามยืนยันก่อนปิดเฉพาะตอนอยู่ขั้นตอนตรวจทาน ที่มีรายการค้างอยู่จริง
+function requestCloseAiImportModal() {
+  const inPreview = !document.getElementById('ai-import-step-preview').classList.contains('hidden');
+  if (inPreview && aiImportRows.length && !confirm('ปิดหน้าต่างนี้? รายการที่ AI อ่านได้จะหายไปทั้งหมด')) return;
+  closeAiImportModal();
+}
 
 function fileToBase64_(file) {
   return new Promise((resolve, reject) => {
@@ -2825,9 +2832,12 @@ async function handleAiImportFile() {
 
 function renderAiImportPreview() {
   const wrap = document.getElementById('ai-import-rows');
-  wrap.innerHTML = aiImportRows.map((row, idx) => `
+  // datalist ให้เลือกหมวดหมู่ที่มีอยู่แล้วจากรายการ dropdown แทนต้อง copy/paste เอง —
+  // ยังพิมพ์หมวดใหม่เองได้ตามปกติ (datalist ไม่บังคับเลือกจากลิสต์)
+  const catOptions = Object.keys(catalogByCategory).map(c => `<option value="${c.replace(/"/g,'&quot;')}">`).join('');
+  wrap.innerHTML = `<datalist id="ai-import-cat-list">${catOptions}</datalist>` + aiImportRows.map((row, idx) => `
     <div class="flex items-center gap-2" data-ai-row="${idx}">
-      <input type="text" value="${(row.category||'').replace(/"/g,'&quot;')}" placeholder="หมวดหมู่" class="flex-1 px-2 py-1.5 border rounded-lg text-sm" data-ai-cat="${idx}">
+      <input type="text" list="ai-import-cat-list" value="${(row.category||'').replace(/"/g,'&quot;')}" placeholder="หมวดหมู่" class="flex-1 px-2 py-1.5 border rounded-lg text-sm" data-ai-cat="${idx}">
       <input type="text" value="${(row.name||'').replace(/"/g,'&quot;')}" placeholder="ชื่อสินค้า" class="flex-1 px-2 py-1.5 border rounded-lg text-sm" data-ai-name="${idx}">
       <input type="text" value="${(row.unit||'').replace(/"/g,'&quot;')}" placeholder="หน่วย" class="w-24 px-2 py-1.5 border rounded-lg text-sm" data-ai-unit="${idx}">
       <button onclick="removeAiImportRow(${idx})" class="text-red-400 text-xs px-1">✕</button>
