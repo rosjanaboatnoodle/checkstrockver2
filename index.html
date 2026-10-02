@@ -496,7 +496,12 @@
 
         <div id="ai-import-step-preview" class="hidden">
           <p class="text-xs text-gray-500 mb-2">ตรวจสอบรายการที่ AI อ่านได้ แก้ไขได้ทุกช่อง ลบแถวที่ไม่ต้องการด้วย ✕</p>
+          <div class="flex items-center gap-2 mb-2 p-2 bg-indigo-50 rounded-lg">
+            <input type="text" id="ai-import-bulk-cat" list="ai-import-cat-list" placeholder="เปลี่ยนเป็นหมวดหมู่..." class="flex-1 px-2 py-1.5 border rounded-lg text-sm">
+            <button onclick="applyBulkAiImportCategory_()" class="bg-indigo-600 text-white text-sm px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap">เปลี่ยนที่เลือก</button>
+          </div>
           <div class="flex items-center gap-2 px-1 mb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+            <input type="checkbox" id="ai-import-select-all" onchange="toggleAllAiImportRows_(this.checked)" title="เลือกทั้งหมด">
             <span class="flex-1">หมวดหมู่</span><span class="flex-1">ชื่อสินค้า</span><span class="w-24">หน่วย</span><span class="w-4"></span>
           </div>
           <div id="ai-import-rows" class="space-y-2 mb-2 max-h-72 overflow-y-auto"></div>
@@ -2837,20 +2842,48 @@ function renderAiImportPreview() {
   const catOptions = Object.keys(catalogByCategory).map(c => `<option value="${c.replace(/"/g,'&quot;')}">`).join('');
   wrap.innerHTML = `<datalist id="ai-import-cat-list">${catOptions}</datalist>` + aiImportRows.map((row, idx) => `
     <div class="flex items-center gap-2" data-ai-row="${idx}">
+      <input type="checkbox" class="flex-shrink-0" data-ai-check="${idx}" ${row.checked ? 'checked' : ''} onchange="syncAiImportSelectAll_()">
       <input type="text" list="ai-import-cat-list" value="${(row.category||'').replace(/"/g,'&quot;')}" placeholder="หมวดหมู่" class="flex-1 px-2 py-1.5 border rounded-lg text-sm" data-ai-cat="${idx}">
       <input type="text" value="${(row.name||'').replace(/"/g,'&quot;')}" placeholder="ชื่อสินค้า" class="flex-1 px-2 py-1.5 border rounded-lg text-sm" data-ai-name="${idx}">
       <input type="text" value="${(row.unit||'').replace(/"/g,'&quot;')}" placeholder="หน่วย" class="w-24 px-2 py-1.5 border rounded-lg text-sm" data-ai-unit="${idx}">
       <button onclick="removeAiImportRow(${idx})" class="text-red-400 text-xs px-1">✕</button>
     </div>`).join('');
   document.getElementById('ai-import-confirm-btn').textContent = `ยืนยันนำเข้า (${aiImportRows.length} รายการ)`;
+  syncAiImportSelectAll_();
 }
 function readAiImportRows_() {
   const wrap = document.getElementById('ai-import-rows');
   return aiImportRows.map((_, idx) => ({
     category: (wrap.querySelector(`[data-ai-cat="${idx}"]`) || {}).value || '',
     name: (wrap.querySelector(`[data-ai-name="${idx}"]`) || {}).value || '',
-    unit: (wrap.querySelector(`[data-ai-unit="${idx}"]`) || {}).value || ''
+    unit: (wrap.querySelector(`[data-ai-unit="${idx}"]`) || {}).value || '',
+    checked: (wrap.querySelector(`[data-ai-check="${idx}"]`) || {}).checked || false
   }));
+}
+/** ทิกช่อง "เลือกทั้งหมด" ให้ขึ้นตามจริง (ติ๊กเองถ้าทุกแถวถูกเลือกแล้ว, เอาออกถ้ามีแถวไหนยังไม่เลือก) */
+function syncAiImportSelectAll_() {
+  const all = document.getElementById('ai-import-select-all');
+  if (!all) return;
+  const boxes = document.querySelectorAll('#ai-import-rows [data-ai-check]');
+  all.checked = boxes.length > 0 && [...boxes].every(b => b.checked);
+}
+function toggleAllAiImportRows_(checked) {
+  document.querySelectorAll('#ai-import-rows [data-ai-check]').forEach(b => { b.checked = checked; });
+}
+/** เปลี่ยนหมวดหมู่ของทุกแถวที่ติ๊กไว้เป็นชื่อเดียวกันในคลิกเดียว — เพราะไฟล์ที่นำเข้ามาส่วนใหญ่
+ *  จัดกลุ่มตามหมวดอยู่แล้ว แก้ทีละแถวไม่จำเป็น แก้เป็นชุดแทน */
+function applyBulkAiImportCategory_() {
+  const newCat = document.getElementById('ai-import-bulk-cat').value.trim();
+  if (!newCat) { showToast('กรอกชื่อหมวดหมู่ก่อน', 'error'); return; }
+  const checked = [...document.querySelectorAll('#ai-import-rows [data-ai-check]')].filter(b => b.checked);
+  if (!checked.length) { showToast('ยังไม่ได้เลือกรายการ', 'error'); return; }
+  aiImportRows = readAiImportRows_();
+  checked.forEach(b => {
+    const idx = Number(b.dataset.aiCheck);
+    if (aiImportRows[idx]) aiImportRows[idx].category = newCat;
+  });
+  renderAiImportPreview();
+  showToast(`เปลี่ยนหมวดหมู่ ${checked.length} รายการแล้ว`, 'success');
 }
 function addAiImportRow() {
   aiImportRows = readAiImportRows_();
