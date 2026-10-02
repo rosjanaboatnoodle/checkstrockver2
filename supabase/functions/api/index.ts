@@ -661,6 +661,8 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   saveBufferConfig: (p) => handleSaveConfig(p, "buffer_config"),
   getUnitConfig: (p) => handleGetConfig(p, "unit_config"),
   saveUnitConfig: (p) => handleSaveConfig(p, "unit_config"),
+  getReorderConfig: (p) => handleGetConfig(p, "reorder_config"),
+  saveReorderConfig: (p) => handleSaveConfig(p, "reorder_config"),
   create: handleCreate,
   createMovement: handleCreateMovement,
   list: handleList,
