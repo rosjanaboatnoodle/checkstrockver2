@@ -293,6 +293,15 @@ async function handleCreate(p: Record<string, unknown>) {
   let items: Array<Record<string, unknown>> = [];
   try { items = JSON.parse(String(p.items ?? "[]")); } catch { /* ignore, saved as empty */ }
 
+  // Snapshot low-stock flags BEFORE inserting this check — get_current_stock_levels only
+  // sees data already committed, so "predicted" here means "right before this check landed".
+  const reorderConfig = await getSetting<Record<string, unknown> | null>("reorder_config", null);
+  let flaggedThisCategory: string[] = [];
+  if (reorderConfig?.enabled) {
+    try { flaggedThisCategory = await computeLowStockFlags(branchId, category, items); }
+    catch (e) { console.error("computeLowStockFlags failed", e); }
+  }
+
   const { data: record, error } = await supabase
     .from("check_records")
     .insert({
@@ -321,11 +330,184 @@ async function handleCreate(p: Record<string, unknown>) {
   }
 
   if (p.line_text) await sendLine(String(p.line_text));
-  // Phase 3 (deferred): reorder-alert computation + LINE push goes here once
-  // getReorderConfig/saveReorderConfig land.
+
+  // Never let a bug in the reorder-alert bookkeeping break an otherwise-successful save.
+  if (reorderConfig?.enabled) {
+    try { await advanceReorderRound(branchId, category, flaggedThisCategory, reorderConfig); }
+    catch (e) { console.error("advanceReorderRound failed", e); }
+  }
 
   return json({ ok: true, id: record.id });
 }
+
+// ============================================================
+// Phase 3: reorder-alert computation
+// ============================================================
+
+// Same low-stock-flag logic as index.html's effectiveBufferPct_/computeFlag_, so the
+// reorder alert flags exactly the items that would show 🔽/⚠️ on the check-in screen
+// itself — no separate "reorder point" concept exists anywhere else in this app.
+const REORDER_CRITICAL_RATIO = 0.5;
+
+function isPredictionEnabled(itemName: string, category: string, bufferConfig: Record<string, unknown>): boolean {
+  const itemPredictOverride = bufferConfig.itemPredictOverride as Record<string, boolean | null> | undefined;
+  const io = itemPredictOverride?.[itemName];
+  if (io === true || io === false) return io;
+  const categoryPredict = bufferConfig.categoryPredict as Record<string, boolean> | undefined;
+  return !!categoryPredict?.[category];
+}
+function effectiveBufferPct(itemName: string, category: string, bufferConfig: Record<string, unknown>): number {
+  const itemOverride = bufferConfig.itemOverride as Record<string, number | null> | undefined;
+  const io = itemOverride?.[itemName];
+  if (io !== undefined && io !== null) return Number(io);
+  const categoryDefault = bufferConfig.categoryDefault as Record<string, number> | undefined;
+  return Number(categoryDefault?.[category] ?? 5);
+}
+function isLowFlag(actual: number, predicted: number | null, bufferPct: number): boolean {
+  if (predicted === null || predicted === undefined || !isFinite(predicted) || predicted === 0) return false;
+  if (!isFinite(actual)) return false;
+  const diffPct = ((actual - predicted) / predicted) * 100;
+  if (diffPct >= 0) return false; // at/above expected — not low
+  return Math.abs(diffPct) / 100 >= REORDER_CRITICAL_RATIO || Math.abs(diffPct) > bufferPct;
+}
+
+async function computeLowStockFlags(branchId: string, category: string, items: Array<Record<string, unknown>>): Promise<string[]> {
+  const bufferConfig = await getSetting<Record<string, unknown> | null>("buffer_config", null);
+  if (!bufferConfig) return [];
+  const { data: levels } = await supabase.rpc("get_current_stock_levels", { p_branch_id: branchId });
+  const predictedByName = new Map<string, number | null>();
+  for (const row of (levels ?? []) as Array<{ item_name: string; category: string; qty: number; has_baseline: boolean }>) {
+    if (row.category === category) predictedByName.set(row.item_name, row.has_baseline ? Number(row.qty) : null);
+  }
+  const flagged: string[] = [];
+  for (const it of items) {
+    const name = String(it.name ?? "");
+    if (!name || !isPredictionEnabled(name, category, bufferConfig)) continue;
+    const predicted = predictedByName.has(name) ? predictedByName.get(name)! : null;
+    const actual = Number(it.quantity_base ?? it.quantity ?? NaN);
+    const bufferPct = effectiveBufferPct(name, category, bufferConfig);
+    if (isLowFlag(actual, predicted, bufferPct)) flagged.push(name);
+  }
+  return flagged;
+}
+
+// Asia/Bangkok is a fixed UTC+7 offset (no DST), so this is safe without a timezone library.
+function bangkokToday(): string {
+  return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+async function getBranchCategoryCount(branchId: string): Promise<number> {
+  const { data: central } = await supabase.from("items").select("category").is("branch_id", null).eq("active", true).eq("is_header", false);
+  const { data: branchSpecific } = await supabase.from("items").select("category").eq("branch_id", branchId).eq("active", true).eq("is_header", false);
+  const set = new Set<string>();
+  for (const r of (central ?? []) as Array<{ category: string }>) set.add(r.category);
+  for (const r of (branchSpecific ?? []) as Array<{ category: string }>) set.add(r.category);
+  return set.size;
+}
+
+async function upsertReorderState(
+  branchId: string, trackingDate: string, categoriesChecked: string[], pendingItems: string[],
+  roundsSinceAlert: number, readyForCombined: boolean,
+) {
+  await supabase.from("reorder_round_state").upsert({
+    branch_id: branchId,
+    tracking_date: trackingDate,
+    categories_checked: categoriesChecked,
+    pending_items: pendingItems,
+    rounds_since_alert: roundsSinceAlert,
+    ready_for_combined: readyForCombined,
+    updated_at: new Date().toISOString(),
+  });
+}
+
+async function sendReorderAlert(groups: Array<{ branchId: string; branchName?: string; items: string[] }>) {
+  const nonEmpty = groups.filter((g) => g.items.length);
+  if (!nonEmpty.length) return;
+  if (nonEmpty.length === 1) {
+    const g = nonEmpty[0];
+    await sendLine(`🔔 แจ้งเตือนสั่งซื้อ - ${g.branchName ?? g.branchId}\nรายการที่ควรสั่งซื้อเพิ่ม (คงเหลือต่ำกว่าปกติ):\n` + g.items.map((n) => `- ${n}`).join("\n"));
+    return;
+  }
+  const body = nonEmpty.map((g) => `${g.branchName ?? g.branchId}:\n` + g.items.map((n) => `- ${n}`).join("\n")).join("\n\n");
+  await sendLine(`🔔 แจ้งเตือนสั่งซื้อ (ทุกสาขา)\n\n${body}`);
+}
+
+// Called after every successful check-in when reorder alerts are enabled. Tracks which
+// categories have been checked "today" (Bangkok time) toward a complete round, accumulates
+// low-stock items, and fires the configured trigger mode once a round completes. The
+// 'schedule' trigger mode intentionally never fires from here — it needs a time-based
+// Supabase cron job, which is separate infrastructure the admin sets up once, not code.
+async function advanceReorderRound(
+  branchId: string,
+  category: string,
+  flaggedItems: string[],
+  reorderConfig: Record<string, unknown>,
+) {
+  const totalCategories = await getBranchCategoryCount(branchId);
+  if (totalCategories === 0) return;
+
+  const { data: existing } = await supabase.from("reorder_round_state").select("*").eq("branch_id", branchId).maybeSingle();
+  const todayBkk = bangkokToday();
+  const sameDay = existing?.tracking_date === todayBkk;
+  let categoriesChecked: string[] = sameDay ? (existing?.categories_checked ?? []) : [];
+  let pendingItems: string[] = existing?.pending_items ?? []; // accumulates across days until an alert actually sends
+  let roundsSinceAlert: number = existing?.rounds_since_alert ?? 0;
+
+  if (!categoriesChecked.includes(category)) categoriesChecked.push(category);
+  for (const name of flaggedItems) if (!pendingItems.includes(name)) pendingItems.push(name);
+
+  const roundComplete = categoriesChecked.length >= totalCategories;
+  if (roundComplete) {
+    roundsSinceAlert += 1;
+    categoriesChecked = [];
+  }
+
+  const triggerMode = String(reorderConfig.triggerMode ?? "after_all_categories");
+  const scopeMode = String(reorderConfig.scopeMode ?? "per_branch");
+  const roundsTarget = Number(reorderConfig.roundsTarget ?? 3);
+  const shouldFire = roundComplete && (
+    triggerMode === "after_all_categories" ||
+    (triggerMode === "after_n_rounds" && roundsSinceAlert >= roundsTarget)
+  );
+
+  if (!shouldFire) {
+    await upsertReorderState(branchId, todayBkk, categoriesChecked, pendingItems, roundsSinceAlert, false);
+    return;
+  }
+
+  if (scopeMode === "per_branch") {
+    if (pendingItems.length) {
+      const { data: b } = await supabase.from("branches").select("name").eq("id", branchId).maybeSingle();
+      await sendReorderAlert([{ branchId, branchName: b?.name, items: pendingItems }]);
+    }
+    await upsertReorderState(branchId, todayBkk, categoriesChecked, [], 0, false);
+    return;
+  }
+
+  // scopeMode === "combined": mark this branch ready and wait until every branch is ready
+  // before sending one combined message — otherwise fast branches would alert long before
+  // slower ones finish their first round of the day.
+  await upsertReorderState(branchId, todayBkk, categoriesChecked, pendingItems, roundsSinceAlert, true);
+  const { data: allBranches } = await supabase.from("branches").select("id, name");
+  const { data: allStates } = await supabase.from("reorder_round_state").select("*");
+  const stateByBranch = new Map((allStates ?? []).map((s: { branch_id: string }) => [s.branch_id, s]));
+  const allReady = (allBranches ?? []).every((b: { id: string }) => {
+    if (b.id === branchId) return true; // just marked ready above
+    return !!(stateByBranch.get(b.id) as { ready_for_combined?: boolean } | undefined)?.ready_for_combined;
+  });
+  if (!allReady) return;
+
+  const groups = (allBranches ?? []).map((b: { id: string; name: string }) => ({
+    branchId: b.id,
+    branchName: b.name,
+    items: b.id === branchId ? pendingItems : ((stateByBranch.get(b.id) as { pending_items?: string[] } | undefined)?.pending_items ?? []),
+  }));
+  await sendReorderAlert(groups);
+  for (const b of (allBranches ?? []) as Array<{ id: string }>) {
+    await upsertReorderState(b.id, todayBkk, b.id === branchId ? categoriesChecked : ((stateByBranch.get(b.id) as { categories_checked?: string[] } | undefined)?.categories_checked ?? []), [], 0, false);
+  }
+}
+
 
 async function handleCreateMovement(p: Record<string, unknown>) {
   const branchId = String(p.branch_id ?? "");
