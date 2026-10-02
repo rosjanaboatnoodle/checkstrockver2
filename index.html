@@ -2606,25 +2606,32 @@ async function moveItemOrder_(category, idx, direction) {
   const otherIdx = idx + direction;
   if (!items || otherIdx < 0 || otherIdx >= items.length) return;
 
-  const a = items[idx], b = items[otherIdx];
-  const aOrder = Number(a.sort_order) || 0;
-  const bOrder = Number(b.sort_order) || 0;
-  // ถ้า sort_order ของสองแถวเท่ากัน (ข้อมูลเก่าที่ยังไม่เคยจัดลำดับ) ให้ใช้ตำแหน่ง index แทนก่อนสลับ
-  const newAOrder = aOrder === bOrder ? otherIdx : bOrder;
-  const newBOrder = aOrder === bOrder ? idx : aOrder;
+  // เลขลำดับเดิมอาจซ้ำกันได้หลายรายการ (เช่น เพิ่มเองทีละตัวไม่เคยตั้งลำดับมาก่อน หรือนำเข้าหลาย
+  // รอบ แต่ละรอบเริ่มนับจาก 0 ใหม่) — ถ้าสลับแค่คู่ที่กดโดยปล่อยให้ตัวอื่นยังซ้ำกันอยู่ พอ re-render
+  // รายการที่ซ้ำกันจะเรียงสลับตำแหน่งกันเองไม่แน่นอน ทำให้ดูเหมือน "กระโดด" ข้ามหลายบรรทัดแทนที่จะ
+  // เลื่อนทีละขั้น จึงต้องเรียงเลขลำดับใหม่ทั้งหมดให้ไม่ซ้ำกัน (ตามลำดับที่แสดงผลอยู่ตอนนี้) ก่อนสลับ
+  const changed = [];
+  items.forEach((it, i) => {
+    if (Number(it.sort_order) !== i) { it.sort_order = i; changed.push(it); }
+  });
 
-  // อัปเดตในหน่วยความจำก่อนเลย (a, b คืออ็อบเจกต์เดียวกับใน adminScopeItems) แล้ว re-render ทันที ไม่ต้องรอ network
-  a.sort_order = newAOrder;
-  b.sort_order = newBOrder;
+  const a = items[idx], b = items[otherIdx];
+  const tmp = a.sort_order;
+  a.sort_order = b.sort_order;
+  b.sort_order = tmp;
+  if (!changed.includes(a)) changed.push(a);
+  if (!changed.includes(b)) changed.push(b);
+
+  // อัปเดตในหน่วยความจำก่อนเลย (รายการใน changed คืออ็อบเจกต์เดียวกับใน adminScopeItems) แล้ว
+  // re-render ทันที ไม่ต้องรอ network
   renderAdminItemsTabFromCache_();
   catalogDirty = true;
 
   // ยิงบันทึกจริงคู่ขนาน (ไม่บล็อก UI) — ถ้าพลาดค่อยแจ้งเตือนทีหลัง
   try {
-    await Promise.all([
-      jsonpGet('saveItem', { password: adminPassword, id: a.id, sort_order: newAOrder }),
-      jsonpGet('saveItem', { password: adminPassword, id: b.id, sort_order: newBOrder })
-    ]);
+    await Promise.all(changed.map(it =>
+      jsonpGet('saveItem', { password: adminPassword, id: it.id, sort_order: it.sort_order })
+    ));
   } catch (e) {
     showToast('บันทึกลำดับไม่สำเร็จ ลองใหม่อีกครั้ง', 'error');
   }
