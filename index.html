@@ -2570,6 +2570,7 @@ function renderAdminItemsTabFromCache_() {
       <div class="flex items-center gap-2 flex-shrink-0">
         <button onclick="moveItemOrder_('${it.category.replace(/'/g,"\\'")}', ${idx}, -1)" class="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-sm px-1" ${idx===0 ? 'disabled' : ''}>▲</button>
         <button onclick="moveItemOrder_('${it.category.replace(/'/g,"\\'")}', ${idx}, 1)" class="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-sm px-1" ${idx===catItems.length-1 ? 'disabled' : ''}>▼</button>
+        <button onclick="renameItem_('${it.id}', '${it.name.replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขชื่อ">✏️</button>
         ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `<button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold">⚖️ หน่วย</button>`}
         <button onclick="removeItem('${it.id}')" class="text-red-500 text-xs">${t('delete')}</button>
       </div>
@@ -2631,6 +2632,26 @@ async function moveItemOrder_(category, idx, direction) {
 function onAdminScopeChange() {
   adminItemScope = document.getElementById('admin-item-scope').value;
   renderAdminItemsTab();
+}
+
+/** แก้ไขชื่อรายการสินค้า — ฝั่งเซิร์ฟเวอร์จะไล่อัปเดตชื่อเดิม-ใหม่ในประวัติเช็คสต็อก/ปรับสต็อค
+ *  และการตั้งค่าหน่วย/buffer เฉพาะรายการให้โดยอัตโนมัติ (ชื่อคือกุญแจเชื่อมข้อมูลพวกนี้) */
+function renameItem_(id, currentName) {
+  const newName = prompt('ชื่อใหม่:', currentName);
+  if (newName === null) return;
+  const trimmed = newName.trim();
+  if (!trimmed || trimmed === currentName) return;
+  doRenameItem_(id, trimmed);
+}
+async function doRenameItem_(id, newName) {
+  try {
+    const res = await jsonpGet('saveItem', { password: adminPassword, id, name: newName });
+    if (res && res.ok) {
+      adminItemsLoadedScope = null;
+      await renderAdminItemsTab();
+      showToast(t('saveOk'), 'success');
+    } else showToast(t('error'), 'error');
+  } catch (e) { showToast(t('error'), 'error'); }
 }
 
 /* =========================================================

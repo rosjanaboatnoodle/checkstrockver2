@@ -205,6 +205,7 @@ async function handleListItemsAdmin(p: Record<string, unknown>) {
 async function handleSaveItem(p: Record<string, unknown>) {
   if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
   if (p.id) {
+    const { data: before } = await supabase.from("items").select("name, category").eq("id", p.id).maybeSingle();
     // Partial update (e.g. just sort_order from the reorder buttons).
     const update: Record<string, unknown> = {};
     for (const k of ["category", "name", "unit", "is_header", "sort_order"] as const) {
@@ -212,6 +213,11 @@ async function handleSaveItem(p: Record<string, unknown>) {
     }
     const { data, error } = await supabase.from("items").update(update).eq("id", p.id).select().maybeSingle();
     if (error) return json({ ok: false, error: error.message });
+    const newName = typeof update.name === "string" ? update.name : null;
+    if (before && newName && newName !== before.name) {
+      try { await cascadeItemRename(before.name, before.category, newName); }
+      catch (e) { console.error("cascadeItemRename failed", e); }
+    }
     return json({ ok: true, item: data });
   }
   const branchId = p.branch_id ? String(p.branch_id) : null;
@@ -227,6 +233,43 @@ async function handleSaveItem(p: Record<string, unknown>) {
   if (error) return json({ ok: false, error: error.message });
   await logAdmin("saveItem", { name: row.name, branch_id: row.branch_id });
   return json({ ok: true, item: data });
+}
+
+// Item names are the join key across historical records and name-keyed config (not the
+// item's uuid), so a rename has to carry those references forward too, or stock-level
+// continuity and unit/buffer overrides silently break the moment the name changes.
+async function cascadeItemRename(oldName: string, category: string, newName: string) {
+  // check_record_items has no category of its own — scope the rename to records of the
+  // SAME category this item belonged to, so a same-named item in a different category
+  // (a different item) is never touched.
+  const { data: recordsInCat } = await supabase.from("check_records").select("id").eq("category", category);
+  const recordIds = (recordsInCat ?? []).map((r: { id: string }) => r.id);
+  if (recordIds.length) {
+    await supabase.from("check_record_items").update({ item_name: newName }).eq("item_name", oldName).in("record_id", recordIds);
+  }
+  // Stock movements aren't category-scoped, so match by name directly.
+  await supabase.from("stock_movement_lines").update({ item_name: newName }).eq("item_name", oldName);
+
+  for (const key of ["buffer_config", "unit_config"] as const) {
+    const config = await getSetting<Record<string, unknown> | null>(key, null);
+    if (!config) continue;
+    let changed = false;
+    if (key === "buffer_config") {
+      for (const sub of ["itemOverride", "itemPredictOverride"] as const) {
+        const map = config[sub] as Record<string, unknown> | undefined;
+        if (map && Object.prototype.hasOwnProperty.call(map, oldName)) {
+          map[newName] = map[oldName];
+          delete map[oldName];
+          changed = true;
+        }
+      }
+    } else if (Object.prototype.hasOwnProperty.call(config, oldName)) {
+      config[newName] = config[oldName];
+      delete config[oldName];
+      changed = true;
+    }
+    if (changed) await setSetting(key, config);
+  }
 }
 
 async function handleDeleteItem(p: Record<string, unknown>) {
