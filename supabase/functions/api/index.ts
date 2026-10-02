@@ -152,7 +152,8 @@ async function handleUpdateBranch(p: Record<string, unknown>) {
   const { error } = await supabase.from("branches").update(update).eq("id", id);
   if (error) return json({ ok: false, error: error.message });
   await logAdmin("updateBranch", { id });
-  return json({ ok: true });
+  const { data } = await supabase.from("branches").select("id, name").order("name");
+  return json({ ok: true, branches: data ?? [] });
 }
 
 async function handleDeleteBranch(p: Record<string, unknown>) {
