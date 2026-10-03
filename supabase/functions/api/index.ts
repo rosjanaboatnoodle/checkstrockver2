@@ -1103,13 +1103,27 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T)
   return results;
 }
 
-// The sync can involve a few dozen sequential Gemini calls (one per unmatched row) and
-// Sheets writes, easily running past any request's own timeout. So this follows the same
-// job-queue pattern as parseItemsAI: the handler enqueues and returns immediately, the
-// real work runs in the background (via EdgeRuntime.waitUntil), and the client polls
-// getPurchaseSyncResult for the outcome.
-async function runPurchaseSyncJob(branchId: string, sinceDate: string) {
-  console.log("runPurchaseSyncJob: start", { branchId, sinceDate });
+// Background execution via EdgeRuntime.waitUntil turned out not to reliably run to
+// completion on this project's plan — jobs sat at status "pending" forever, with
+// neither the success nor the error branch ever firing to update the row. So instead
+// of doing the whole sync in one (possibly long) background task, this does it in small
+// synchronous chunks: each call to previewPurchaseSync does a bounded amount of work
+// (the full sheet scan + all fast auto-matches on the first call, then a handful of
+// Gemini lookups per call after that) and returns immediately with done:true/false.
+// The client just keeps calling it with the same jobId until done:true — every single
+// call completes well within a normal request, so nothing needs to survive past the
+// response.
+type PurchaseSyncState = {
+  autoMatched: Array<{ rowId: number; itemName: string; qty: number }>;
+  needsReview: Array<{ rowId: number; rawName: string; qty: number; unit: string; slipDate: string; suggested: string | null }>;
+  skippedCount: number;
+  pendingRaw: Array<{ sheetRow: number; rawName: string; qty: number; slipDate: string }>;
+  catalogNames: string[];
+};
+
+const PURCHASE_SYNC_BATCH_SIZE = 4;
+
+async function initPurchaseSyncState(branchId: string, sinceDate: string): Promise<PurchaseSyncState> {
   const rows = await sheetsGetValues(RAW_OCR_DATA_RANGE);
 
   const config = await getSetting<PurchaseExcludeConfig | null>("purchase_exclude_config", null);
@@ -1119,11 +1133,10 @@ async function runPurchaseSyncJob(branchId: string, sinceDate: string) {
   const catalog = await loadCatalog(branchId);
   const memory = await loadMatchMemory();
   const catalogNames = catalog.map((it) => it.name);
-  console.log("runPurchaseSyncJob: catalog", catalog.length, "memory", memory.size);
 
-  const autoMatched: Array<{ rowId: number; itemName: string; qty: number }> = [];
+  const autoMatched: PurchaseSyncState["autoMatched"] = [];
   let skippedCount = 0;
-  const pending: Array<{ sheetRow: number; rawName: string; qty: number; slipDate: string }> = [];
+  const pendingRaw: PurchaseSyncState["pendingRaw"] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -1153,52 +1166,62 @@ async function runPurchaseSyncJob(branchId: string, sinceDate: string) {
         await sheetsSetCell(`${RAW_OCR_SHEET}!P${sheetRow}`, "TRUE");
         autoMatched.push({ rowId: sheetRow, itemName: match.name, qty });
       } else {
-        pending.push({ sheetRow, rawName, qty, slipDate });
+        pendingRaw.push({ sheetRow, rawName, qty, slipDate });
       }
     } catch (e) {
-      console.error("previewPurchaseSync row failed", sheetRow, e);
+      console.error("initPurchaseSyncState row failed", sheetRow, e);
     }
   }
 
-  console.log("runPurchaseSyncJob: filtered to", pending.length, "rows needing Gemini,", autoMatched.length, "auto-matched,", skippedCount, "skipped (already synced)");
-
-  // Ask Gemini for the unmatched rows in parallel (bounded) instead of one-at-a-time —
-  // sequential calls here is what was blowing past the client's wait time.
-  const suggestions = await mapWithConcurrency(pending, 5, (r) => suggestCatalogMatch(r.rawName, catalogNames));
-  const needsReview = pending.map((r, idx) => ({
-    rowId: r.sheetRow, rawName: r.rawName, qty: r.qty, unit: "", slipDate: r.slipDate, suggested: suggestions[idx],
-  }));
-
-  console.log("runPurchaseSyncJob: done");
-  return { ok: true, autoMatched, needsReview, skippedCount };
+  return { autoMatched, needsReview: [], skippedCount, pendingRaw, catalogNames };
 }
 
 async function handlePreviewPurchaseSync(p: Record<string, unknown>) {
   if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
   const jobId = String(p.jobId ?? "");
   if (!jobId) return json({ ok: false, error: "missing_jobId" });
-  const branchId = String(p.branch_id ?? "");
-  const sinceDate = String(p.since_date ?? "");
-  if (!branchId) return json({ ok: false, error: "missing_branch_id" });
 
-  await supabase.from("purchase_sync_jobs").upsert({ job_id: jobId, status: "pending", result: null, error: null });
+  const { data: existing } = await supabase.from("purchase_sync_jobs").select("status, result").eq("job_id", jobId).maybeSingle();
 
-  const task = runPurchaseSyncJob(branchId, sinceDate)
-    .then((result) => supabase.from("purchase_sync_jobs").update({ status: "done", result }).eq("job_id", jobId))
-    .catch((e) => supabase.from("purchase_sync_jobs").update({ status: "error", error: String(e?.message ?? e) }).eq("job_id", jobId));
-  // deno-lint-ignore no-explicit-any
-  const rt = (globalThis as any).EdgeRuntime;
-  if (rt?.waitUntil) rt.waitUntil(task); else await task;
+  try {
+    let state: PurchaseSyncState;
+    if (!existing) {
+      const branchId = String(p.branch_id ?? "");
+      const sinceDate = String(p.since_date ?? "");
+      if (!branchId) return json({ ok: false, error: "missing_branch_id" });
+      state = await initPurchaseSyncState(branchId, sinceDate);
+      await supabase.from("purchase_sync_jobs").upsert({ job_id: jobId, status: "pending", result: state, error: null });
+    } else if (existing.status === "done") {
+      const r = existing.result as PurchaseSyncState;
+      return json({ ok: true, done: true, autoMatched: r.autoMatched, needsReview: r.needsReview, skippedCount: r.skippedCount });
+    } else {
+      state = existing.result as PurchaseSyncState;
+    }
 
-  return json({ ok: true, jobId });
-}
+    if (!state.pendingRaw.length) {
+      await supabase.from("purchase_sync_jobs").update({ status: "done" }).eq("job_id", jobId);
+      return json({ ok: true, done: true, autoMatched: state.autoMatched, needsReview: state.needsReview, skippedCount: state.skippedCount });
+    }
 
-async function handleGetPurchaseSyncResult(p: Record<string, unknown>) {
-  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
-  const jobId = String(p.jobId ?? "");
-  const { data } = await supabase.from("purchase_sync_jobs").select("status, result, error").eq("job_id", jobId).maybeSingle();
-  if (!data) return json({ ok: true, status: "pending" });
-  return json({ ok: true, status: data.status, result: data.result ?? undefined, error: data.error ?? undefined });
+    const batch = state.pendingRaw.slice(0, PURCHASE_SYNC_BATCH_SIZE);
+    const rest = state.pendingRaw.slice(PURCHASE_SYNC_BATCH_SIZE);
+    const suggestions = await mapWithConcurrency(batch, PURCHASE_SYNC_BATCH_SIZE, (r) => suggestCatalogMatch(r.rawName, state.catalogNames));
+    const newlyReviewed = batch.map((r, idx) => ({
+      rowId: r.sheetRow, rawName: r.rawName, qty: r.qty, unit: "", slipDate: r.slipDate, suggested: suggestions[idx],
+    }));
+    const nextState: PurchaseSyncState = { ...state, needsReview: [...state.needsReview, ...newlyReviewed], pendingRaw: rest };
+    const done = rest.length === 0;
+    await supabase.from("purchase_sync_jobs").update({ result: nextState, status: done ? "done" : "pending" }).eq("job_id", jobId);
+    return json({
+      ok: true, done,
+      autoMatched: nextState.autoMatched, needsReview: nextState.needsReview, skippedCount: nextState.skippedCount,
+      progress: { remaining: rest.length },
+    });
+  } catch (e) {
+    const msg = String((e as Error)?.message ?? e);
+    await supabase.from("purchase_sync_jobs").update({ status: "error", error: msg }).eq("job_id", jobId);
+    return json({ ok: false, error: msg });
+  }
 }
 
 async function handleConfirmPurchaseMatch(p: Record<string, unknown>) {
@@ -1268,7 +1291,6 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   parseItemsAI: handleParseItemsAI,
   getAiImportResult: handleGetAiImportResult,
   previewPurchaseSync: handlePreviewPurchaseSync,
-  getPurchaseSyncResult: handleGetPurchaseSyncResult,
   confirmPurchaseMatch: handleConfirmPurchaseMatch,
   getPurchaseExcludeSettings: handleGetPurchaseExcludeSettings,
   savePurchaseExcludeSettings: handleSavePurchaseExcludeSettings,
