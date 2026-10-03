@@ -212,7 +212,13 @@ async function handleSaveItem(p: Record<string, unknown>) {
       if (p[k] !== undefined) update[k] = k === "is_header" ? String(p[k]).toUpperCase() === "TRUE" : p[k];
     }
     const { data, error } = await supabase.from("items").update(update).eq("id", p.id).select().maybeSingle();
-    if (error) return json({ ok: false, error: error.message });
+    if (error) {
+      // Postgres unique_violation on items_scope_key_active — another active item already
+      // has this category+name in this scope. Surface a code the client can show a plain
+      // message for, instead of the raw constraint-name error text.
+      if (error.code === "23505") return json({ ok: false, error: "duplicate_name" });
+      return json({ ok: false, error: error.message });
+    }
     const newName = typeof update.name === "string" ? update.name : null;
     if (before && newName && newName !== before.name) {
       try { await cascadeItemRename(before.name, before.category, newName); }

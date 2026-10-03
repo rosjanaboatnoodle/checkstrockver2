@@ -2657,6 +2657,8 @@ async function doRenameItem_(id, newName) {
       adminItemsLoadedScope = null;
       await renderAdminItemsTab();
       showToast(t('saveOk'), 'success');
+    } else if (res && res.error === 'duplicate_name') {
+      showToast('ชื่อนี้ซ้ำกับรายการที่มีอยู่แล้วในหมวดหมู่นี้ ลองตั้งชื่ออื่น', 'error');
     } else showToast(t('error'), 'error');
   } catch (e) { showToast(t('error'), 'error'); }
 }
