@@ -32,6 +32,7 @@
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     .slide-in { animation: slideIn 0.3s ease-out; }
     @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+    .dragging-item{ user-select:none; cursor:grabbing; }
     .trend-up{ color:#ef4444; } .trend-down{ color:#22c55e; } .trend-neutral{ color:#6b7280; }
     .qty-invalid{ border-color:#ef4444 !important; background: #fff1f2; }
     .top-bar-btn{ background:white;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-radius:10px; }
@@ -2561,15 +2562,16 @@ function renderAdminItemsTabFromCache_() {
   Object.keys(byCat).forEach(cat => {
     byCat[cat].sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
   });
-  adminByCatCache = byCat; // เก็บไว้ใช้ตอนกดปุ่มเรียงลำดับ ไม่ต้องคำนวณซ้ำ
+  adminByCatCache = byCat; // เก็บไว้ใช้ตอนลากจัดลำดับ ไม่ต้องคำนวณซ้ำ
   const catNames = Object.keys(byCat);
 
-  const itemRowHtml = (it, idx, catItems) => `
-    <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-100">
-      <span class="${String(it.is_header).toUpperCase() === 'TRUE' ? 'font-semibold' : ''}">${it.name} ${it.unit ? '· '+it.unit : ''} ${unitConfig[it.name] ? `<span class="text-xs text-indigo-600">(หน่วยหลัก: ${unitConfig[it.name].primary})</span>` : ''}</span>
+  const itemRowHtml = (it) => `
+    <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-100" data-item-row data-item-id="${it.id}" data-category="${it.category.replace(/"/g,'&quot;')}">
+      <div class="flex items-center gap-1 min-w-0">
+        <span class="text-gray-300 text-base px-1 select-none" style="touch-action:none;cursor:grab;" onpointerdown="onItemDragStart_(event, this)">⠿</span>
+        <span class="truncate ${String(it.is_header).toUpperCase() === 'TRUE' ? 'font-semibold' : ''}">${it.name} ${it.unit ? '· '+it.unit : ''} ${unitConfig[it.name] ? `<span class="text-xs text-indigo-600">(หน่วยหลัก: ${unitConfig[it.name].primary})</span>` : ''}</span>
+      </div>
       <div class="flex items-center gap-2 flex-shrink-0">
-        <button onclick="moveItemOrder_('${it.category.replace(/'/g,"\\'")}', ${idx}, -1)" class="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-sm px-1" ${idx===0 ? 'disabled' : ''}>▲</button>
-        <button onclick="moveItemOrder_('${it.category.replace(/'/g,"\\'")}', ${idx}, 1)" class="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-sm px-1" ${idx===catItems.length-1 ? 'disabled' : ''}>▼</button>
         <button onclick="renameItem_('${it.id}', '${it.name.replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขชื่อ">✏️</button>
         ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `<button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold">⚖️ หน่วย</button>`}
         <button onclick="removeItem('${it.id}')" class="text-red-500 text-xs">${t('delete')}</button>
@@ -2577,7 +2579,7 @@ function renderAdminItemsTabFromCache_() {
     </div>`;
 
   html += `
-    <p class="text-xs text-gray-400 mb-2">กดชื่อหมวดเพื่อเปิด/หุบ · กด ▲▼ เพื่อเรียงลำดับรายการภายในหมวด</p>
+    <p class="text-xs text-gray-400 mb-2">กดชื่อหมวดเพื่อเปิด/หุบ · กดค้างที่ ⠿ แล้วลากขึ้น/ลงเพื่อเรียงลำดับ</p>
     <div>
       ${catNames.map(cat => `
         <details class="mb-2 border border-gray-200 rounded-xl overflow-hidden" ${adminOpenCategories.has(cat) ? 'open' : ''} ontoggle="onAdminCategoryToggle_(this,'${cat.replace(/'/g,"\\'")}')">
@@ -2586,7 +2588,7 @@ function renderAdminItemsTabFromCache_() {
             <span class="text-xs text-gray-400 font-normal">${byCat[cat].length} รายการ</span>
           </summary>
           <div class="p-3 pt-1">
-            ${byCat[cat].map((it, idx) => itemRowHtml(it, idx, byCat[cat])).join('')}
+            ${byCat[cat].map(it => itemRowHtml(it)).join('')}
           </div>
         </details>`).join('')}
     </div>
@@ -2594,45 +2596,87 @@ function renderAdminItemsTabFromCache_() {
   el.innerHTML = html;
   if (modalEl) modalEl.scrollTop = scrollTop;
 }
-/** เก็บสถานะเปิด/หุบของแต่ละหมวดไว้ ไม่ให้หายตอน re-render (เช่นตอนกด ▲▼ เรียงลำดับ) */
+/** เก็บสถานะเปิด/หุบของแต่ละหมวดไว้ ไม่ให้หายตอน re-render */
 function onAdminCategoryToggle_(detailsEl, cat) {
   if (detailsEl.open) adminOpenCategories.add(cat);
   else adminOpenCategories.delete(cat);
 }
 
-/** สลับ sort_order ของรายการกับตัวข้างเคียง (direction: -1 ขึ้น, 1 ลง) แล้วบันทึกทั้งคู่ */
-async function moveItemOrder_(category, idx, direction) {
-  const items = adminByCatCache[category];
-  const otherIdx = idx + direction;
-  if (!items || otherIdx < 0 || otherIdx >= items.length) return;
+/** ลาก-วางรายการสินค้าเพื่อจัดลำดับ (คล้ายลากไอคอนในมือถือ) — ใช้ Pointer Events ตัวเดียวรองรับ
+ *  ทั้งเมาส์และนิ้วสัมผัส จับที่ไอคอน ⠿ แล้วลากขึ้น/ลง สลับกับแถวข้างเคียงทันทีที่ลากผ่านครึ่งแถว */
+let itemDrag_ = null;
+function onItemDragStart_(e, handleEl) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  const row = handleEl.closest('[data-item-row]');
+  if (!row) return;
+  handleEl.setPointerCapture(e.pointerId);
+  itemDrag_ = { row, pointerId: e.pointerId, startY: e.clientY, rowHeight: row.getBoundingClientRect().height };
+  row.classList.add('dragging-item');
+  row.style.position = 'relative';
+  row.style.zIndex = '10';
+  row.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+  row.style.background = '#fff';
+  document.addEventListener('pointermove', onItemDragMove_);
+  document.addEventListener('pointerup', onItemDragEnd_);
+  document.addEventListener('pointercancel', onItemDragEnd_);
+}
+function onItemDragMove_(e) {
+  const d = itemDrag_;
+  if (!d || e.pointerId !== d.pointerId) return;
+  d.row.style.transform = `translateY(${e.clientY - d.startY}px)`;
+  const threshold = d.rowHeight / 2;
+  const dy = e.clientY - d.startY;
+  const neighbor = dy > threshold ? d.row.nextElementSibling : dy < -threshold ? d.row.previousElementSibling : null;
+  if (!neighbor || !neighbor.hasAttribute('data-item-row')) return;
 
-  // เลขลำดับเดิมอาจซ้ำกันได้หลายรายการ (เช่น เพิ่มเองทีละตัวไม่เคยตั้งลำดับมาก่อน หรือนำเข้าหลาย
-  // รอบ แต่ละรอบเริ่มนับจาก 0 ใหม่) — ถ้าสลับแค่คู่ที่กดโดยปล่อยให้ตัวอื่นยังซ้ำกันอยู่ พอ re-render
-  // รายการที่ซ้ำกันจะเรียงสลับตำแหน่งกันเองไม่แน่นอน ทำให้ดูเหมือน "กระโดด" ข้ามหลายบรรทัดแทนที่จะ
-  // เลื่อนทีละขั้น จึงต้องเรียงเลขลำดับใหม่ทั้งหมดให้ไม่ซ้ำกัน (ตามลำดับที่แสดงผลอยู่ตอนนี้) ก่อนสลับ
-  const changed = [];
-  items.forEach((it, i) => {
-    if (Number(it.sort_order) !== i) { it.sort_order = i; changed.push(it); }
+  // สลับตำแหน่งจริงใน DOM ทันที แล้วให้แถวที่ถูกดันออก "สไลด์" จากตำแหน่งเดิมไปตำแหน่งใหม่
+  // (เทคนิค FLIP สั้นๆ) เพื่อความลื่นไหล ไม่ใช่กระโดดเฉยๆ
+  const oldRect = neighbor.getBoundingClientRect();
+  if (dy > threshold) d.row.parentElement.insertBefore(neighbor, d.row);
+  else d.row.parentElement.insertBefore(d.row, neighbor);
+  const newRect = neighbor.getBoundingClientRect();
+  neighbor.style.transition = 'none';
+  neighbor.style.transform = `translateY(${oldRect.top - newRect.top}px)`;
+  requestAnimationFrame(() => {
+    neighbor.style.transition = 'transform 150ms ease';
+    neighbor.style.transform = '';
   });
+  d.startY += dy > threshold ? d.rowHeight : -d.rowHeight;
+  d.row.style.transform = `translateY(${e.clientY - d.startY}px)`;
+}
+async function onItemDragEnd_(e) {
+  const d = itemDrag_;
+  if (!d || e.pointerId !== d.pointerId) return;
+  document.removeEventListener('pointermove', onItemDragMove_);
+  document.removeEventListener('pointerup', onItemDragEnd_);
+  document.removeEventListener('pointercancel', onItemDragEnd_);
+  d.row.classList.remove('dragging-item');
+  d.row.style.transform = '';
+  d.row.style.position = '';
+  d.row.style.zIndex = '';
+  d.row.style.boxShadow = '';
+  d.row.style.background = '';
+  itemDrag_ = null;
 
-  const a = items[idx], b = items[otherIdx];
-  const tmp = a.sort_order;
-  a.sort_order = b.sort_order;
-  b.sort_order = tmp;
-  if (!changed.includes(a)) changed.push(a);
-  if (!changed.includes(b)) changed.push(b);
+  const category = d.row.dataset.category;
+  const items = adminByCatCache[category];
+  if (!items) return;
+  const byId = new Map(items.map(it => [String(it.id), it]));
+  const newOrder = [...d.row.parentElement.querySelectorAll('[data-item-row]')]
+    .map(r => byId.get(r.dataset.itemId))
+    .filter(Boolean);
+  adminByCatCache[category] = newOrder;
 
-  // อัปเดตในหน่วยความจำก่อนเลย (รายการใน changed คืออ็อบเจกต์เดียวกับใน adminScopeItems) แล้ว
-  // re-render ทันที ไม่ต้องรอ network
-  renderAdminItemsTabFromCache_();
+  const changed = [];
+  newOrder.forEach((it, i) => { if (Number(it.sort_order) !== i) { it.sort_order = i; changed.push(it); } });
+  if (!changed.length) return;
   catalogDirty = true;
-
-  // ยิงบันทึกจริงคู่ขนาน (ไม่บล็อก UI) — ถ้าพลาดค่อยแจ้งเตือนทีหลัง
   try {
     await Promise.all(changed.map(it =>
       jsonpGet('saveItem', { password: adminPassword, id: it.id, sort_order: it.sort_order })
     ));
-  } catch (e) {
+  } catch (err) {
     showToast('บันทึกลำดับไม่สำเร็จ ลองใหม่อีกครั้ง', 'error');
   }
 }
