@@ -1127,7 +1127,21 @@ async function initPurchaseSyncState(branchId: string, sinceDate: string): Promi
   const rows = await sheetsGetValues(RAW_OCR_DATA_RANGE);
 
   const config = await getSetting<PurchaseExcludeConfig | null>("purchase_exclude_config", null);
-  const excludeMain = new Set(config?.excludeMain ?? []);
+  // Same "only วัตถุดิบ by default" rule as handleGetPurchaseExcludeSettings — if the admin never
+  // opened the exclude-settings panel and hit save, there's no saved config yet, and without this
+  // the sync would otherwise pull in every category (utilities, labor, equipment, ...), not just
+  // raw materials.
+  let excludeMain: Set<string>;
+  if (config?.excludeMain) {
+    excludeMain = new Set(config.excludeMain);
+  } else {
+    const seenMain = new Set<string>();
+    for (const row of rows) {
+      const m = (row[COL.mainCategory] ?? "").trim();
+      if (m) seenMain.add(m);
+    }
+    excludeMain = new Set([...seenMain].filter((c) => c !== "วัตถุดิบ"));
+  }
   const excludeSub = new Set(config?.excludeSub ?? []);
 
   const catalog = await loadCatalog(branchId);
@@ -1155,7 +1169,10 @@ async function initPurchaseSyncState(branchId: string, sinceDate: string): Promi
     const qty = Number(qtyRaw);
     if (!qtyRaw || !Number.isFinite(qty) || qty <= 0) continue;
     const isoDate = parseLedgerDate(slipDate);
-    if (sinceDate && isoDate && isoDate < sinceDate) continue;
+    // A row whose date we can't parse at all is excluded rather than silently let through —
+    // letting it through was the quiet default before and it's indistinguishable from "fine,
+    // just old" once it's sitting in the review list.
+    if (sinceDate && (!isoDate || isoDate < sinceDate)) continue;
 
     if (stockSynced === "true") { skippedCount++; continue; }
 
