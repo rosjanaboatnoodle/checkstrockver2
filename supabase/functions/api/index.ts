@@ -685,9 +685,10 @@ async function callGemini(parts: unknown[], opts: { jsonMode?: boolean } = {}): 
   if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
   const body: Record<string, unknown> = { contents: [{ parts }] };
   if (opts.jsonMode) body.generationConfig = { responseMimeType: "application/json" };
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+    45000,
   );
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error?.message || `gemini_http_${res.status}`);
@@ -886,6 +887,23 @@ const COL = {
   qty: 7, pairStatus: 11, stockSynced: 15,
 } as const;
 
+// Deno's fetch has no default timeout — if Google's endpoints ever hang or drip data
+// slowly, an un-timed-out fetch stalls forever, which (for a call inside a background
+// job) leaves that job stuck at "pending" with no error ever surfacing. Every Google API
+// call below goes through this instead of bare fetch().
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 20000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") throw new Error(`request_timed_out_after_${timeoutMs}ms: ${url}`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function base64url(bytes: Uint8Array | string): string {
   const arr = typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
   let bin = "";
@@ -924,7 +942,7 @@ async function getGoogleAccessToken(): Promise<string> {
   const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(signInput));
   const jwt = `${signInput}.${base64url(new Uint8Array(sig))}`;
 
-  const res = await fetch("https://oauth2.googleapis.com/token", {
+  const res = await fetchWithTimeout("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }),
@@ -932,6 +950,7 @@ async function getGoogleAccessToken(): Promise<string> {
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error_description || data?.error || `google_token_http_${res.status}`);
   cachedGoogleToken = { token: data.access_token, exp: now + (data.expires_in ?? 3600) };
+  console.log("getGoogleAccessToken: obtained token, expires in", data.expires_in ?? 3600, "s");
   return data.access_token as string;
 }
 
@@ -944,20 +963,22 @@ function purchaseSheetId(): string {
 async function sheetsGetValues(range: string): Promise<string[][]> {
   const token = await getGoogleAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${purchaseSheetId()}/values/${encodeURIComponent(range)}`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  console.log("sheetsGetValues: fetching", range);
+  const res = await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${token}` } }, 30000);
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error?.message || `sheets_get_http_${res.status}`);
+  console.log("sheetsGetValues: got", (data.values ?? []).length, "rows");
   return data.values ?? [];
 }
 
 async function sheetsSetCell(range: string, value: string): Promise<void> {
   const token = await getGoogleAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${purchaseSheetId()}/values/${encodeURIComponent(range)}?valueInputOption=RAW`;
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: [[value]] }),
-  });
+  }, 20000);
   if (!res.ok) {
     const data = await res.json();
     throw new Error(data?.error?.message || `sheets_set_http_${res.status}`);
@@ -1088,6 +1109,7 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T)
 // real work runs in the background (via EdgeRuntime.waitUntil), and the client polls
 // getPurchaseSyncResult for the outcome.
 async function runPurchaseSyncJob(branchId: string, sinceDate: string) {
+  console.log("runPurchaseSyncJob: start", { branchId, sinceDate });
   const rows = await sheetsGetValues(RAW_OCR_DATA_RANGE);
 
   const config = await getSetting<PurchaseExcludeConfig | null>("purchase_exclude_config", null);
@@ -1097,6 +1119,7 @@ async function runPurchaseSyncJob(branchId: string, sinceDate: string) {
   const catalog = await loadCatalog(branchId);
   const memory = await loadMatchMemory();
   const catalogNames = catalog.map((it) => it.name);
+  console.log("runPurchaseSyncJob: catalog", catalog.length, "memory", memory.size);
 
   const autoMatched: Array<{ rowId: number; itemName: string; qty: number }> = [];
   let skippedCount = 0;
@@ -1137,6 +1160,8 @@ async function runPurchaseSyncJob(branchId: string, sinceDate: string) {
     }
   }
 
+  console.log("runPurchaseSyncJob: filtered to", pending.length, "rows needing Gemini,", autoMatched.length, "auto-matched,", skippedCount, "skipped (already synced)");
+
   // Ask Gemini for the unmatched rows in parallel (bounded) instead of one-at-a-time —
   // sequential calls here is what was blowing past the client's wait time.
   const suggestions = await mapWithConcurrency(pending, 5, (r) => suggestCatalogMatch(r.rawName, catalogNames));
@@ -1144,6 +1169,7 @@ async function runPurchaseSyncJob(branchId: string, sinceDate: string) {
     rowId: r.sheetRow, rawName: r.rawName, qty: r.qty, unit: "", slipDate: r.slipDate, suggested: suggestions[idx],
   }));
 
+  console.log("runPurchaseSyncJob: done");
   return { ok: true, autoMatched, needsReview, skippedCount };
 }
 
