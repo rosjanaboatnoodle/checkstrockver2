@@ -872,6 +872,298 @@ async function handleGetAiImportResult(p: Record<string, unknown>) {
 }
 
 // ============================================================
+// Phase 4: purchase/expense sync from the external ledger Google Sheet
+// ============================================================
+
+const RAW_OCR_SHEET = "RAW_OCR";
+const RAW_OCR_DATA_RANGE = `${RAW_OCR_SHEET}!A2:P`;
+// 0-based column indexes within each RAW_OCR row:
+// A slipDate, B fileId, C fileName, D itemName, E amount, F Main Category, G Subcategory,
+// H qty, I rawItemLine, J rawPriceLine, K matchPreview, L pairStatus, M timestamp, N pushed,
+// O (unlabeled review flag), P stockSynced
+const COL = {
+  slipDate: 0, itemName: 3, mainCategory: 5, subCategory: 6,
+  qty: 7, pairStatus: 11, stockSynced: 15,
+} as const;
+
+function base64url(bytes: Uint8Array | string): string {
+  const arr = typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
+  let bin = "";
+  for (const b of arr) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+let cachedGoogleToken: { token: string; exp: number } | null = null;
+
+// Exchanges the service-account key for a short-lived OAuth token (JWT bearer flow) —
+// Deno's edge runtime has no googleapis SDK, so this talks to the token/Sheets REST
+// endpoints directly, signing with Web Crypto instead of a Node crypto library.
+async function getGoogleAccessToken(): Promise<string> {
+  if (cachedGoogleToken && cachedGoogleToken.exp > Date.now() / 1000 + 60) return cachedGoogleToken.token;
+  const raw = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON");
+  if (!raw) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON not configured");
+  const sa = JSON.parse(raw);
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: "RS256", typ: "JWT" };
+  const claims = {
+    iss: sa.client_email,
+    scope: "https://www.googleapis.com/auth/spreadsheets",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+  };
+  const signInput = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(claims))}`;
+  const pemBody = String(sa.private_key)
+    .replace(/-----BEGIN PRIVATE KEY-----/, "")
+    .replace(/-----END PRIVATE KEY-----/, "")
+    .replace(/\s+/g, "");
+  const der = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey(
+    "pkcs8", der.buffer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"],
+  );
+  const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(signInput));
+  const jwt = `${signInput}.${base64url(new Uint8Array(sig))}`;
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error_description || data?.error || `google_token_http_${res.status}`);
+  cachedGoogleToken = { token: data.access_token, exp: now + (data.expires_in ?? 3600) };
+  return data.access_token as string;
+}
+
+function purchaseSheetId(): string {
+  const id = Deno.env.get("PURCHASE_SHEET_ID");
+  if (!id) throw new Error("PURCHASE_SHEET_ID not configured");
+  return id;
+}
+
+async function sheetsGetValues(range: string): Promise<string[][]> {
+  const token = await getGoogleAccessToken();
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${purchaseSheetId()}/values/${encodeURIComponent(range)}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || `sheets_get_http_${res.status}`);
+  return data.values ?? [];
+}
+
+async function sheetsSetCell(range: string, value: string): Promise<void> {
+  const token = await getGoogleAccessToken();
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${purchaseSheetId()}/values/${encodeURIComponent(range)}?valueInputOption=RAW`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ values: [[value]] }),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data?.error?.message || `sheets_set_http_${res.status}`);
+  }
+}
+
+// Ledger dates are written D/M/YYYY (e.g. "6/1/2026"); returns a comparable ISO date
+// string, or null if it doesn't parse cleanly (OCR typos like "30/4/0206" land here).
+function parseLedgerDate(s: string): string | null {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s.trim());
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+}
+
+function normalizeRawName(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+async function createReceiveMovement(
+  branchId: string, itemName: string, qty: number, unit: string | null, dateIso: string | null, note: string,
+) {
+  const { data: movement, error } = await supabase
+    .from("stock_movements")
+    .insert({ branch_id: branchId, checker_name: note, date: dateIso ?? new Date().toISOString(), line_text: null })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  await supabase.from("stock_movement_lines").insert({
+    movement_id: movement.id, item_name: itemName, direction: "in", quantity: qty, unit,
+  });
+}
+
+async function loadCatalog(branchId: string): Promise<Array<{ name: string; unit: string | null }>> {
+  const { data: central } = await supabase.from("items").select("name, unit").is("branch_id", null).eq("active", true);
+  const { data: branchItems } = await supabase.from("items").select("name, unit").eq("branch_id", branchId).eq("active", true);
+  return [...(central ?? []), ...(branchItems ?? [])];
+}
+
+async function loadMatchMemory(): Promise<Map<string, string>> {
+  const { data } = await supabase.from("purchase_match_memory").select("raw_name, item_name");
+  return new Map((data ?? []).map((r) => [r.raw_name as string, r.item_name as string]));
+}
+
+function matchCatalogItem(
+  catalog: Array<{ name: string; unit: string | null }>, memory: Map<string, string>, rawName: string,
+): { name: string; unit: string | null } | null {
+  const norm = normalizeRawName(rawName);
+  const exact = catalog.find((it) => normalizeRawName(it.name) === norm);
+  if (exact) return { name: exact.name, unit: exact.unit ?? null };
+  const rememberedName = memory.get(norm);
+  if (rememberedName) {
+    const found = catalog.find((it) => it.name === rememberedName);
+    if (found) return { name: found.name, unit: found.unit ?? null };
+  }
+  return null;
+}
+
+async function suggestCatalogMatch(rawName: string, catalogNames: string[]): Promise<string | null> {
+  if (!catalogNames.length) return null;
+  try {
+    const prompt = `รายการนี้จากใบเสร็จ: "${rawName}"\n\nรายชื่อสินค้าที่มีอยู่ในระบบ:\n${catalogNames.join("\n")}\n\n` +
+      `ตอบชื่อสินค้าที่ตรงกับรายการนี้มากที่สุดจากรายชื่อด้านบนเท่านั้น (คัดลอกชื่อมาตรงๆ ห้ามแก้) ` +
+      `ถ้าไม่มีรายการไหนใกล้เคียงพอ ให้ตอบว่า null เท่านั้น ห้ามอธิบายเพิ่ม`;
+    const text = await callGemini([{ text: prompt }]);
+    const guess = text.trim().replace(/^"|"$/g, "");
+    if (!guess || guess.toLowerCase() === "null") return null;
+    return catalogNames.includes(guess) ? guess : null;
+  } catch (e) {
+    console.error("suggestCatalogMatch failed", e);
+    return null;
+  }
+}
+
+type PurchaseExcludeConfig = { excludeMain: string[]; excludeSub: string[] };
+
+async function handleGetPurchaseExcludeSettings(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  let rows: string[][];
+  try { rows = await sheetsGetValues(RAW_OCR_DATA_RANGE); }
+  catch (e) { return json({ ok: false, error: String((e as Error)?.message ?? e) }); }
+
+  const mainSet = new Set<string>();
+  const subSet = new Set<string>();
+  for (const row of rows) {
+    const main = (row[COL.mainCategory] ?? "").trim();
+    const sub = (row[COL.subCategory] ?? "").trim();
+    if (main) mainSet.add(main);
+    if (sub) subSet.add(sub);
+  }
+  const mainCategories = [...mainSet].sort();
+  const subCategories = [...subSet].sort();
+
+  const saved = await getSetting<PurchaseExcludeConfig | null>("purchase_exclude_config", null);
+  // First-ever use: default to only "วัตถุดิบ" (raw material) rows feeding stock —
+  // everything else (utilities, labor, equipment, ...) starts excluded until the admin adjusts it.
+  const excludeMain = saved?.excludeMain ?? mainCategories.filter((c) => c !== "วัตถุดิบ");
+  const excludeSub = saved?.excludeSub ?? [];
+
+  return json({ ok: true, mainCategories, subCategories, excludeMain, excludeSub });
+}
+
+async function handleSavePurchaseExcludeSettings(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const excludeMain = String(p.exclude_main ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const excludeSub = String(p.exclude_sub ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const config: PurchaseExcludeConfig = { excludeMain, excludeSub };
+  await setSetting("purchase_exclude_config", config);
+  return json({ ok: true });
+}
+
+async function handlePreviewPurchaseSync(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const branchId = String(p.branch_id ?? "");
+  const sinceDate = String(p.since_date ?? "");
+  if (!branchId) return json({ ok: false, error: "missing_branch_id" });
+
+  let rows: string[][];
+  try { rows = await sheetsGetValues(RAW_OCR_DATA_RANGE); }
+  catch (e) { return json({ ok: false, error: String((e as Error)?.message ?? e) }); }
+
+  const config = await getSetting<PurchaseExcludeConfig | null>("purchase_exclude_config", null);
+  const excludeMain = new Set(config?.excludeMain ?? []);
+  const excludeSub = new Set(config?.excludeSub ?? []);
+
+  const catalog = await loadCatalog(branchId);
+  const memory = await loadMatchMemory();
+  const catalogNames = catalog.map((it) => it.name);
+
+  const autoMatched: Array<{ rowId: number; itemName: string; qty: number }> = [];
+  const needsReview: Array<{ rowId: number; rawName: string; qty: number; unit: string; slipDate: string; suggested: string | null }> = [];
+  let skippedCount = 0;
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const sheetRow = i + 2; // row 1 is the header
+    const mainCategory = (row[COL.mainCategory] ?? "").trim();
+    const subCategory = (row[COL.subCategory] ?? "").trim();
+    const pairStatus = (row[COL.pairStatus] ?? "").trim();
+    const stockSynced = (row[COL.stockSynced] ?? "").trim().toLowerCase();
+    const qtyRaw = (row[COL.qty] ?? "").trim();
+    const rawName = (row[COL.itemName] ?? "").trim();
+    const slipDate = (row[COL.slipDate] ?? "").trim();
+
+    if (!rawName || !pairStatus) continue; // not yet paired/confirmed in the chat flow
+    if (mainCategory && excludeMain.has(mainCategory)) continue;
+    if (subCategory && excludeSub.has(subCategory)) continue;
+    const qty = Number(qtyRaw);
+    if (!qtyRaw || !Number.isFinite(qty) || qty <= 0) continue;
+    const isoDate = parseLedgerDate(slipDate);
+    if (sinceDate && isoDate && isoDate < sinceDate) continue;
+
+    if (stockSynced === "true") { skippedCount++; continue; }
+
+    try {
+      const match = matchCatalogItem(catalog, memory, rawName);
+      if (match) {
+        await createReceiveMovement(branchId, match.name, qty, match.unit, isoDate, "ระบบ (ซิงค์จากชีตบัญชี)");
+        await sheetsSetCell(`${RAW_OCR_SHEET}!P${sheetRow}`, "TRUE");
+        autoMatched.push({ rowId: sheetRow, itemName: match.name, qty });
+      } else {
+        const suggested = await suggestCatalogMatch(rawName, catalogNames);
+        needsReview.push({ rowId: sheetRow, rawName, qty, unit: "", slipDate, suggested });
+      }
+    } catch (e) {
+      console.error("previewPurchaseSync row failed", sheetRow, e);
+    }
+  }
+
+  return json({ ok: true, autoMatched, needsReview, skippedCount });
+}
+
+async function handleConfirmPurchaseMatch(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const branchId = String(p.branch_id ?? "");
+  const rowId = Number(p.row_id ?? 0);
+  if (!branchId || !rowId) return json({ ok: false, error: "missing_params" });
+
+  try {
+    if (String(p.skip ?? "") === "true") {
+      await sheetsSetCell(`${RAW_OCR_SHEET}!P${rowId}`, "TRUE");
+      return json({ ok: true });
+    }
+    const itemName = String(p.item_name ?? "");
+    if (!itemName) return json({ ok: false, error: "missing_item_name" });
+
+    const rows = await sheetsGetValues(`${RAW_OCR_SHEET}!A${rowId}:P${rowId}`);
+    const row = rows[0] ?? [];
+    const rawName = (row[COL.itemName] ?? "").trim();
+    const qty = Number((row[COL.qty] ?? "").trim());
+    const slipDate = (row[COL.slipDate] ?? "").trim();
+    const isoDate = parseLedgerDate(slipDate);
+    if (!rawName || !Number.isFinite(qty) || qty <= 0) return json({ ok: false, error: "row_no_longer_valid" });
+
+    const { data: item } = await supabase.from("items").select("unit").eq("name", itemName).eq("active", true).maybeSingle();
+    await createReceiveMovement(branchId, itemName, qty, item?.unit ?? null, isoDate, "ระบบ (ซิงค์จากชีตบัญชี)");
+    await sheetsSetCell(`${RAW_OCR_SHEET}!P${rowId}`, "TRUE");
+    await supabase.from("purchase_match_memory")
+      .upsert({ raw_name: normalizeRawName(rawName), item_name: itemName, updated_at: new Date().toISOString() });
+    return json({ ok: true });
+  } catch (e) {
+    return json({ ok: false, error: String((e as Error)?.message ?? e) });
+  }
+}
+
+// ============================================================
 // Dispatch
 // ============================================================
 
@@ -904,6 +1196,10 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   translateNote: handleTranslateNote,
   parseItemsAI: handleParseItemsAI,
   getAiImportResult: handleGetAiImportResult,
+  previewPurchaseSync: handlePreviewPurchaseSync,
+  confirmPurchaseMatch: handleConfirmPurchaseMatch,
+  getPurchaseExcludeSettings: handleGetPurchaseExcludeSettings,
+  savePurchaseExcludeSettings: handleSavePurchaseExcludeSettings,
 };
 
 Deno.serve(async (req) => {
