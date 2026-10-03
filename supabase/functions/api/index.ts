@@ -1152,6 +1152,10 @@ async function initPurchaseSyncState(branchId: string, sinceDate: string): Promi
   let skippedCount = 0;
   const pendingRaw: PurchaseSyncState["pendingRaw"] = [];
 
+  // Funnel counters — logged once at the end so a future "why did I get 0 rows" question can be
+  // answered from the Edge Function logs instead of guessing which filter ate everything.
+  let cPairStatus = 0, cCategory = 0, cQty = 0, cDate = 0, cUnparseableDate = 0;
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const sheetRow = i + 2; // row 1 is the header
@@ -1164,15 +1168,20 @@ async function initPurchaseSyncState(branchId: string, sinceDate: string): Promi
     const slipDate = (row[COL.slipDate] ?? "").trim();
 
     if (!rawName || !pairStatus) continue; // not yet paired/confirmed in the chat flow
+    cPairStatus++;
     if (mainCategory && excludeMain.has(mainCategory)) continue;
     if (subCategory && excludeSub.has(subCategory)) continue;
+    cCategory++;
     const qty = Number(qtyRaw);
     if (!qtyRaw || !Number.isFinite(qty) || qty <= 0) continue;
+    cQty++;
     const isoDate = parseLedgerDate(slipDate);
+    if (!isoDate) cUnparseableDate++;
     // A row whose date we can't parse at all is excluded rather than silently let through —
     // letting it through was the quiet default before and it's indistinguishable from "fine,
     // just old" once it's sitting in the review list.
     if (sinceDate && (!isoDate || isoDate < sinceDate)) continue;
+    cDate++;
 
     if (stockSynced === "true") { skippedCount++; continue; }
 
@@ -1190,6 +1199,12 @@ async function initPurchaseSyncState(branchId: string, sinceDate: string): Promi
     }
   }
 
+  console.log("initPurchaseSyncState funnel:", {
+    totalRows: rows.length, sinceDate, excludeMain: [...excludeMain],
+    afterPairStatus: cPairStatus, afterCategory: cCategory, afterQty: cQty,
+    afterDate: cDate, unparseableDates: cUnparseableDate,
+    autoMatched: autoMatched.length, pendingRaw: pendingRaw.length, skipped: skippedCount,
+  });
   return { autoMatched, needsReview: [], skippedCount, pendingRaw, catalogNames };
 }
 
