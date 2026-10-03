@@ -1119,6 +1119,7 @@ type PurchaseSyncState = {
   skippedCount: number;
   pendingRaw: Array<{ sheetRow: number; rawName: string; qty: number; slipDate: string }>;
   catalogNames: string[];
+  debug?: Record<string, unknown>;
 };
 
 const PURCHASE_SYNC_BATCH_SIZE = 4;
@@ -1199,13 +1200,14 @@ async function initPurchaseSyncState(branchId: string, sinceDate: string): Promi
     }
   }
 
-  console.log("initPurchaseSyncState funnel:", {
+  const debug = {
     totalRows: rows.length, sinceDate, excludeMain: [...excludeMain],
     afterPairStatus: cPairStatus, afterCategory: cCategory, afterQty: cQty,
     afterDate: cDate, unparseableDates: cUnparseableDate,
     autoMatched: autoMatched.length, pendingRaw: pendingRaw.length, skipped: skippedCount,
-  });
-  return { autoMatched, needsReview: [], skippedCount, pendingRaw, catalogNames };
+  };
+  console.log("initPurchaseSyncState funnel:", debug);
+  return { autoMatched, needsReview: [], skippedCount, pendingRaw, catalogNames, debug };
 }
 
 async function handlePreviewPurchaseSync(p: Record<string, unknown>) {
@@ -1217,22 +1219,29 @@ async function handlePreviewPurchaseSync(p: Record<string, unknown>) {
 
   try {
     let state: PurchaseSyncState;
+    let isFreshState = false;
     if (!existing) {
       const branchId = String(p.branch_id ?? "");
       const sinceDate = String(p.since_date ?? "");
       if (!branchId) return json({ ok: false, error: "missing_branch_id" });
       state = await initPurchaseSyncState(branchId, sinceDate);
+      isFreshState = true;
       await supabase.from("purchase_sync_jobs").upsert({ job_id: jobId, status: "pending", result: state, error: null });
     } else if (existing.status === "done") {
       const r = existing.result as PurchaseSyncState;
-      return json({ ok: true, done: true, autoMatched: r.autoMatched, needsReview: r.needsReview, skippedCount: r.skippedCount });
+      return json({ ok: true, done: true, autoMatched: r.autoMatched, needsReview: r.needsReview, skippedCount: r.skippedCount, debug: r.debug });
     } else {
       state = existing.result as PurchaseSyncState;
     }
 
+    // Surface the funnel breakdown straight in the response on the call that computed it (visible
+    // in the Network tab's Preview, which has been the one reliably reachable debugging view so
+    // far) instead of only in Edge Function logs.
+    const debug = isFreshState ? state.debug : undefined;
+
     if (!state.pendingRaw.length) {
       await supabase.from("purchase_sync_jobs").update({ status: "done" }).eq("job_id", jobId);
-      return json({ ok: true, done: true, autoMatched: state.autoMatched, needsReview: state.needsReview, skippedCount: state.skippedCount });
+      return json({ ok: true, done: true, autoMatched: state.autoMatched, needsReview: state.needsReview, skippedCount: state.skippedCount, debug });
     }
 
     const batch = state.pendingRaw.slice(0, PURCHASE_SYNC_BATCH_SIZE);
@@ -1247,7 +1256,7 @@ async function handlePreviewPurchaseSync(p: Record<string, unknown>) {
     return json({
       ok: true, done,
       autoMatched: nextState.autoMatched, needsReview: nextState.needsReview, skippedCount: nextState.skippedCount,
-      progress: { remaining: rest.length },
+      progress: { remaining: rest.length }, debug,
     });
   } catch (e) {
     const msg = String((e as Error)?.message ?? e);
