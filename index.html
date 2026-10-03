@@ -2067,6 +2067,7 @@ async function runPurchaseSync() {
     const jobId = 'purchase_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
     let res = await jsonpGet('previewPurchaseSync', { password: adminPassword, branch_id: branchId, since_date: sinceDate, jobId });
     if (!res || !res.ok) throw new Error((res && res.error) || 'sync_failed');
+    const debugInfo = res.debug; // มีแค่ใน response แรกสุด (ตอนเพิ่งสแกนชีทรอบแรก) เก็บไว้โชว์หลังจบ
     let rounds = 0;
     while (!res.done) {
       rounds++;
@@ -2077,6 +2078,7 @@ async function runPurchaseSync() {
     }
     purchaseSyncResult = { branchId, needsReview: res.needsReview || [] };
     renderPurchaseSyncResults_(res);
+    if (debugInfo) renderPurchaseSyncDebug_(debugInfo);
   } catch (e) {
     const msg = e && e.message ? String(e.message) : '';
     if (!msg || msg === 'NO_URL' || msg === 'JSONP_FAILED' || msg === 'TIMEOUT' || msg === 'sync_failed') {
@@ -2087,6 +2089,25 @@ async function runPurchaseSync() {
   } finally {
     btn.disabled = false; btn.textContent = 'ดึงรายการรับเข้าจากชีตบัญชี';
   }
+}
+
+/** โชว์ตัวเลขวินิจฉัยว่าแต่ละขั้นตอนการกรองเหลือกี่แถว — ไว้ debug เวลาได้ผลลัพธ์ 0 รายการผิดปกติ
+ *  โชว์บนหน้าเว็บตรงๆ แทนที่จะให้แอดมินต้องไปงมหาใน DevTools */
+function renderPurchaseSyncDebug_(debug) {
+  const el = document.getElementById('purchase-sync-results');
+  const box = document.createElement('div');
+  box.className = 'bg-gray-50 border border-gray-200 rounded-xl p-3 mt-3 text-xs text-gray-600';
+  box.innerHTML = `
+    <p class="font-semibold text-gray-700 mb-1">🔍 ตัวเลขวินิจฉัย (สำหรับแก้ปัญหา)</p>
+    <p>แถวทั้งหมดในชีท: <b>${debug.totalRows}</b></p>
+    <p>ผ่านเงื่อนไข "มีชื่อ + ยืนยันแล้วในแชท": <b>${debug.afterPairStatus}</b></p>
+    <p>ผ่านเงื่อนไขหมวดหมู่ (ไม่ถูกตัดออก): <b>${debug.afterCategory}</b></p>
+    <p>ผ่านเงื่อนไขมีจำนวน (qty): <b>${debug.afterQty}</b></p>
+    <p>ผ่านเงื่อนไขวันที่ (ตั้งแต่ ${debug.sinceDate || '-'}): <b>${debug.afterDate}</b></p>
+    <p>แถวที่วันที่อ่านไม่ออก: <b>${debug.unparseableDates}</b></p>
+    <p>หมวดหมู่ที่ถูกตัดออกตอนนี้: <span class="break-all">${(debug.excludeMain || []).join(', ') || '(ไม่มี)'}</span></p>
+  `;
+  el.appendChild(box);
 }
 
 function renderPurchaseSyncResults_(res) {
