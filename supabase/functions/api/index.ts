@@ -1069,15 +1069,26 @@ async function handleSavePurchaseExcludeSettings(p: Record<string, unknown>) {
   return json({ ok: true });
 }
 
-async function handlePreviewPurchaseSync(p: Record<string, unknown>) {
-  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
-  const branchId = String(p.branch_id ?? "");
-  const sinceDate = String(p.since_date ?? "");
-  if (!branchId) return json({ ok: false, error: "missing_branch_id" });
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
 
-  let rows: string[][];
-  try { rows = await sheetsGetValues(RAW_OCR_DATA_RANGE); }
-  catch (e) { return json({ ok: false, error: String((e as Error)?.message ?? e) }); }
+// The sync can involve a few dozen sequential Gemini calls (one per unmatched row) and
+// Sheets writes, easily running past any request's own timeout. So this follows the same
+// job-queue pattern as parseItemsAI: the handler enqueues and returns immediately, the
+// real work runs in the background (via EdgeRuntime.waitUntil), and the client polls
+// getPurchaseSyncResult for the outcome.
+async function runPurchaseSyncJob(branchId: string, sinceDate: string) {
+  const rows = await sheetsGetValues(RAW_OCR_DATA_RANGE);
 
   const config = await getSetting<PurchaseExcludeConfig | null>("purchase_exclude_config", null);
   const excludeMain = new Set(config?.excludeMain ?? []);
@@ -1088,8 +1099,8 @@ async function handlePreviewPurchaseSync(p: Record<string, unknown>) {
   const catalogNames = catalog.map((it) => it.name);
 
   const autoMatched: Array<{ rowId: number; itemName: string; qty: number }> = [];
-  const needsReview: Array<{ rowId: number; rawName: string; qty: number; unit: string; slipDate: string; suggested: string | null }> = [];
   let skippedCount = 0;
+  const pending: Array<{ sheetRow: number; rawName: string; qty: number; slipDate: string }> = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -1119,15 +1130,49 @@ async function handlePreviewPurchaseSync(p: Record<string, unknown>) {
         await sheetsSetCell(`${RAW_OCR_SHEET}!P${sheetRow}`, "TRUE");
         autoMatched.push({ rowId: sheetRow, itemName: match.name, qty });
       } else {
-        const suggested = await suggestCatalogMatch(rawName, catalogNames);
-        needsReview.push({ rowId: sheetRow, rawName, qty, unit: "", slipDate, suggested });
+        pending.push({ sheetRow, rawName, qty, slipDate });
       }
     } catch (e) {
       console.error("previewPurchaseSync row failed", sheetRow, e);
     }
   }
 
-  return json({ ok: true, autoMatched, needsReview, skippedCount });
+  // Ask Gemini for the unmatched rows in parallel (bounded) instead of one-at-a-time —
+  // sequential calls here is what was blowing past the client's wait time.
+  const suggestions = await mapWithConcurrency(pending, 5, (r) => suggestCatalogMatch(r.rawName, catalogNames));
+  const needsReview = pending.map((r, idx) => ({
+    rowId: r.sheetRow, rawName: r.rawName, qty: r.qty, unit: "", slipDate: r.slipDate, suggested: suggestions[idx],
+  }));
+
+  return { ok: true, autoMatched, needsReview, skippedCount };
+}
+
+async function handlePreviewPurchaseSync(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const jobId = String(p.jobId ?? "");
+  if (!jobId) return json({ ok: false, error: "missing_jobId" });
+  const branchId = String(p.branch_id ?? "");
+  const sinceDate = String(p.since_date ?? "");
+  if (!branchId) return json({ ok: false, error: "missing_branch_id" });
+
+  await supabase.from("purchase_sync_jobs").upsert({ job_id: jobId, status: "pending", result: null, error: null });
+
+  const task = runPurchaseSyncJob(branchId, sinceDate)
+    .then((result) => supabase.from("purchase_sync_jobs").update({ status: "done", result }).eq("job_id", jobId))
+    .catch((e) => supabase.from("purchase_sync_jobs").update({ status: "error", error: String(e?.message ?? e) }).eq("job_id", jobId));
+  // deno-lint-ignore no-explicit-any
+  const rt = (globalThis as any).EdgeRuntime;
+  if (rt?.waitUntil) rt.waitUntil(task); else await task;
+
+  return json({ ok: true, jobId });
+}
+
+async function handleGetPurchaseSyncResult(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const jobId = String(p.jobId ?? "");
+  const { data } = await supabase.from("purchase_sync_jobs").select("status, result, error").eq("job_id", jobId).maybeSingle();
+  if (!data) return json({ ok: true, status: "pending" });
+  return json({ ok: true, status: data.status, result: data.result ?? undefined, error: data.error ?? undefined });
 }
 
 async function handleConfirmPurchaseMatch(p: Record<string, unknown>) {
@@ -1197,6 +1242,7 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   parseItemsAI: handleParseItemsAI,
   getAiImportResult: handleGetAiImportResult,
   previewPurchaseSync: handlePreviewPurchaseSync,
+  getPurchaseSyncResult: handleGetPurchaseSyncResult,
   confirmPurchaseMatch: handleConfirmPurchaseMatch,
   getPurchaseExcludeSettings: handleGetPurchaseExcludeSettings,
   savePurchaseExcludeSettings: handleSavePurchaseExcludeSettings,

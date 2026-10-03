@@ -2053,6 +2053,23 @@ async function savePurchaseExcludeSettings_(btn) {
   }
 }
 
+/** poll ผลซิงค์ทุก 2 วิ สูงสุด ~5 นาที (150 ครั้ง) — อาจมีหลายรายการให้ Gemini ช่วยจับคู่
+ *  (ประมวลผลขนานหลังบ้านแล้ว แต่ถ้ามีเยอะจริงๆ ก็ยังใช้เวลาได้) ก่อนจะถือว่า timeout */
+async function pollPurchaseSyncResult_(jobId) {
+  const btn = document.getElementById('purchase-sync-btn');
+  for (let i = 0; i < 150; i++) {
+    await sleep_(2000);
+    let res;
+    try { res = await jsonpGet('getPurchaseSyncResult', { jobId, password: adminPassword }); }
+    catch (e) { continue; } // เน็ตสะดุดชั่วคราว ลองรอบถัดไปต่อ ไม่ยอมแพ้ทันที
+    if (res && res.ok && res.status === 'done') return res.result;
+    if (res && res.ok && res.status === 'error') return { ok: false, error: res.error || 'ไม่ทราบสาเหตุ' };
+    if (btn) btn.textContent = `กำลังประมวลผล... (${(i + 1) * 2}s)`;
+    // status === 'pending' → รอต่อ
+  }
+  return { ok: false, error: 'รอผลลัพธ์นานเกินไป ลองช่วงวันที่ที่แคบลง หรือลองใหม่อีกครั้ง' };
+}
+
 async function runPurchaseSync() {
   const btn = document.getElementById('purchase-sync-btn');
   const branchId = document.getElementById('purchase-sync-branch').value;
@@ -2062,16 +2079,20 @@ async function runPurchaseSync() {
   const resultsEl = document.getElementById('purchase-sync-results');
   resultsEl.innerHTML = '';
   try {
-    // ตัวนี้อาจต้องเรียก Gemini ทีละรายการหลายสิบครั้ง (ชื่อในสลิปไม่ตรงกับสินค้าในระบบ) จึงช้ากว่าปกติมาก
-    // ให้เวลารอ 90 วิ แทนค่าเริ่มต้น 20 วิ กันขึ้น error ทั้งที่หลังบ้านกำลังทำงานอยู่จริง
-    const res = await jsonpGet('previewPurchaseSync', { password: adminPassword, branch_id: branchId, since_date: sinceDate }, 90000);
-    if (!res || !res.ok) throw new Error(res && res.error || 'sync_failed');
+    // ส่งงานแบบ fire-and-forget แล้ว poll ผลแยก (เหมือนตัวนำเข้าสินค้าด้วย AI) เพราะรายการที่
+    // ชื่อไม่ตรงต้องให้ Gemini ช่วยแนะนำ ซึ่งอาจช้าเกินเวลารอของ request เดียวได้
+    const jobId = 'purchase_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    const kickoff = await jsonpGet('previewPurchaseSync', { password: adminPassword, branch_id: branchId, since_date: sinceDate, jobId });
+    if (!kickoff || !kickoff.ok) throw new Error((kickoff && kickoff.error) || 'sync_failed');
+    btn.textContent = 'กำลังประมวลผล...';
+    const res = await pollPurchaseSyncResult_(jobId);
+    if (!res.ok) throw new Error(res.error || 'sync_failed');
     purchaseSyncResult = { branchId, needsReview: res.needsReview || [] };
     renderPurchaseSyncResults_(res);
   } catch (e) {
     const msg = e && e.message ? String(e.message) : '';
     if (!msg || msg === 'NO_URL' || msg === 'JSONP_FAILED' || msg === 'TIMEOUT' || msg === 'sync_failed') {
-      showToast('ดึงข้อมูลไม่สำเร็จ (เช็คว่าตั้งค่า PURCHASE_SHEET_ID ใน Code.gs และ deploy เวอร์ชันใหม่แล้วหรือยัง)', 'error');
+      showToast('ดึงข้อมูลไม่สำเร็จ (เช็คว่าตั้งค่า PURCHASE_SHEET_ID และแชร์ชีทให้ Service Account แล้วหรือยัง)', 'error');
     } else {
       showToast('ดึงข้อมูลไม่สำเร็จ: ' + msg, 'error');
     }
