@@ -149,11 +149,33 @@ async function handleUpdateBranch(p: Record<string, unknown>) {
   const update: Record<string, unknown> = {};
   if (p.name) update.name = String(p.name).trim();
   if (p.staff_password) update.staff_password_hash = await hashPassword(String(p.staff_password));
+  if (p.hidden_categories !== undefined) {
+    try {
+      const parsed = JSON.parse(String(p.hidden_categories));
+      if (Array.isArray(parsed)) update.hidden_categories = parsed.map((c) => String(c));
+    } catch { /* malformed — leave hidden_categories untouched rather than wipe it */ }
+  }
   const { error } = await supabase.from("branches").update(update).eq("id", id);
   if (error) return json({ ok: false, error: error.message });
   await logAdmin("updateBranch", { id });
   const { data } = await supabase.from("branches").select("id, name").order("name");
   return json({ ok: true, branches: data ?? [] });
+}
+
+// Category names come from items (central + this branch's own, active only) rather than a
+// separate categories table — there isn't one; "category" is just a free-text column on items.
+async function handleGetBranchCategories(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const branchId = String(p.branch_id ?? "");
+  if (!branchId) return json({ ok: false, error: "missing_branch_id" });
+  const { data: central } = await supabase.from("items").select("category").is("branch_id", null).eq("active", true);
+  const { data: branchItems } = await supabase.from("items").select("category").eq("branch_id", branchId).eq("active", true);
+  const categories = [...new Set(
+    [...(central ?? []), ...(branchItems ?? [])].map((it) => it.category as string),
+  )].sort();
+  const { data: branch } = await supabase.from("branches").select("hidden_categories").eq("id", branchId).maybeSingle();
+  const hidden = (branch?.hidden_categories as string[] | null) ?? [];
+  return json({ ok: true, categories, hidden });
 }
 
 async function handleDeleteBranch(p: Record<string, unknown>) {
@@ -190,7 +212,15 @@ async function handleListItems(p: Record<string, unknown>) {
   const byKey = new Map<string, Record<string, unknown>>();
   for (const it of central ?? []) byKey.set(`${it.category}||${it.name}`, it);
   for (const it of branchItems ?? []) byKey.set(`${it.category}||${it.name}`, it); // branch row overrides central
-  const items = [...byKey.values()].sort((a, b) => (a.sort_order as number) - (b.sort_order as number));
+
+  let hiddenCategories: string[] = [];
+  if (branchId) {
+    const { data: branch } = await supabase.from("branches").select("hidden_categories").eq("id", branchId).maybeSingle();
+    hiddenCategories = (branch?.hidden_categories as string[] | null) ?? [];
+  }
+  const items = [...byKey.values()]
+    .filter((it) => !hiddenCategories.includes(it.category as string))
+    .sort((a, b) => (a.sort_order as number) - (b.sort_order as number));
   return json({ ok: true, items });
 }
 
@@ -1385,6 +1415,7 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   addBranch: handleAddBranch,
   updateBranch: handleUpdateBranch,
   deleteBranch: handleDeleteBranch,
+  getBranchCategories: handleGetBranchCategories,
   changeAdminPassword: handleChangeAdminPassword,
   listItems: handleListItems,
   listItemsAdmin: handleListItemsAdmin,

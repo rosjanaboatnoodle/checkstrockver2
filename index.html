@@ -2053,6 +2053,57 @@ async function savePurchaseExcludeSettings_(btn) {
   }
 }
 
+/** ซ่อน/โชว์หมวดหมู่เป็นรายสาขา — หมวดที่ติ๊ก "ซ่อน" จะไม่โผล่ให้พนักงานสาขานี้เห็นเลย
+ *  (ทั้งที่มาจากส่วนกลางหรือรายการเฉพาะสาขาเอง) ใช้ตอนหมวดนั้นมีอยู่จริงแต่ไม่เกี่ยวกับสาขานี้ */
+async function toggleBranchCategoryVisibility_() {
+  const panel = document.getElementById('branch-cat-visibility-panel');
+  if (!panel) return;
+  if (!panel.classList.contains('hidden')) { panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+  panel.innerHTML = `<p class="text-sm text-gray-400 bg-gray-50 rounded-xl p-3">${t('loading')}</p>`;
+  try {
+    const res = await jsonpGet('getBranchCategories', { password: adminPassword, branch_id: adminItemScope });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'load_failed');
+    renderBranchCategoryVisibility_(res);
+  } catch (e) {
+    panel.innerHTML = `<p class="text-sm text-red-500 bg-red-50 rounded-xl p-3">โหลดไม่สำเร็จ: ${(e && e.message) || e}</p>`;
+  }
+}
+
+function renderBranchCategoryVisibility_(res) {
+  const panel = document.getElementById('branch-cat-visibility-panel');
+  const rows = (res.categories && res.categories.length)
+    ? res.categories.map(c => `
+      <label class="flex items-center gap-2 text-sm py-1">
+        <input type="checkbox" data-hidden-cat value="${c.replace(/"/g,'&quot;')}" ${(res.hidden || []).includes(c) ? 'checked' : ''}>
+        <span>${tCategory(c)}</span>
+      </label>`).join('')
+    : `<p class="text-xs text-gray-400">ยังไม่มีหมวดหมู่ในระบบ</p>`;
+  panel.innerHTML = `
+    <div class="bg-gray-50 rounded-xl p-3">
+      <p class="text-xs text-gray-500 mb-2">ติ๊กหมวดที่<b>ไม่ต้องการ</b>ให้สาขานี้เห็น — จะไม่โผล่ทั้งหน้าแรกและตอนเช็คสต็อกของสาขานี้ (หมวดยังอยู่ปกติในสาขาอื่น)</p>
+      <div class="max-h-40 overflow-y-auto border rounded-lg p-2 bg-white">${rows}</div>
+      <button type="button" onclick="saveBranchCategoryVisibility_(this)" class="w-full mt-3 bg-indigo-600 text-white text-sm font-semibold py-2 rounded-lg">บันทึกการตั้งค่า</button>
+    </div>
+  `;
+}
+
+async function saveBranchCategoryVisibility_(btn) {
+  const panel = document.getElementById('branch-cat-visibility-panel');
+  const hiddenChecked = [...panel.querySelectorAll('input[data-hidden-cat]:checked')].map(cb => cb.value);
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    const res = await jsonpGet('updateBranch', { password: adminPassword, id: adminItemScope, hidden_categories: JSON.stringify(hiddenChecked) });
+    if (!res || !res.ok) throw new Error('save_failed');
+    showToast('บันทึกการตั้งค่าแล้ว', 'success');
+    if (currentBranchId === adminItemScope) await loadCatalog(); // รีเฟรชถ้ากำลังดูสาขานี้อยู่พอดี จะได้เห็นผลทันที
+  } catch (e) {
+    showToast('บันทึกไม่สำเร็จ', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'บันทึกการตั้งค่า';
+  }
+}
+
 async function runPurchaseSync() {
   const btn = document.getElementById('purchase-sync-btn');
   const branchId = document.getElementById('purchase-sync-branch').value;
@@ -2597,6 +2648,12 @@ function renderAdminItemsTabFromCache_() {
   // ปุ่มลบทั้งหมดในสโคปนี้ — ไว้เคลียร์รายการที่เพี้ยน (เช่นตอนนำเข้าจากส่วนกลางแล้วเจอบั๊ก is_header) รวดเดียว
   // แทนที่จะต้องกดลบทีละรายการ จำกัดไว้เฉพาะสโคปของสาขาใดสาขาหนึ่งเท่านั้น กันพลาดไปลบส่วนกลางทั้งหมด
   let bulkDeleteBtn = (adminItemScope && adminScopeItems.length) ? `<button onclick="bulkDeleteScopeItems_()" class="mb-3 w-full bg-red-500 text-white py-2 rounded-lg font-semibold text-sm">🗑️ ลบรายการทั้งหมดในสโคปนี้ (${adminScopeItems.length} รายการ)</button>` : '';
+  // เลือกได้ว่าหมวดไหน (รวมหมวดส่วนกลาง) จะไม่ให้สาขานี้เห็นเลย — มีความหมายเฉพาะตอนดูสโคปของ
+  // สาขาใดสาขาหนึ่ง (ส่วนกลางเองไม่มี "สาขา" ให้ซ่อนจาก)
+  let hiddenCatToggle = adminItemScope ? `
+    <button type="button" onclick="toggleBranchCategoryVisibility_()" class="text-xs text-indigo-600 underline mb-3 block">👁️ ตั้งค่าหมวดที่ซ่อนจากสาขานี้</button>
+    <div id="branch-cat-visibility-panel" class="hidden mb-3"></div>
+  ` : '';
 
   let html = seedBtn + importCentralBtn + bulkDeleteBtn + `
     <div class="mb-3">
@@ -2604,6 +2661,7 @@ function renderAdminItemsTabFromCache_() {
       <select id="admin-item-scope" onchange="onAdminScopeChange()" class="w-full px-3 py-2 border rounded-lg text-sm">${scopeOptions}</select>
       <p class="text-xs text-gray-400 mt-1">รายการ "เฉพาะสาขา" ที่ชื่อซ้ำกับส่วนกลาง จะทับ (override) ของส่วนกลางเฉพาะสาขานั้น</p>
     </div>
+    ` + hiddenCatToggle + `
     <div class="bg-gray-50 rounded-xl p-3 mb-4">
       <p class="text-sm font-semibold text-gray-700 mb-2">${t('addItem')}</p>
       <div class="grid grid-cols-2 gap-2 mb-2">
