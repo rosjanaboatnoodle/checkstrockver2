@@ -2826,11 +2826,15 @@ function onAdminScopeChange() {
   renderAdminItemsTab();
 }
 
-/** ลบรายการทั้งหมดในหมวดนี้ เฉพาะสโคปที่กำลังดูอยู่ (ส่วนกลาง หรือสาขาใดสาขาหนึ่ง) — แทนที่ปุ่ม
+/** ลบรายการทั้งหมดในหมวดนี้ เฉพาะขอบเขตที่กำลังดูอยู่ (ส่วนกลาง หรือสาขาใดสาขาหนึ่ง) — แทนที่ปุ่ม
  *  "ลบทั้งหมดในสโคปนี้" แบบเดิมด้วยขอบเขตที่แคบกว่า (ทีละหมวด) ลดความเสี่ยงกดลบเกินตั้งใจ */
 async function deleteCategoryInScope_(category) {
   const scopeLabel = adminItemScope ? (branches.find(b => b.id === adminItemScope)?.name || adminItemScope) : 'ส่วนกลาง';
-  if (!confirm(`ลบรายการทั้งหมดในหมวด "${tCategory(category)}" ของ ${scopeLabel}?\nลบได้เฉพาะสโคปนี้เท่านั้น ไม่กระทบสโคปอื่น`)) return;
+  const impactNote = adminItemScope
+    ? 'ลบได้เฉพาะสาขานี้เท่านั้น ไม่กระทบสาขาอื่น'
+    : 'ลบจากส่วนกลาง จะกระทบทุกสาขาที่ไม่มีรายการเฉพาะของตัวเองซ้อนทับอยู่';
+  const ok = await showConfirmModal_(`ลบรายการทั้งหมดในหมวด "${tCategory(category)}" ของ ${scopeLabel}?\n${impactNote}`);
+  if (!ok) return;
   try {
     const res = await jsonpGet('deleteCategoryInScope', { password: adminPassword, scope: adminItemScope, category });
     if (!res || !res.ok) { showToast('ลบไม่สำเร็จ', 'error'); return; }
@@ -3260,6 +3264,27 @@ async function confirmImportFromCentral() {
   } finally {
     btn.disabled = false;
   }
+}
+
+/** กล่องยืนยันแบบ custom อยู่กึ่งกลางจอเสมอ — ใช้แทน confirm() ของเบราว์เซอร์ตรงๆ ซึ่งบางครั้งเบราว์เซอร์
+ *  จะวางไว้ชิดขอบบนแทนที่จะกึ่งกลาง และจะปรับสไตล์เองไม่ได้เลย */
+function showConfirmModal_(message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4';
+    overlay.innerHTML = `
+      <div class="bg-white rounded-xl p-5 max-w-sm w-full shadow-xl">
+        <p class="text-sm text-gray-800 whitespace-pre-line mb-4">${message}</p>
+        <div class="flex gap-2">
+          <button data-confirm-cancel class="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-semibold">ยกเลิก</button>
+          <button data-confirm-ok class="flex-1 bg-red-500 text-white py-2 rounded-lg text-sm font-semibold">ยืนยัน</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector('[data-confirm-cancel]').onclick = () => { overlay.remove(); resolve(false); };
+    overlay.querySelector('[data-confirm-ok]').onclick = () => { overlay.remove(); resolve(true); };
+  });
 }
 
 /** ขึ้นข้อความแจ้งเตือนครั้งแรกของวันเท่านั้น (ใช้ localStorage จำวันที่แสดงล่าสุดไว้) — เอาไว้เตือน
