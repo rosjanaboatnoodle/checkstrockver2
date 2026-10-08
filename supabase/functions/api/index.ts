@@ -1012,6 +1012,11 @@ function normCat(s: string): string {
   return s.trim().normalize("NFC");
 }
 
+// The live ledger has real typo'd Main Category variants (e.g. "วัตถิบ" instead of
+// "วัตถุดิบ") — a few characters short, not just a different Unicode encoding. Matching by this
+// substring instead of the full word tolerates that without needing to know every misspelling.
+const RAW_MATERIAL_HINT = "วัตถ";
+
 function normalizeRawName(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -1091,9 +1096,11 @@ async function handleGetPurchaseExcludeSettings(p: Record<string, unknown>) {
   const subCategories = [...subSet].sort();
 
   const saved = await getSetting<PurchaseExcludeConfig | null>("purchase_exclude_config", null);
-  // First-ever use: default to only "วัตถุดิบ" (raw material) rows feeding stock —
+  // First-ever use: default to only "วัตถุดิบ"-ish (raw material) rows feeding stock —
   // everything else (utilities, labor, equipment, ...) starts excluded until the admin adjusts it.
-  const excludeMain = saved?.excludeMain ?? mainCategories.filter((c) => c !== normCat("วัตถุดิบ"));
+  // Matched by substring, not exact equality — the live ledger has real typo'd variants
+  // (e.g. "วัตถิบ") that an exact match would wrongly treat as a different category.
+  const excludeMain = saved?.excludeMain ?? mainCategories.filter((c) => !c.includes(RAW_MATERIAL_HINT));
   const excludeSub = saved?.excludeSub ?? [];
 
   return json({ ok: true, mainCategories, subCategories, excludeMain, excludeSub });
@@ -1159,7 +1166,8 @@ async function initPurchaseSyncState(branchId: string, sinceDate: string): Promi
       const m = normCat(row[COL.mainCategory] ?? "");
       if (m) seenMain.add(m);
     }
-    excludeMain = new Set([...seenMain].filter((c) => c !== normCat("วัตถุดิบ")));
+    // Substring match, not exact equality — see handleGetPurchaseExcludeSettings for why.
+    excludeMain = new Set([...seenMain].filter((c) => !c.includes(RAW_MATERIAL_HINT)));
   }
   const excludeSub = new Set((config?.excludeSub ?? []).map(normCat));
 
