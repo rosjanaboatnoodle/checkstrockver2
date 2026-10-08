@@ -988,10 +988,28 @@ async function sheetsSetCell(range: string, value: string): Promise<void> {
 // Ledger dates are written D/M/YYYY (e.g. "6/1/2026"); returns a comparable ISO date
 // string, or null if it doesn't parse cleanly (OCR typos like "30/4/0206" land here).
 function parseLedgerDate(s: string): string | null {
-  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s.trim());
-  if (!m) return null;
-  const [, d, mo, y] = m;
-  return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  const trimmed = s.trim();
+  // D/M/YYYY or D-M-YYYY, optionally followed by a time component (e.g. "9/9/2026 14:30:00").
+  const m = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:\s|$)/.exec(trimmed);
+  if (m) {
+    const [, d, mo, y] = m;
+    return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  // Already ISO (YYYY-MM-DD), in case the sheet cell is a real date value Sheets rendered that way.
+  const m2 = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s|$)/.exec(trimmed);
+  if (m2) {
+    const [, y, mo, d] = m2;
+    return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  return null;
+}
+
+// Thai text pulled from the Google Sheet can carry a different Unicode normalization form
+// (or a stray invisible character) than the literal string written in this source file, so a
+// plain === comparison silently treats "the same word" as two different categories. Normalizing
+// both sides to NFC before comparing/deduping fixes that without needing to touch the sheet data.
+function normCat(s: string): string {
+  return s.trim().normalize("NFC");
 }
 
 function normalizeRawName(s: string): string {
@@ -1064,8 +1082,8 @@ async function handleGetPurchaseExcludeSettings(p: Record<string, unknown>) {
   const mainSet = new Set<string>();
   const subSet = new Set<string>();
   for (const row of rows) {
-    const main = (row[COL.mainCategory] ?? "").trim();
-    const sub = (row[COL.subCategory] ?? "").trim();
+    const main = normCat(row[COL.mainCategory] ?? "");
+    const sub = normCat(row[COL.subCategory] ?? "");
     if (main) mainSet.add(main);
     if (sub) subSet.add(sub);
   }
@@ -1075,7 +1093,7 @@ async function handleGetPurchaseExcludeSettings(p: Record<string, unknown>) {
   const saved = await getSetting<PurchaseExcludeConfig | null>("purchase_exclude_config", null);
   // First-ever use: default to only "วัตถุดิบ" (raw material) rows feeding stock —
   // everything else (utilities, labor, equipment, ...) starts excluded until the admin adjusts it.
-  const excludeMain = saved?.excludeMain ?? mainCategories.filter((c) => c !== "วัตถุดิบ");
+  const excludeMain = saved?.excludeMain ?? mainCategories.filter((c) => c !== normCat("วัตถุดิบ"));
   const excludeSub = saved?.excludeSub ?? [];
 
   return json({ ok: true, mainCategories, subCategories, excludeMain, excludeSub });
@@ -1134,16 +1152,16 @@ async function initPurchaseSyncState(branchId: string, sinceDate: string): Promi
   // raw materials.
   let excludeMain: Set<string>;
   if (config?.excludeMain) {
-    excludeMain = new Set(config.excludeMain);
+    excludeMain = new Set(config.excludeMain.map(normCat));
   } else {
     const seenMain = new Set<string>();
     for (const row of rows) {
-      const m = (row[COL.mainCategory] ?? "").trim();
+      const m = normCat(row[COL.mainCategory] ?? "");
       if (m) seenMain.add(m);
     }
-    excludeMain = new Set([...seenMain].filter((c) => c !== "วัตถุดิบ"));
+    excludeMain = new Set([...seenMain].filter((c) => c !== normCat("วัตถุดิบ")));
   }
-  const excludeSub = new Set(config?.excludeSub ?? []);
+  const excludeSub = new Set((config?.excludeSub ?? []).map(normCat));
 
   const catalog = await loadCatalog(branchId);
   const memory = await loadMatchMemory();
@@ -1156,17 +1174,28 @@ async function initPurchaseSyncState(branchId: string, sinceDate: string): Promi
   // Funnel counters — logged once at the end so a future "why did I get 0 rows" question can be
   // answered from the Edge Function logs instead of guessing which filter ate everything.
   let cPairStatus = 0, cCategory = 0, cQty = 0, cDate = 0, cUnparseableDate = 0;
+  // Samples kept only for the debug payload — small raw snippets of whatever is tripping up a
+  // filter, so a future "why 0 rows" doesn't need another deploy-and-screenshot round trip.
+  const unparseableDateSamples: Array<{ sheetRow: number; raw: string }> = [];
+  const nearMatchCategorySamples = new Map<string, { length: number; codePoints: string[] }>();
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const sheetRow = i + 2; // row 1 is the header
-    const mainCategory = (row[COL.mainCategory] ?? "").trim();
-    const subCategory = (row[COL.subCategory] ?? "").trim();
+    const mainCategory = normCat(row[COL.mainCategory] ?? "");
+    const subCategory = normCat(row[COL.subCategory] ?? "");
     const pairStatus = (row[COL.pairStatus] ?? "").trim();
     const stockSynced = (row[COL.stockSynced] ?? "").trim().toLowerCase();
     const qtyRaw = (row[COL.qty] ?? "").trim();
     const rawName = (row[COL.itemName] ?? "").trim();
     const slipDate = (row[COL.slipDate] ?? "").trim();
+
+    if (mainCategory.includes("วัตถ") && !nearMatchCategorySamples.has(mainCategory)) {
+      nearMatchCategorySamples.set(mainCategory, {
+        length: mainCategory.length,
+        codePoints: [...mainCategory].map((ch) => ch.codePointAt(0)!.toString(16)),
+      });
+    }
 
     if (!rawName || !pairStatus) continue; // not yet paired/confirmed in the chat flow
     cPairStatus++;
@@ -1177,7 +1206,10 @@ async function initPurchaseSyncState(branchId: string, sinceDate: string): Promi
     if (!qtyRaw || !Number.isFinite(qty) || qty <= 0) continue;
     cQty++;
     const isoDate = parseLedgerDate(slipDate);
-    if (!isoDate) cUnparseableDate++;
+    if (!isoDate) {
+      cUnparseableDate++;
+      if (unparseableDateSamples.length < 8) unparseableDateSamples.push({ sheetRow, raw: slipDate });
+    }
     // A row whose date we can't parse at all is excluded rather than silently let through —
     // letting it through was the quiet default before and it's indistinguishable from "fine,
     // just old" once it's sitting in the review list.
@@ -1205,6 +1237,8 @@ async function initPurchaseSyncState(branchId: string, sinceDate: string): Promi
     afterPairStatus: cPairStatus, afterCategory: cCategory, afterQty: cQty,
     afterDate: cDate, unparseableDates: cUnparseableDate,
     autoMatched: autoMatched.length, pendingRaw: pendingRaw.length, skipped: skippedCount,
+    unparseableDateSamples,
+    categorySamples: Object.fromEntries(nearMatchCategorySamples),
   };
   console.log("initPurchaseSyncState funnel:", debug);
   return { autoMatched, needsReview: [], skippedCount, pendingRaw, catalogNames, debug };

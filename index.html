@@ -2097,6 +2097,16 @@ function renderPurchaseSyncDebug_(debug) {
   const el = document.getElementById('purchase-sync-results');
   const box = document.createElement('div');
   box.className = 'bg-gray-50 border border-gray-200 rounded-xl p-3 mt-3 text-xs text-gray-600';
+  const catSamples = debug.categorySamples || {};
+  const catSamplesHtml = Object.keys(catSamples).length
+    ? Object.entries(catSamples).map(([name, info]) =>
+        `<p class="ml-2">• "${name}" (ยาว ${info.length} ตัวอักษร, รหัส: ${info.codePoints.join(' ')})</p>`
+      ).join('')
+    : '<p class="ml-2 text-gray-400">(ไม่พบหมวดหมู่ที่ขึ้นต้นด้วย "วัตถ")</p>';
+  const dateSamples = debug.unparseableDateSamples || [];
+  const dateSamplesHtml = dateSamples.length
+    ? dateSamples.map(s => `<p class="ml-2">• แถว ${s.sheetRow}: "${s.raw}"</p>`).join('')
+    : '<p class="ml-2 text-gray-400">(ไม่มีตัวอย่าง)</p>';
   box.innerHTML = `
     <p class="font-semibold text-gray-700 mb-1">🔍 ตัวเลขวินิจฉัย (สำหรับแก้ปัญหา)</p>
     <p>แถวทั้งหมดในชีท: <b>${debug.totalRows}</b></p>
@@ -2106,6 +2116,10 @@ function renderPurchaseSyncDebug_(debug) {
     <p>ผ่านเงื่อนไขวันที่ (ตั้งแต่ ${debug.sinceDate || '-'}): <b>${debug.afterDate}</b></p>
     <p>แถวที่วันที่อ่านไม่ออก: <b>${debug.unparseableDates}</b></p>
     <p>หมวดหมู่ที่ถูกตัดออกตอนนี้: <span class="break-all">${(debug.excludeMain || []).join(', ') || '(ไม่มี)'}</span></p>
+    <p class="mt-2 font-semibold text-gray-700">หมวดหมู่ที่ขึ้นต้นด้วย "วัตถ" (เช็คตัวสะกด/รหัสอักขระ):</p>
+    ${catSamplesHtml}
+    <p class="mt-2 font-semibold text-gray-700">ตัวอย่างวันที่ที่อ่านไม่ออก:</p>
+    ${dateSamplesHtml}
   `;
   el.appendChild(box);
 }
