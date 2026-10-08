@@ -2644,7 +2644,10 @@ function renderAdminItemsTabFromCache_() {
         <details class="mb-2 border border-gray-200 rounded-xl overflow-hidden" ${adminOpenCategories.has(cat) ? 'open' : ''} ontoggle="onAdminCategoryToggle_(this,'${cat.replace(/'/g,"\\'")}')">
           <summary class="cursor-pointer select-none px-3 py-2.5 bg-gray-100 text-sm font-semibold text-gray-700 flex items-center justify-between">
             <span>${tCategory(cat)}</span>
-            <span class="text-xs text-gray-400 font-normal">${byCat[cat].length} รายการ</span>
+            <span class="flex items-center gap-2">
+              ${adminItemScope ? `<button type="button" onclick="event.preventDefault();event.stopPropagation();promoteCategoryToCentral_('${cat.replace(/'/g,"\\'")}')" title="ย้ายหมวดนี้ไปส่วนกลาง แก้ที่เดียวใช้ได้ทุกสาขา" class="text-xs font-normal text-indigo-600 hover:text-indigo-800">⬆️ ไปส่วนกลาง</button>` : ''}
+              <span class="text-xs text-gray-400 font-normal">${byCat[cat].length} รายการ</span>
+            </span>
           </summary>
           <div class="p-3 pt-1">
             ${byCat[cat].map(it => itemRowHtml(it)).join('')}
@@ -2742,6 +2745,22 @@ async function onItemDragEnd_(e) {
 function onAdminScopeChange() {
   adminItemScope = document.getElementById('admin-item-scope').value;
   renderAdminItemsTab();
+}
+
+/** ย้ายหมวดหมู่ทั้งหมด (ที่กำลังดูอยู่ในสโคปสาขานี้) ไปเป็นรายการส่วนกลาง — แก้ที่เดียวใช้ได้ทุกสาขา
+ *  แทนที่จะต้องไล่สร้าง/แก้ซ้ำทีละสาขา (รายการที่ชื่อซ้ำกับของส่วนกลางที่มีอยู่แล้วจะถูกข้าม ไม่ย้าย) */
+async function promoteCategoryToCentral_(category) {
+  if (!adminItemScope) return; // อยู่ในสโคปส่วนกลางอยู่แล้ว ไม่มีอะไรให้ย้าย
+  if (!confirm(`ย้ายหมวด "${tCategory(category)}" ทั้งหมดไปเป็นรายการส่วนกลาง?\nรายการจะแก้ไขได้จากหน้าส่วนกลางที่เดียว และจะโผล่ในทุกสาขาโดยอัตโนมัติ`)) return;
+  try {
+    const res = await jsonpGet('promoteCategoryToCentral', { password: adminPassword, branch_id: adminItemScope, category });
+    if (!res || !res.ok) { showToast('ย้ายไม่สำเร็จ', 'error'); return; }
+    showToast(`ย้ายไปส่วนกลางแล้ว ${res.moved} รายการ${res.skipped ? ` (ข้าม ${res.skipped} รายการที่ชื่อซ้ำกับของส่วนกลางเดิม)` : ''}`, 'success');
+    await loadCatalog(); // รีเฟรช catalogByCategory กลาง ให้หน้าอื่นๆ (หน้าแรก/ตรวจสอบรายการนำเข้า) เห็นผลทันที
+    await renderAdminItemsTab(); // โหลดรายการของสโคปปัจจุบันใหม่ (ของที่ย้ายไปแล้วจะหายจากมุมมองสาขานี้)
+  } catch (e) {
+    showToast('ย้ายไม่สำเร็จ', 'error');
+  }
 }
 
 /** แก้ไขชื่อรายการสินค้า — ฝั่งเซิร์ฟเวอร์จะไล่อัปเดตชื่อเดิม-ใหม่ในประวัติเช็คสต็อก/ปรับสต็อค

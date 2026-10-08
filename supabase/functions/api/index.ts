@@ -287,6 +287,37 @@ async function handleDeleteItem(p: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// Moves every active item in one branch-scoped category to the central scope (branch_id null),
+// so it's edited once and automatically shows in every branch's merged catalog (handleListItems
+// already layers central under branch-specific rows) instead of only the branch it happened to be
+// created under. An item that collides with an existing central item of the same category+name
+// is left where it is (it's already effectively overridden by that central row) and counted as
+// skipped rather than failing the whole batch.
+async function handlePromoteCategoryToCentral(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const branchId = String(p.branch_id ?? "");
+  const category = String(p.category ?? "");
+  if (!branchId || rowIsCentral(branchId)) return json({ ok: false, error: "missing_branch_id" });
+  if (!category) return json({ ok: false, error: "missing_category" });
+
+  const { data: items, error: selectError } = await supabase
+    .from("items").select("id").eq("branch_id", branchId).eq("category", category).eq("active", true);
+  if (selectError) return json({ ok: false, error: selectError.message });
+
+  let moved = 0, skipped = 0;
+  for (const it of items ?? []) {
+    const { error } = await supabase.from("items").update({ branch_id: null }).eq("id", it.id);
+    if (error) {
+      if (error.code !== "23505") console.error("promoteCategoryToCentral item failed", it.id, error);
+      skipped++;
+      continue;
+    }
+    moved++;
+  }
+  await logAdmin("promoteCategoryToCentral", { branchId, category, moved, skipped });
+  return json({ ok: true, moved, skipped });
+}
+
 async function handleBulkSeedItems(p: Record<string, unknown>) {
   if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
   const branchId = p.branch_id ? String(p.branch_id) : null;
@@ -1359,6 +1390,7 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   listItemsAdmin: handleListItemsAdmin,
   saveItem: handleSaveItem,
   deleteItem: handleDeleteItem,
+  promoteCategoryToCentral: handlePromoteCategoryToCentral,
   bulkSeedItems: handleBulkSeedItems,
   getBufferConfig: (p) => handleGetConfig(p, "buffer_config"),
   saveBufferConfig: (p) => handleSaveConfig(p, "buffer_config"),
