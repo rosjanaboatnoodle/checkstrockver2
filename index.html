@@ -2233,6 +2233,18 @@ function togglePurchaseNewItem_(rowId) {
   card.querySelector('[data-purchase-new-item-name]').focus();
 }
 
+/** เติม <option> หมวดหมู่ใหม่ให้ dropdown ของการ์ดแถวอื่นที่ยังไม่ยืนยัน (ไม่แตะแถวที่กำลังแก้ไข/เลือกไว้อยู่) */
+function refreshOtherPurchaseCatDropdowns_(category) {
+  document.querySelectorAll('[data-purchase-cat-select]').forEach(sel => {
+    if (![...sel.options].some(o => o.value === category)) {
+      const opt = document.createElement('option');
+      opt.value = category;
+      opt.textContent = category;
+      sel.appendChild(opt);
+    }
+  });
+}
+
 async function confirmPurchaseRow(rowId, btn) {
   const card = btn.closest('[data-purchase-row]');
   const newCatInput = card.querySelector('[data-purchase-new-cat]');
@@ -2259,6 +2271,9 @@ async function confirmPurchaseRow(rowId, btn) {
       catalogFlat.push(saveRes.item);
       if (!catalogByCategory[category]) catalogByCategory[category] = [];
       catalogByCategory[category].push(saveRes.item);
+      // การ์ดแถวอื่นๆ ที่ยังไม่ยืนยันถูกวาด HTML ไว้ตั้งแต่ก่อนหมวดนี้ถูกสร้าง เลยไม่มีหมวดใหม่ใน
+      // dropdown ของเขา — เติม <option> ให้ทุกการ์ดที่ยังเปิดอยู่ จะได้ไม่ต้องพิมพ์ชื่อหมวดซ้ำเอง
+      refreshOtherPurchaseCatDropdowns_(category);
     }
     const res = await jsonpGet('confirmPurchaseMatch', { password: adminPassword, branch_id: purchaseSyncResult.branchId, row_id: rowId, item_name: itemName });
     if (!res || !res.ok) throw new Error('confirm_failed');
@@ -3157,6 +3172,10 @@ async function submitNewItem() {
     const res = await jsonpGet('saveItem', { password: adminPassword, category, name, unit, is_header: isHeader ? 'TRUE':'FALSE', branch_id: adminItemScope });
     if (res && res.ok) {
       adminScopeItems.push(res.item); // เพิ่มเข้า cache ตรงๆ ไม่ต้องยิง listItemsAdmin ซ้ำ
+      // อัปเดต catalogByCategory (แคตตาล็อกกลางที่หน้าอื่นๆ เช่นตรวจสอบรายการนำเข้าใช้) ด้วย
+      // ไม่งั้นหมวดใหม่ที่เพิ่งสร้างจากหน้านี้จะไม่โผล่ในหน้าอื่นจนกว่าจะโหลดหน้าใหม่
+      if (!catalogByCategory[category]) catalogByCategory[category] = [];
+      catalogByCategory[category].push(res.item);
       catalogDirty = true;
       renderAdminItemsTabFromCache_();
       showToast(t('saveOk'),'success');
