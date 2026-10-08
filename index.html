@@ -39,6 +39,13 @@
     .modal-overlay{ position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:60;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 12px; }
     .modal-overlay.hidden{ display:none !important; }
     .modal-box{ background:white;border-radius:16px;max-width:720px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25); }
+    /* กล่องยืนยัน custom (แทน confirm() ของเบราว์เซอร์) — แยกคลาสเอง ไม่พึ่ง Tailwind ที่ compile แบบ
+       static ไว้แล้ว (ไฟล์นี้ไม่มีขั้นตอน build ใหม่ คลาสที่ไม่เคยถูกใช้มาก่อนจะไม่มีสไตล์ใดๆ เลย)
+       z-index สูงกว่า .modal-overlay (60) เพราะมักถูกเรียกขึ้นมาซ้อนตอนอยู่ในหน้าแอดมินอยู่แล้ว */
+    .confirm-overlay{ position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:70;display:flex;align-items:center;justify-content:center;padding:16px; }
+    .confirm-box{ background:white;border-radius:16px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25);padding:20px; }
+    html[data-theme="dark"] .confirm-overlay{ background:rgba(0,0,0,.65); }
+    html[data-theme="dark"] .confirm-box{ background:#1f242b; color:#e5e7eb; }
     .admin-tab{ padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;color:#6b7280; }
     .admin-tab.active{ background:#ea580c;color:white; }
     .badge-check{ background:#dbeafe;color:#1d4ed8; }
@@ -3271,10 +3278,10 @@ async function confirmImportFromCentral() {
 function showConfirmModal_(message) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4';
+    overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
-      <div class="bg-white rounded-xl p-5 max-w-sm w-full shadow-xl">
-        <p class="text-sm text-gray-800 whitespace-pre-line mb-4">${message}</p>
+      <div class="confirm-box">
+        <p class="text-sm mb-4" style="white-space:pre-line;">${message}</p>
         <div class="flex gap-2">
           <button data-confirm-cancel class="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-semibold">ยกเลิก</button>
           <button data-confirm-ok class="flex-1 bg-red-500 text-white py-2 rounded-lg text-sm font-semibold">ยืนยัน</button>
