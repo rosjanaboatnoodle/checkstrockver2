@@ -1210,8 +1210,11 @@ async function initPurchaseSyncState(branchId: string, sinceDate: string): Promi
     if (mainCategory && excludeMain.has(mainCategory)) continue;
     if (subCategory && excludeSub.has(subCategory)) continue;
     cCategory++;
-    const qty = Number(qtyRaw);
-    if (!qtyRaw || !Number.isFinite(qty) || qty <= 0) continue;
+    // Most ledger rows only record the amount paid, not a count — an empty qty cell defaults to
+    // 1 (one purchase event) rather than silently dropping the row. A cell that has *something*
+    // in it but isn't a valid positive number is still treated as bad data and skipped.
+    const qty = qtyRaw ? Number(qtyRaw) : 1;
+    if (!Number.isFinite(qty) || qty <= 0) continue;
     cQty++;
     const isoDate = parseLedgerDate(slipDate);
     if (!isoDate) {
