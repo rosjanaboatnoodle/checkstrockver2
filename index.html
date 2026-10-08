@@ -2096,6 +2096,8 @@ async function saveBranchCategoryVisibility_(btn) {
     const res = await jsonpGet('updateBranch', { password: adminPassword, id: adminItemScope, hidden_categories: JSON.stringify(hiddenChecked) });
     if (!res || !res.ok) throw new Error('save_failed');
     showToast('บันทึกการตั้งค่าแล้ว', 'success');
+    adminScopeHidden = hiddenChecked; // อัปเดตแบดจ์ "ซ่อนจากสาขานี้" ในรายการด้านล่างให้ตรงทันที (รายการเองยังอยู่ปกติ — ซ่อนมีผลแค่หน้าแรก/เช็คสต็อกของพนักงาน ไม่ได้ลบ)
+    renderAdminItemsTabFromCache_();
     if (currentBranchId === adminItemScope) await loadCatalog(); // รีเฟรชถ้ากำลังดูสาขานี้อยู่พอดี จะได้เห็นผลทันที
   } catch (e) {
     showToast('บันทึกไม่สำเร็จ', 'error');
@@ -2578,6 +2580,7 @@ let adminOpenCategories = new Set(); // จำหมวดที่เปิด�
 /* แคชระดับเซสชันแอดมิน — สลับแท็บไปมาไม่ต้องยิง network ซ้ำทุกครั้ง (Apps Script ช้า)
    รีเซ็ตตอนเปิด admin modal ใหม่ทุกครั้ง เพื่อยังได้ข้อมูลสดอย่างน้อย 1 ครั้งต่อเซสชัน */
 let adminItemsLoadedScope = null; // scope ที่ adminScopeItems โหลดล่าสุด (null = ยังไม่เคยโหลด)
+let adminScopeHidden = []; // หมวดที่ถูกซ่อนไว้สำหรับสาขาที่กำลังดูอยู่ (branch scope เท่านั้น ส่วนกลาง = [])
 let branchesLoaded = false;
 let bufferConfigLoaded = false;
 let reorderConfigLoaded = false;
@@ -2626,6 +2629,13 @@ async function renderAdminItemsTab(prefetchItems, prefetchScope) {
     adminScopeItems = (res && res.ok) ? res.items : [];
     adminItemsLoadedScope = adminItemScope;
   } catch (e) { adminScopeItems = []; }
+  adminScopeHidden = [];
+  if (adminItemScope) {
+    try {
+      const hres = await jsonpGet('getBranchCategories', { password: adminPassword, branch_id: adminItemScope });
+      if (hres && hres.ok) adminScopeHidden = hres.hidden || [];
+    } catch (e) {}
+  }
   renderAdminItemsTabFromCache_();
 }
 
@@ -2645,17 +2655,24 @@ function renderAdminItemsTabFromCache_() {
   // เดิมใช้ bg-indigo-500 ซึ่งไม่ใช่คลาส Tailwind ที่ compile ไว้ในไฟล์นี้ (มีแค่ 50/600) ปุ่มเลยไม่มีพื้นหลัง
   // กลายเป็นตัวหนังสือสีขาวบนพื้นขาว มองไม่เห็น เหลือแต่อิโมจิ — เปลี่ยนเป็น bg-indigo-600 ที่ compile ไว้แล้ว
   let importCentralBtn = adminItemScope ? `<button onclick="openImportFromCentralModal()" class="mb-3 w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold">📥 นำรายการจากส่วนกลางมาใช้ในสาขานี้</button>` : '';
-  // ปุ่มลบทั้งหมดในสโคปนี้ — ไว้เคลียร์รายการที่เพี้ยน (เช่นตอนนำเข้าจากส่วนกลางแล้วเจอบั๊ก is_header) รวดเดียว
-  // แทนที่จะต้องกดลบทีละรายการ จำกัดไว้เฉพาะสโคปของสาขาใดสาขาหนึ่งเท่านั้น กันพลาดไปลบส่วนกลางทั้งหมด
-  let bulkDeleteBtn = (adminItemScope && adminScopeItems.length) ? `<button onclick="bulkDeleteScopeItems_()" class="mb-3 w-full bg-red-500 text-white py-2 rounded-lg font-semibold text-sm">🗑️ ลบรายการทั้งหมดในสโคปนี้ (${adminScopeItems.length} รายการ)</button>` : '';
   // เลือกได้ว่าหมวดไหน (รวมหมวดส่วนกลาง) จะไม่ให้สาขานี้เห็นเลย — มีความหมายเฉพาะตอนดูสโคปของ
   // สาขาใดสาขาหนึ่ง (ส่วนกลางเองไม่มี "สาขา" ให้ซ่อนจาก)
   let hiddenCatToggle = adminItemScope ? `
     <button type="button" onclick="toggleBranchCategoryVisibility_()" class="text-xs text-indigo-600 underline mb-3 block">👁️ ตั้งค่าหมวดที่ซ่อนจากสาขานี้</button>
     <div id="branch-cat-visibility-panel" class="hidden mb-3"></div>
   ` : '';
+  // เพิ่มรายการจากส่วนกลาง = มีผลทุกสาขาอัตโนมัติอยู่แล้ว (ไม่ต้องเลือก) ส่วนเพิ่มจากสาขาใดสาขาหนึ่ง
+  // ให้เลือกได้ว่าจะผูกกับสาขาไหนบ้าง (ติ๊กได้หลายสาขา) ค่าเริ่มต้นติ๊กเฉพาะสาขาที่กำลังดูอยู่
+  let newItemBranchTargets = adminItemScope ? `
+    <div class="mb-2">
+      <p class="text-xs text-gray-500 mb-1">เพิ่มให้สาขาไหนบ้าง:</p>
+      <div class="flex flex-wrap gap-3">
+        ${branches.map(b => `<label class="flex items-center gap-1 text-sm"><input type="checkbox" data-new-item-branch value="${b.id}" ${b.id===adminItemScope?'checked':''}> ${b.name}</label>`).join('')}
+      </div>
+    </div>
+  ` : '';
 
-  let html = seedBtn + importCentralBtn + bulkDeleteBtn + `
+  let html = seedBtn + importCentralBtn + `
     <div class="mb-3">
       <label class="block text-sm font-medium text-gray-700 mb-1">${t('scopeLabel')}</label>
       <select id="admin-item-scope" onchange="onAdminScopeChange()" class="w-full px-3 py-2 border rounded-lg text-sm">${scopeOptions}</select>
@@ -2671,6 +2688,7 @@ function renderAdminItemsTabFromCache_() {
         <input id="new-item-unit" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="หน่วย (เช่น กิโลกรัม หรือ กรัม/กิโลกรัม)" class="px-3 py-2 border rounded-lg text-sm">
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="new-item-header"> เป็นหัวข้อหมวดย่อย</label>
       </div>
+      ` + newItemBranchTargets + `
       <button onclick="submitNewItem()" class="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-semibold">${t('addItem')}</button>
     </div>
   `;
@@ -2701,9 +2719,12 @@ function renderAdminItemsTabFromCache_() {
       ${catNames.map(cat => `
         <details class="mb-2 border border-gray-200 rounded-xl overflow-hidden" ${adminOpenCategories.has(cat) ? 'open' : ''} ontoggle="onAdminCategoryToggle_(this,'${cat.replace(/'/g,"\\'")}')">
           <summary class="cursor-pointer select-none px-3 py-2.5 bg-gray-100 text-sm font-semibold text-gray-700 flex items-center justify-between">
-            <span>${tCategory(cat)}</span>
             <span class="flex items-center gap-2">
-              ${adminItemScope ? `<button type="button" onclick="event.preventDefault();event.stopPropagation();promoteCategoryToCentral_('${cat.replace(/'/g,"\\'")}')" title="ย้ายหมวดนี้ไปส่วนกลาง แก้ที่เดียวใช้ได้ทุกสาขา" class="text-xs font-normal text-indigo-600 hover:text-indigo-800">⬆️ ไปส่วนกลาง</button>` : ''}
+              <span>${tCategory(cat)}</span>
+              ${adminScopeHidden.includes(cat) ? `<span class="text-xs font-normal text-amber-600">🙈 ซ่อนจากสาขานี้</span>` : ''}
+            </span>
+            <span class="flex items-center gap-2">
+              <button type="button" onclick="event.preventDefault();event.stopPropagation();deleteCategoryInScope_('${cat.replace(/'/g,"\\'")}')" title="ลบรายการทั้งหมดในหมวดนี้ (เฉพาะสโคปที่กำลังดูอยู่)" class="text-xs font-normal text-red-500 hover:text-red-700">🗑️ ลบหมวดนี้</button>
               <span class="text-xs text-gray-400 font-normal">${byCat[cat].length} รายการ</span>
             </span>
           </summary>
@@ -2805,19 +2826,21 @@ function onAdminScopeChange() {
   renderAdminItemsTab();
 }
 
-/** ย้ายหมวดหมู่ทั้งหมด (ที่กำลังดูอยู่ในสโคปสาขานี้) ไปเป็นรายการส่วนกลาง — แก้ที่เดียวใช้ได้ทุกสาขา
- *  แทนที่จะต้องไล่สร้าง/แก้ซ้ำทีละสาขา (รายการที่ชื่อซ้ำกับของส่วนกลางที่มีอยู่แล้วจะถูกข้าม ไม่ย้าย) */
-async function promoteCategoryToCentral_(category) {
-  if (!adminItemScope) return; // อยู่ในสโคปส่วนกลางอยู่แล้ว ไม่มีอะไรให้ย้าย
-  if (!confirm(`ย้ายหมวด "${tCategory(category)}" ทั้งหมดไปเป็นรายการส่วนกลาง?\nรายการจะแก้ไขได้จากหน้าส่วนกลางที่เดียว และจะโผล่ในทุกสาขาโดยอัตโนมัติ`)) return;
+/** ลบรายการทั้งหมดในหมวดนี้ เฉพาะสโคปที่กำลังดูอยู่ (ส่วนกลาง หรือสาขาใดสาขาหนึ่ง) — แทนที่ปุ่ม
+ *  "ลบทั้งหมดในสโคปนี้" แบบเดิมด้วยขอบเขตที่แคบกว่า (ทีละหมวด) ลดความเสี่ยงกดลบเกินตั้งใจ */
+async function deleteCategoryInScope_(category) {
+  const scopeLabel = adminItemScope ? (branches.find(b => b.id === adminItemScope)?.name || adminItemScope) : 'ส่วนกลาง';
+  if (!confirm(`ลบรายการทั้งหมดในหมวด "${tCategory(category)}" ของ ${scopeLabel}?\nลบได้เฉพาะสโคปนี้เท่านั้น ไม่กระทบสโคปอื่น`)) return;
   try {
-    const res = await jsonpGet('promoteCategoryToCentral', { password: adminPassword, branch_id: adminItemScope, category });
-    if (!res || !res.ok) { showToast('ย้ายไม่สำเร็จ', 'error'); return; }
-    showToast(`ย้ายไปส่วนกลางแล้ว ${res.moved} รายการ${res.skipped ? ` (ข้าม ${res.skipped} รายการที่ชื่อซ้ำกับของส่วนกลางเดิม)` : ''}`, 'success');
-    await loadCatalog(); // รีเฟรช catalogByCategory กลาง ให้หน้าอื่นๆ (หน้าแรก/ตรวจสอบรายการนำเข้า) เห็นผลทันที
-    await renderAdminItemsTab(); // โหลดรายการของสโคปปัจจุบันใหม่ (ของที่ย้ายไปแล้วจะหายจากมุมมองสาขานี้)
+    const res = await jsonpGet('deleteCategoryInScope', { password: adminPassword, scope: adminItemScope, category });
+    if (!res || !res.ok) { showToast('ลบไม่สำเร็จ', 'error'); return; }
+    showToast(`ลบแล้ว ${res.deleted} รายการ`, 'success');
+    catalogDirty = true;
+    adminItemsLoadedScope = null; // บังคับโหลดสโคปนี้ใหม่ (แคชเดิมยังมีรายการที่เพิ่งลบค้างอยู่)
+    await loadCatalog();
+    await renderAdminItemsTab();
   } catch (e) {
-    showToast('ย้ายไม่สำเร็จ', 'error');
+    showToast('ลบไม่สำเร็จ', 'error');
   }
 }
 
@@ -3239,26 +3262,74 @@ async function confirmImportFromCentral() {
   }
 }
 
+/** ขึ้นข้อความแจ้งเตือนครั้งแรกของวันเท่านั้น (ใช้ localStorage จำวันที่แสดงล่าสุดไว้) — เอาไว้เตือน
+ *  เรื่องที่อยากให้แอดมินรู้แต่ไม่อยากขึ้นมารบกวนซ้ำทุกครั้งที่ทำการกระทำเดิมในวันเดียวกัน */
+function notifyOncePerDay_(key, message) {
+  const storageKey = 'notice_' + key;
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    if (localStorage.getItem(storageKey) === today) return;
+    localStorage.setItem(storageKey, today);
+  } catch (e) { /* เข้าถึง localStorage ไม่ได้ก็แค่ขึ้นทุกครั้ง ไม่ใช่เรื่องคอขาดบาดตาย */ }
+  alert(message);
+}
+
 async function submitNewItem() {
   const category = document.getElementById('new-item-category').value.trim();
   const name = document.getElementById('new-item-name').value.trim();
   const unit = document.getElementById('new-item-unit').value.trim();
   const isHeader = document.getElementById('new-item-header').checked;
   if (!category || !name) { showToast('กรอกหมวดหมู่และชื่อสินค้า', 'error'); return; }
-  try {
-    const res = await jsonpGet('saveItem', { password: adminPassword, category, name, unit, is_header: isHeader ? 'TRUE':'FALSE', branch_id: adminItemScope });
-    if (res && res.ok) {
-      adminScopeItems.push(res.item); // เพิ่มเข้า cache ตรงๆ ไม่ต้องยิง listItemsAdmin ซ้ำ
-      // อัปเดต catalogByCategory (แคตตาล็อกกลางที่หน้าอื่นๆ เช่นตรวจสอบรายการนำเข้าใช้) ด้วย
-      // ไม่งั้นหมวดใหม่ที่เพิ่งสร้างจากหน้านี้จะไม่โผล่ในหน้าอื่นจนกว่าจะโหลดหน้าใหม่
-      if (!catalogByCategory[category]) catalogByCategory[category] = [];
-      catalogByCategory[category].push(res.item);
-      catalogDirty = true;
-      renderAdminItemsTabFromCache_();
-      showToast(t('saveOk'),'success');
-    } else showToast(t('wrongPassword'),'error');
-  } catch(e){ showToast(t('error'),'error'); }
+
+  // เพิ่มเข้า catalogByCategory (แคตตาล็อกกลางที่หน้าอื่นๆ เช่นตรวจสอบรายการนำเข้าใช้) เสมอ ไม่งั้นหมวด/
+  // รายการใหม่ที่เพิ่งสร้างจากหน้านี้จะไม่โผล่ในหน้าอื่นจนกว่าจะโหลดหน้าใหม่
+  const addToCentralCatalog = (item) => {
+    if (!catalogByCategory[category]) catalogByCategory[category] = [];
+    catalogByCategory[category].push(item);
+  };
+
+  if (!adminItemScope) {
+    // เพิ่มจากหน้าส่วนกลาง = มีผลทุกสาขาโดยอัตโนมัติ (handleListItems เอาส่วนกลางไปรวมกับทุกสาขาอยู่แล้ว)
+    // เตือนครั้งแรกของวันเฉยๆ เผื่อแอดมินเข้าใจผิดว่ากำลังเพิ่มแค่ให้สาขาที่เพิ่งดูอยู่ก่อนหน้า
+    notifyOncePerDay_('add_from_central', 'เพิ่มรายการจากหน้าส่วนกลาง รายการนี้จะถูกเพิ่มให้ทุกสาขาโดยอัตโนมัติ');
+    try {
+      const res = await jsonpGet('saveItem', { password: adminPassword, category, name, unit, is_header: isHeader ? 'TRUE':'FALSE', branch_id: '' });
+      if (res && res.ok) {
+        adminScopeItems.push(res.item);
+        addToCentralCatalog(res.item);
+        catalogDirty = true;
+        renderAdminItemsTabFromCache_();
+        showToast(t('saveOk'),'success');
+      } else showToast(t('wrongPassword'),'error');
+    } catch(e){ showToast(t('error'),'error'); }
+    return;
+  }
+
+  // เพิ่มจากสโคปสาขาใดสาขาหนึ่ง — เพิ่มให้ทุกสาขาที่ติ๊กเลือกไว้ (ค่าเริ่มต้นติ๊กแค่สาขาที่กำลังดูอยู่)
+  const targetBranches = [...document.querySelectorAll('[data-new-item-branch]:checked')].map(cb => cb.value);
+  if (!targetBranches.length) { showToast('เลือกอย่างน้อย 1 สาขา', 'error'); return; }
+  let anyOk = false;
+  for (const branchId of targetBranches) {
+    try {
+      const res = await jsonpGet('saveItem', { password: adminPassword, category, name, unit, is_header: isHeader ? 'TRUE':'FALSE', branch_id: branchId });
+      if (res && res.ok) {
+        anyOk = true;
+        if (branchId === adminItemScope) adminScopeItems.push(res.item); // โชว์ในรายการสโคปที่กำลังดูอยู่ทันที
+        addToCentralCatalog(res.item);
+      } else {
+        showToast(`เพิ่มให้สาขา ${branches.find(b=>b.id===branchId)?.name || branchId} ไม่สำเร็จ`, 'error');
+      }
+    } catch (e) {
+      showToast(`เพิ่มให้สาขา ${branches.find(b=>b.id===branchId)?.name || branchId} ไม่สำเร็จ`, 'error');
+    }
+  }
+  if (anyOk) {
+    catalogDirty = true;
+    renderAdminItemsTabFromCache_();
+    showToast(t('saveOk'),'success');
+  }
 }
+
 async function removeItem(id) {
   if (!confirm(t('confirmDelete'))) return;
   try {
@@ -3267,31 +3338,15 @@ async function removeItem(id) {
       adminScopeItems = adminScopeItems.filter(it => it.id !== id); // ตัดออกจาก cache ตรงๆ
       catalogDirty = true;
       renderAdminItemsTabFromCache_();
+      if (adminItemScope) {
+        notifyOncePerDay_('delete_from_branch', 'ลบจากสาขานี้เท่านั้น ไม่กระทบสาขาอื่น (ถ้ารายการนี้เคยซ้อนทับรายการจากส่วนกลาง รายการจากส่วนกลางจะกลับมาแสดงให้สาขานี้แทน)');
+      } else {
+        notifyOncePerDay_('delete_from_central', 'ลบจากส่วนกลาง รายการนี้จะหายไปจากทุกสาขาที่ไม่มีรายการเฉพาะสาขาของตัวเองซ้อนทับอยู่');
+      }
     } else showToast(t('wrongPassword'),'error');
   } catch(e){ showToast(t('error'),'error'); }
 }
 
-/** ลบรายการสินค้าทั้งหมดในสโคปที่กำลังดูอยู่ (ทีละรายการ ไม่ยิงพร้อมกันเพื่อไม่ให้ Apps Script โดนถล่ม)
- *  ไว้เคลียร์รายการที่เพี้ยนรวดเดียว เช่นตอนนำเข้าจากส่วนกลางแล้วเจอบั๊ก แทนที่จะกดลบทีละรายการเป็นสิบๆ ครั้ง */
-async function bulkDeleteScopeItems_() {
-  if (!adminItemScope) return; // กันพลาดไปลบส่วนกลางทั้งหมดโดยไม่ตั้งใจ
-  const items = [...adminScopeItems];
-  if (!items.length) return;
-  if (!confirm(`ยืนยันลบรายการสินค้าทั้งหมด ${items.length} รายการในสโคปนี้? การลบนี้กู้คืนไม่ได้`)) return;
-  const btn = document.querySelector('button[onclick="bulkDeleteScopeItems_()"]');
-  let okCount = 0;
-  for (let i = 0; i < items.length; i++) {
-    if (btn) btn.textContent = `กำลังลบ... (${i + 1}/${items.length})`;
-    try {
-      const res = await jsonpGet('deleteItem', { password: adminPassword, id: items[i].id });
-      if (res && res.ok) okCount++;
-    } catch (e) { /* ข้ามรายการที่ลบไม่สำเร็จ ไปลบรายการถัดไปต่อ */ }
-  }
-  adminScopeItems = []; // พยายามลบครบทุกรายการในสโคปนี้ไปแล้ว เคลียร์แคชทิ้งไปเลย
-  catalogDirty = true;
-  renderAdminItemsTabFromCache_();
-  showToast(okCount === items.length ? `ลบสำเร็จทั้งหมด ${okCount} รายการ` : `ลบสำเร็จ ${okCount}/${items.length} รายการ (บางรายการลบไม่สำเร็จ)`, okCount === items.length ? 'success' : 'error');
-}
 let editingBranchId = ''; // สาขาที่กำลังแก้ไขชื่อ/รหัสผ่านอยู่ (แสดงฟอร์มแก้ไขแทนแถวปกติ)
 async function renderAdminBranchesTab() {
   const el = document.getElementById('admin-tab-branches');

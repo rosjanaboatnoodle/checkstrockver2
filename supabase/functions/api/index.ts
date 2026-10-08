@@ -210,7 +210,12 @@ async function handleListItems(p: Record<string, unknown>) {
     ? await supabase.from("items").select("*").eq("branch_id", branchId).eq("active", true)
     : { data: [] as Record<string, unknown>[] };
   const byKey = new Map<string, Record<string, unknown>>();
-  for (const it of central ?? []) byKey.set(`${it.category}||${it.name}`, it);
+  const centralOrder = new Map<string, number>();
+  for (const it of central ?? []) {
+    const key = `${it.category}||${it.name}`;
+    byKey.set(key, it);
+    centralOrder.set(key, it.sort_order as number);
+  }
   for (const it of branchItems ?? []) byKey.set(`${it.category}||${it.name}`, it); // branch row overrides central
 
   let hiddenCategories: string[] = [];
@@ -220,7 +225,15 @@ async function handleListItems(p: Record<string, unknown>) {
   }
   const items = [...byKey.values()]
     .filter((it) => !hiddenCategories.includes(it.category as string))
-    .sort((a, b) => (a.sort_order as number) - (b.sort_order as number));
+    .sort((a, b) => {
+      // A branch override keeps the CENTRAL item's position when one exists, so a branch missing
+      // some items still shows the rest in the same relative order as every other branch — only
+      // an item with no central counterpart at all falls back to its own (branch-local) order.
+      const keyA = `${a.category}||${a.name}`, keyB = `${b.category}||${b.name}`;
+      const oa = centralOrder.get(keyA) ?? (a.sort_order as number);
+      const ob = centralOrder.get(keyB) ?? (b.sort_order as number);
+      return oa - ob;
+    });
   return json({ ok: true, items });
 }
 
@@ -317,35 +330,22 @@ async function handleDeleteItem(p: Record<string, unknown>) {
   return json({ ok: true });
 }
 
-// Moves every active item in one branch-scoped category to the central scope (branch_id null),
-// so it's edited once and automatically shows in every branch's merged catalog (handleListItems
-// already layers central under branch-specific rows) instead of only the branch it happened to be
-// created under. An item that collides with an existing central item of the same category+name
-// is left where it is (it's already effectively overridden by that central row) and counted as
-// skipped rather than failing the whole batch.
-async function handlePromoteCategoryToCentral(p: Record<string, unknown>) {
+// Soft-deletes every active item in one category, within one scope (central when `scope` is
+// empty/central, otherwise one branch). Replaces the old "delete everything in this scope" button
+// with a narrower, per-category action — much harder to fat-finger into wiping an entire scope.
+async function handleDeleteCategoryInScope(p: Record<string, unknown>) {
   if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
-  const branchId = String(p.branch_id ?? "");
+  const scope = String(p.scope ?? "");
   const category = String(p.category ?? "");
-  if (!branchId || rowIsCentral(branchId)) return json({ ok: false, error: "missing_branch_id" });
   if (!category) return json({ ok: false, error: "missing_category" });
-
-  const { data: items, error: selectError } = await supabase
-    .from("items").select("id").eq("branch_id", branchId).eq("category", category).eq("active", true);
-  if (selectError) return json({ ok: false, error: selectError.message });
-
-  let moved = 0, skipped = 0;
-  for (const it of items ?? []) {
-    const { error } = await supabase.from("items").update({ branch_id: null }).eq("id", it.id);
-    if (error) {
-      if (error.code !== "23505") console.error("promoteCategoryToCentral item failed", it.id, error);
-      skipped++;
-      continue;
-    }
-    moved++;
-  }
-  await logAdmin("promoteCategoryToCentral", { branchId, category, moved, skipped });
-  return json({ ok: true, moved, skipped });
+  const base = supabase.from("items").update({ active: false }).eq("category", category).eq("active", true);
+  const { data, error } = rowIsCentral(scope)
+    ? await base.is("branch_id", null).select("id")
+    : await base.eq("branch_id", scope).select("id");
+  if (error) return json({ ok: false, error: error.message });
+  const deleted = (data ?? []).length;
+  await logAdmin("deleteCategoryInScope", { scope, category, deleted });
+  return json({ ok: true, deleted });
 }
 
 async function handleBulkSeedItems(p: Record<string, unknown>) {
@@ -1421,7 +1421,7 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   listItemsAdmin: handleListItemsAdmin,
   saveItem: handleSaveItem,
   deleteItem: handleDeleteItem,
-  promoteCategoryToCentral: handlePromoteCategoryToCentral,
+  deleteCategoryInScope: handleDeleteCategoryInScope,
   bulkSeedItems: handleBulkSeedItems,
   getBufferConfig: (p) => handleGetConfig(p, "buffer_config"),
   saveBufferConfig: (p) => handleSaveConfig(p, "buffer_config"),
