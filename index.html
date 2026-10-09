@@ -2088,7 +2088,7 @@ function renderBranchCategoryVisibility_(res) {
     : `<p class="text-xs text-gray-400">ยังไม่มีหมวดหมู่ในระบบ</p>`;
   panel.innerHTML = `
     <div class="bg-gray-50 rounded-xl p-3">
-      <p class="text-xs text-gray-500 mb-2">ติ๊กหมวดที่<b>ไม่ต้องการ</b>ให้สาขานี้เห็น — จะไม่โผล่ทั้งหน้าแรกและตอนเช็คสต็อกของสาขานี้ (หมวดยังอยู่ปกติในสาขาอื่น)</p>
+      <p class="text-xs text-gray-500 mb-2">ติ๊กหมวดที่ไม่ต้องการให้สาขานี้เห็น — จะไม่โผล่หน้าแรกและหน้าเช็คสต็อกในสาขานี้ (ไม่ส่งผลต่อสาขาอื่น)</p>
       <div class="max-h-40 overflow-y-auto border rounded-lg p-2 bg-white">${rows}</div>
       <button type="button" onclick="saveBranchCategoryVisibility_(this)" class="w-full mt-3 bg-indigo-600 text-white text-sm font-semibold py-2 rounded-lg">บันทึกการตั้งค่า</button>
     </div>
