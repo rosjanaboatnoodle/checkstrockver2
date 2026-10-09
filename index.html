@@ -1287,7 +1287,7 @@ async function translateNoteField(itemName, btn) {
       throw new Error('translate_failed');
     }
   } catch (e) {
-    showToast('แปลไม่สำเร็จ (ยังไม่ได้ตั้งค่า Gemini API ใน Code.gs)', 'error');
+    showToast('แปลไม่สำเร็จ ลองใหม่อีกครั้ง', 'error');
   } finally {
     btn.disabled = false; btn.textContent = '🌐';
   }
@@ -2377,7 +2377,6 @@ function renderAdminPasswordTab() {
       <label class="block text-xs font-medium text-gray-600 mb-1">ยืนยันรหัสผ่านใหม่</label>
       <input type="password" id="pw-confirm" onkeydown="if(event.key==='Enter') submitChangePassword()" class="w-full px-3 py-2.5 border rounded-lg text-sm mb-4" placeholder="พิมพ์ซ้ำอีกครั้ง">
       <button onclick="submitChangePassword()" class="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึกรหัสผ่านใหม่</button>
-      <p class="text-xs text-gray-400 mt-3">⚠️ ต้องมี action <code>changeAdminPassword</code> ใน Code.gs ก่อนถึงจะบันทึกได้จริง</p>
     </div>`;
 }
 async function submitChangePassword() {
@@ -2400,7 +2399,7 @@ async function submitChangePassword() {
       showToast('รหัสผ่านเดิมไม่ถูกต้อง', 'error');
     }
   } catch (e) {
-    showToast('ยังไม่รองรับ (ต้องเพิ่ม action ใน Code.gs ก่อน)', 'error');
+    showToast('เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง', 'error');
   }
 }
 
