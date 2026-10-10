@@ -3013,10 +3013,10 @@ function renderAdminItemsTabFromCache_() {
           ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `
             <button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold" title="หน่วย"><img src="icons/icon-scale.png" class="icon-img item-row-action-icon" alt="หน่วย"></button>
             <button onclick="editItemSku_('${it.id}', '${(it.sku||'').replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขบาร์โค้ด/SKU"><img src="icons/icon-barcode.png" class="icon-img item-row-action-icon" alt="แก้ไขบาร์โค้ด/SKU"></button>
+            <button onclick="pickItemImage_('${it.id}')" class="text-gray-500 hover:text-gray-700 text-xs" title="อัปโหลดรูป"><img src="icons/icon-upload.png" class="icon-img item-row-action-icon" alt="อัปโหลดรูป"></button>
           `}
           ${removeBtnHtml}
         </div>
-        ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `<button onclick="pickItemImage_('${it.id}')" class="text-gray-500 hover:text-gray-700 text-xs" title="อัปโหลดรูป"><img src="icons/icon-upload.png" class="icon-img item-row-action-icon" alt="อัปโหลดรูป"></button>`}
         <button type="button" class="item-row-overflow-toggle text-gray-500" onclick="toggleItemRowOverflowMenu_(this)" title="เพิ่มเติม">⋮</button>
       </div>
     </div>`;
