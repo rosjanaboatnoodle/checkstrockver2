@@ -251,7 +251,7 @@ async function handleSaveItem(p: Record<string, unknown>) {
     const { data: before } = await supabase.from("items").select("name, category").eq("id", p.id).maybeSingle();
     // Partial update (e.g. just sort_order from the reorder buttons).
     const update: Record<string, unknown> = {};
-    for (const k of ["category", "name", "unit", "is_header", "sort_order"] as const) {
+    for (const k of ["category", "name", "unit", "sku", "is_header", "sort_order"] as const) {
       if (p[k] !== undefined) update[k] = k === "is_header" ? String(p[k]).toUpperCase() === "TRUE" : p[k];
     }
     const { data, error } = await supabase.from("items").update(update).eq("id", p.id).select().maybeSingle();
@@ -275,6 +275,7 @@ async function handleSaveItem(p: Record<string, unknown>) {
     category: String(p.category ?? ""),
     name: String(p.name ?? ""),
     unit: String(p.unit ?? ""),
+    sku: p.sku ? String(p.sku).trim() : null,
     is_header: String(p.is_header ?? "FALSE").toUpperCase() === "TRUE",
     sort_order: Number(p.sort_order ?? 0),
   };
@@ -282,6 +283,40 @@ async function handleSaveItem(p: Record<string, unknown>) {
   if (error) return json({ ok: false, error: error.message });
   await logAdmin("saveItem", { name: row.name, branch_id: row.branch_id });
   return json({ ok: true, item: data });
+}
+
+// Client sends a compressed JPEG as base64 (resized/compressed in-browser before upload, so this
+// is always a small payload) — uploaded via the service-role key, which bypasses storage RLS the
+// same way it bypasses table RLS, so the bucket needs no policies, just `public: true` for reads.
+async function handleUploadItemImage(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const id = String(p.id ?? "");
+  const imageBase64 = String(p.image_base64 ?? "");
+  if (!id || !imageBase64) return json({ ok: false, error: "missing_fields" });
+
+  let bytes: Uint8Array;
+  try {
+    bytes = Uint8Array.from(atob(imageBase64), (c) => c.charCodeAt(0));
+  } catch {
+    return json({ ok: false, error: "bad_image_data" });
+  }
+
+  const path = `${id}.jpg`;
+  const { error: uploadError } = await supabase.storage.from("item-images").upload(path, bytes, {
+    contentType: "image/jpeg",
+    upsert: true,
+  });
+  if (uploadError) return json({ ok: false, error: uploadError.message });
+
+  const { data: urlData } = supabase.storage.from("item-images").getPublicUrl(path);
+  // Cache-bust so the <img> actually re-fetches after a re-upload replaces the same path —
+  // browsers otherwise keep showing the old cached image at that URL indefinitely.
+  const imageUrl = `${urlData.publicUrl}?v=${Date.now()}`;
+  const { error: updateError } = await supabase.from("items").update({ image_url: imageUrl }).eq("id", id);
+  if (updateError) return json({ ok: false, error: updateError.message });
+
+  await logAdmin("uploadItemImage", { id });
+  return json({ ok: true, image_url: imageUrl });
 }
 
 // Item names are the join key across historical records and name-keyed config (not the
@@ -722,6 +757,43 @@ async function handleUpdateItemInRecord(p: Record<string, unknown>) {
   }
   await logAdmin("updateItemInRecord", { kind, recordId, itemName, quantity, editor: p.editor_name });
   return json({ ok: true });
+}
+
+// Admin dashboard: current qty per item (reusing the same RPC the reorder-alert system already
+// relies on, so the numbers here always match what LINE alerts are based on) grouped by category,
+// plus each category's most recent check date — not real-time (nothing cuts stock at sale time),
+// same staleness as the LINE alerts, just viewable on demand instead of waiting for a push.
+async function handleGetBranchOverview(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const branchId = String(p.branch_id ?? "");
+  if (!branchId) return json({ ok: false, error: "missing_branch_id" });
+
+  const { data: levels, error } = await supabase.rpc("get_current_stock_levels", { p_branch_id: branchId });
+  if (error) return json({ ok: false, error: error.message });
+
+  const { data: checks } = await supabase
+    .from("check_records").select("category, date").eq("branch_id", branchId).order("date", { ascending: false });
+  const lastUpdatedByCategory = new Map<string, string>();
+  for (const r of (checks ?? []) as Array<{ category: string; date: string }>) {
+    if (!lastUpdatedByCategory.has(r.category)) lastUpdatedByCategory.set(r.category, r.date);
+  }
+
+  const byCategory = new Map<string, Array<{ name: string; qty: number | null; unit: string; hasBaseline: boolean }>>();
+  for (const row of (levels ?? []) as Array<{ item_name: string; category: string; unit: string; qty: number; has_baseline: boolean }>) {
+    if (!byCategory.has(row.category)) byCategory.set(row.category, []);
+    byCategory.get(row.category)!.push({
+      name: row.item_name, qty: row.has_baseline ? Number(row.qty) : null, unit: row.unit, hasBaseline: row.has_baseline,
+    });
+  }
+  const categories = [...byCategory.entries()]
+    .map(([category, items]) => ({
+      category,
+      itemCount: items.length,
+      lastUpdated: lastUpdatedByCategory.get(category) ?? null,
+      items: items.sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+    .sort((a, b) => a.category.localeCompare(b.category));
+  return json({ ok: true, categories });
 }
 
 async function handleGetCurrentStockLevels(p: Record<string, unknown>) {
@@ -1422,6 +1494,7 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   saveItem: handleSaveItem,
   deleteItem: handleDeleteItem,
   deleteCategoryInScope: handleDeleteCategoryInScope,
+  uploadItemImage: handleUploadItemImage,
   bulkSeedItems: handleBulkSeedItems,
   getBufferConfig: (p) => handleGetConfig(p, "buffer_config"),
   saveBufferConfig: (p) => handleSaveConfig(p, "buffer_config"),
@@ -1434,6 +1507,7 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   list: handleList,
   updateItemInRecord: handleUpdateItemInRecord,
   getCurrentStockLevels: handleGetCurrentStockLevels,
+  getBranchOverview: handleGetBranchOverview,
   translateAll: handleTranslateAll,
   getDictionary: handleGetDictionary,
   translateNote: handleTranslateNote,

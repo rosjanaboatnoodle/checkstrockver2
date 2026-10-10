@@ -46,6 +46,8 @@
     .confirm-box{ background:white;border-radius:16px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25);padding:20px; }
     html[data-theme="dark"] .confirm-overlay{ background:rgba(0,0,0,.65); }
     html[data-theme="dark"] .confirm-box{ background:#1f242b; color:#e5e7eb; }
+    /* ไฮไลท์แถวที่สแกนบาร์โค้ดเจอ ชั่วคราวให้เห็นชัดว่าเลื่อนมาถึงตัวไหน */
+    .scan-highlight{ outline:3px solid #f97316; outline-offset:2px; transition:outline-color .3s; }
     .admin-tab{ padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;color:#6b7280; }
     .admin-tab.active{ background:#ea580c;color:white; }
     .badge-check{ background:#dbeafe;color:#1d4ed8; }
@@ -353,10 +355,11 @@
         </div>
         <p class="text-sm text-gray-500 mb-4"><span data-t="staffChecker">ผู้เช็คสต็อก:</span> <span id="mv-display-checker-name" class="font-medium"></span></p>
 
-        <div class="mb-3">
+        <div class="mb-3 flex gap-2">
           <input id="mv-quick-search" type="text" autocomplete="off" data-t-placeholder="mvQuickSearchPlaceholder" placeholder="ค้นหาด่วน: พิมพ์ชื่อสินค้าที่จะปรับ..."
-            class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+            class="flex-1 min-w-0 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
             oninput="filterMovementQuickSearch(this.value)">
+          <button type="button" onclick="openScanModal_(onMovementScanResult_)" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-12 h-12 bg-gray-800 text-white rounded-xl text-xl">📷</button>
         </div>
 
         <div id="mv-category-chips" class="flex gap-2 overflow-x-auto pb-1 mb-4"></div>
@@ -443,11 +446,13 @@
           <div class="admin-tab active" data-tab="items" onclick="switchAdminTab('items')" data-t="manageItems">จัดการรายการสินค้า</div>
           <div class="admin-tab" data-tab="branches" onclick="switchAdminTab('branches')" data-t="manageBranches">จัดการสาขา</div>
           <div class="admin-tab" data-tab="translations" onclick="switchAdminTab('translations')" data-t="manageTranslations">จัดการคำแปล</div>
+          <div class="admin-tab" data-tab="overview" onclick="switchAdminTab('overview')">📊 ภาพรวม</div>
           <div class="admin-tab" data-tab="buffer" onclick="switchAdminTab('buffer')">⚙️ Buffer คาดคะเน</div>
           <div class="admin-tab" data-tab="purchase" onclick="switchAdminTab('purchase')">🧾 นำเข้าจากบัญชี</div>
           <div class="admin-tab" data-tab="password" onclick="switchAdminTab('password')">🔑 เปลี่ยนรหัสผ่าน</div>
         </div>
         <div id="admin-tab-items"></div>
+        <div id="admin-tab-overview" class="hidden"></div>
         <div id="admin-tab-branches" class="hidden"></div>
         <div id="admin-tab-translations" class="hidden"></div>
         <div id="admin-tab-buffer" class="hidden"></div>
@@ -466,6 +471,21 @@
     <button id="app-update-banner" class="app-update-banner hidden" onclick="location.reload()">🔄 <span data-t="newVersionAvailable">มีเวอร์ชันใหม่ กดเพื่ออัปเดต</span></button>
 
     <!-- โมดัลจัดการหน่วย + อัตราแปลง + หน่วยหลัก -->
+    <!-- input ไฟล์รูปสินค้าที่ซ่อนไว้ (ใช้ร่วมกันทุกแถว) — pickItemImage_() จำว่าจะอัพรูปให้ id ไหน แล้วค่อยกด click() ให้ -->
+    <input type="file" id="item-image-file-input" accept="image/*" capture="environment" class="hidden" onchange="onItemImageFileChosen_(this)">
+
+    <!-- โมดัลสแกนบาร์โค้ด/SKU — ใช้กล้องมือถือผ่านเบราว์เซอร์ตรงๆ ไม่ต้องติดตั้งแอปแยก -->
+    <div id="scan-modal" class="confirm-overlay hidden" onclick="if(event.target===this) closeScanModal_()">
+      <div class="confirm-box" style="max-width:420px;">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-sm font-semibold text-gray-800">📷 สแกนบาร์โค้ด</p>
+          <button onclick="closeScanModal_()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        </div>
+        <video id="scan-video" class="w-full rounded-lg bg-gray-900" style="aspect-ratio:4/3;object-fit:cover;" playsinline muted></video>
+        <p id="scan-status" class="text-xs text-gray-500 mt-2 text-center">กำลังเปิดกล้อง...</p>
+      </div>
+    </div>
+
     <div id="unit-editor-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeUnitEditor()">
       <div class="modal-box p-5 mt-16 mb-10">
         <div class="flex items-center justify-between mb-1">
@@ -1239,7 +1259,13 @@ function renderStockTable() {
     // ค่าคาดคะเนยังคำนวณอยู่เบื้องหลัง และใช้แสดงเฉพาะในรายงาน LINE ที่ส่งให้เจ้าของร้านหลังบันทึกเท่านั้น
     html += `
       <tr class="slide-in hover:bg-orange-50 transition-colors" style="animation-delay:${index*20}ms" data-stock-row="${item.name}">
-        <td class="px-4 py-3"><span class="font-medium text-gray-800">${tItem(item.name)}</span></td>
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-2">
+            <span class="font-medium text-gray-800">${tItem(item.name)}</span>
+            ${item.image_url ? `<button type="button" onclick="toggleStockItemPhoto_(this, '${item.image_url}')" class="text-gray-400 hover:text-gray-600 text-sm flex-shrink-0" title="ดูรูป">🖼️</button>` : ''}
+          </div>
+          <div class="stock-photo-slot hidden mt-2"></div>
+        </td>
         <td class="px-4 py-3" data-label="${t('quantity')||'จำนวน'}">
           <div class="flex items-center gap-2">
             <input type="text" inputmode="decimal" autocomplete="off" data-item="${item.name}" data-field="quantity_raw" placeholder="0"
@@ -1267,6 +1293,19 @@ function renderStockTable() {
     index++;
   });
   tbody.innerHTML = html;
+}
+
+/** เปิด/ปิดรูปสินค้าแบบขยายอยู่ในแถวเดิม (ไม่เด้ง popup) — ไม่โหลดรูปเลยจนกว่าจะกดดูครั้งแรก
+ *  กดซ้ำแค่ซ่อน/โชว์ ไม่โหลดรูปซ้ำ จะได้ไม่หน่วงตอนเปิดหน้าเช็คสต็อกที่มีเป็นร้อยเป็นพันรายการ */
+function toggleStockItemPhoto_(btn, url) {
+  const slot = btn.closest('td').querySelector('.stock-photo-slot');
+  if (!slot) return;
+  if (!slot.classList.contains('hidden')) { slot.classList.add('hidden'); return; }
+  slot.classList.remove('hidden');
+  if (!slot.dataset.loaded) {
+    slot.innerHTML = `<img src="${url}" class="rounded-lg border border-gray-200" style="max-width:140px;max-height:140px;object-fit:cover;">`;
+    slot.dataset.loaded = '1';
+  }
 }
 
 /* ปุ่มแปลภาษา — เรียก Gemini ผ่าน Apps Script middleware
@@ -1420,6 +1459,83 @@ async function loadCurrentStockLevels() {
     currentStockLevels = {};
     showToast(t('error'), 'error'); // ไม่งั้นทุกรายการจะโชว์ "—" เฉยๆ โดยไม่มีคำอธิบายว่าทำไมดึงจำนวนคงเหลือไม่ได้
   }
+}
+
+/* =========================================================
+   สแกนบาร์โค้ด/SKU — ใช้ร่วมกันได้หลายหน้า ผ่าน openScanModal_(onResultCallback)
+   โหลดไลบรารี ZXing แบบ lazy (ยิงโหลดครั้งแรกตอนกดปุ่มสแกนเท่านั้น ไม่ให้ทุกคนที่ไม่ใช้ต้องโหลดด้วย)
+   ========================================================= */
+let zxingLoadPromise_ = null;
+function loadZXing_() {
+  if (window.ZXing) return Promise.resolve();
+  if (zxingLoadPromise_) return zxingLoadPromise_;
+  zxingLoadPromise_ = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@latest/umd/index.min.js';
+    script.onload = resolve;
+    script.onerror = () => { zxingLoadPromise_ = null; reject(new Error('โหลดตัวสแกนไม่สำเร็จ ตรวจสอบอินเทอร์เน็ต')); };
+    document.head.appendChild(script);
+  });
+  return zxingLoadPromise_;
+}
+
+let scanReader_ = null;
+let scanOnResult_ = null;
+
+async function openScanModal_(onResult) {
+  scanOnResult_ = onResult;
+  const modal = document.getElementById('scan-modal');
+  const statusEl = document.getElementById('scan-status');
+  modal.classList.remove('hidden');
+  statusEl.textContent = 'กำลังโหลดตัวสแกน...';
+  try {
+    await loadZXing_();
+  } catch (e) {
+    statusEl.textContent = (e && e.message) || 'โหลดตัวสแกนไม่สำเร็จ';
+    return;
+  }
+  statusEl.textContent = 'กำลังเปิดกล้อง...';
+  try {
+    scanReader_ = new ZXing.BrowserMultiFormatReader();
+    // facingMode: 'environment' ขอกล้องหลัง (เหมาะกับสแกนบาร์โค้ด) แทนกล้องหน้าที่บางเครื่องเลือกให้เป็นค่าเริ่มต้น
+    await scanReader_.decodeFromConstraints({ video: { facingMode: 'environment' } }, 'scan-video', (result) => {
+      if (!result) return; // ยังหาบาร์โค้ดไม่เจอในเฟรมนี้ ปกติ รอเฟรมถัดไป
+      const code = result.getText();
+      closeScanModal_();
+      if (scanOnResult_) scanOnResult_(code);
+    });
+    statusEl.textContent = 'เล็งกล้องไปที่บาร์โค้ด';
+  } catch (e) {
+    statusEl.textContent = 'เปิดกล้องไม่สำเร็จ (เช็คว่าอนุญาตให้เว็บนี้ใช้กล้องหรือยัง)';
+  }
+}
+
+function closeScanModal_() {
+  document.getElementById('scan-modal').classList.add('hidden');
+  if (scanReader_) {
+    try { scanReader_.reset(); } catch (e) {}
+    scanReader_ = null;
+  }
+}
+
+function lookupItemBySku_(code) {
+  return catalogFlat.find(it => it.sku && it.sku === code) || null;
+}
+
+/** ผลสแกนจากหน้า "ปรับสต็อค" — หาสินค้าที่ตรงกับบาร์โค้ด แล้วเด้งไปโฟกัสที่แถวนั้นเลย ไม่ต้องพิมพ์หาเอง */
+function onMovementScanResult_(code) {
+  const item = lookupItemBySku_(code);
+  if (!item) { showToast('ไม่พบสินค้าที่มีบาร์โค้ดนี้ (' + code + ')', 'error'); return; }
+  document.getElementById('mv-quick-search').value = item.name;
+  filterMovementQuickSearch(item.name);
+  setTimeout(() => {
+    const row = document.querySelector(`#mv-item-list [data-mv-row="${CSS.escape(item.name)}"]`);
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.classList.add('scan-highlight');
+      setTimeout(() => row.classList.remove('scan-highlight'), 1500);
+    }
+  }, 50);
 }
 
 function renderMovementCategoryChips() {
@@ -1962,17 +2078,92 @@ async function closeAdminModal() {
 function switchAdminTab(tab, prefetchItems, prefetchScope) {
   document.querySelectorAll('.admin-tab').forEach(el => el.classList.toggle('active', el.getAttribute('data-tab')===tab));
   document.getElementById('admin-tab-items').classList.toggle('hidden', tab!=='items');
+  document.getElementById('admin-tab-overview').classList.toggle('hidden', tab!=='overview');
   document.getElementById('admin-tab-branches').classList.toggle('hidden', tab!=='branches');
   document.getElementById('admin-tab-translations').classList.toggle('hidden', tab!=='translations');
   document.getElementById('admin-tab-buffer').classList.toggle('hidden', tab!=='buffer');
   document.getElementById('admin-tab-purchase').classList.toggle('hidden', tab!=='purchase');
   document.getElementById('admin-tab-password').classList.toggle('hidden', tab!=='password');
   if (tab==='items') renderAdminItemsTab(prefetchItems, prefetchScope);
+  if (tab==='overview') renderAdminOverviewTab();
   if (tab==='branches') renderAdminBranchesTab();
   if (tab==='translations') renderAdminTranslationsTab();
   if (tab==='buffer') renderAdminBufferTab();
   if (tab==='purchase') renderAdminPurchaseTab();
   if (tab==='password') renderAdminPasswordTab();
+}
+
+/* =========================================================
+   Admin — ภาพรวม (dashboard): เหลือเท่าไหร่ต่อหมวด + อัพเดตล่าสุดวันไหน ต่อสาขา
+   ไม่เรียลไทม์ — อิงยอดเช็คครั้งล่าสุด + รายการปรับสต็อคที่บันทึกไว้ (เหมือนที่แจ้งเตือนผ่าน LINE ใช้)
+   ========================================================= */
+let adminOverviewBranch = ''; // สาขาที่กำลังดูภาพรวมอยู่
+let overviewOpenCategories = new Set();
+
+async function renderAdminOverviewTab() {
+  const el = document.getElementById('admin-tab-overview');
+  if (!branchesLoaded) {
+    try { const r = await jsonpGet('listBranches', { password: adminPassword }); if (r && r.ok) { branches = r.branches; branchesLoaded = true; } } catch (e) {}
+  }
+  if (!branches.length) { el.innerHTML = `<p class="text-sm text-gray-400 text-center py-4">ยังไม่มีสาขาในระบบ</p>`; return; }
+  if (!adminOverviewBranch || !branches.some(b => b.id === adminOverviewBranch)) {
+    adminOverviewBranch = branches.some(b => b.id === currentBranchId) ? currentBranchId : branches[0].id;
+  }
+  const branchOptions = branches.map(b => `<option value="${b.id}" ${b.id===adminOverviewBranch?'selected':''}>${b.name}</option>`).join('');
+  el.innerHTML = `
+    <label class="block text-sm font-medium text-gray-700 mb-1">สาขา</label>
+    <select id="overview-branch-select" onchange="onOverviewBranchChange_()" class="w-full px-3 py-2 border rounded-lg text-sm mb-4">${branchOptions}</select>
+    <div id="overview-content"><p class="text-center text-gray-400 text-sm py-4">${t('loading')}</p></div>
+  `;
+  await loadOverviewContent_();
+}
+
+function onOverviewBranchChange_() {
+  adminOverviewBranch = document.getElementById('overview-branch-select').value;
+  loadOverviewContent_();
+}
+
+async function loadOverviewContent_() {
+  const el = document.getElementById('overview-content');
+  if (!el) return;
+  el.innerHTML = `<p class="text-center text-gray-400 text-sm py-4">${t('loading')}</p>`;
+  try {
+    const res = await jsonpGet('getBranchOverview', { password: adminPassword, branch_id: adminOverviewBranch });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'load_failed');
+    renderOverviewContent_(res.categories || []);
+  } catch (e) {
+    el.innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${(e && e.message) || e}</p>`;
+  }
+}
+
+function fmtOverviewDate_(d) {
+  if (!d) return 'ยังไม่เคยเช็ค';
+  return new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function renderOverviewContent_(categories) {
+  const el = document.getElementById('overview-content');
+  if (!categories.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-4">ยังไม่มีรายการสินค้าในสาขานี้</p>`; return; }
+  el.innerHTML = categories.map(cat => {
+    const open = overviewOpenCategories.has(cat.category);
+    const itemsHtml = cat.items.map(it => `
+      <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-100">
+        <span class="truncate">${it.name}</span>
+        <span class="text-gray-500 flex-shrink-0 ml-2">${it.hasBaseline ? (fmtQty(it.qty) + ' ' + (it.unit||'')) : '<span class="text-gray-300">ยังไม่เคยเช็ค</span>'}</span>
+      </div>`).join('');
+    return `
+      <details class="mb-2 border border-gray-200 rounded-xl overflow-hidden" ${open?'open':''} ontoggle="onOverviewCategoryToggle_(this,'${cat.category.replace(/'/g,"\\'")}')">
+        <summary class="cursor-pointer select-none px-3 py-2.5 bg-gray-100 text-sm font-semibold text-gray-700 flex items-center justify-between flex-wrap gap-1">
+          <span>${tCategory(cat.category)}</span>
+          <span class="text-xs text-gray-400 font-normal">${cat.itemCount} รายการ · อัพเดตล่าสุด: ${fmtOverviewDate_(cat.lastUpdated)}</span>
+        </summary>
+        <div class="p-3 pt-1">${itemsHtml}</div>
+      </details>`;
+  }).join('');
+}
+
+function onOverviewCategoryToggle_(detailsEl, cat) {
+  if (detailsEl.open) overviewOpenCategories.add(cat); else overviewOpenCategories.delete(cat);
 }
 
 /* =========================================================
@@ -2692,6 +2883,7 @@ function renderAdminItemsTabFromCache_() {
         <datalist id="cat-list">${cats.map(c=>`<option value="${c}">`).join('')}</datalist>
         <input id="new-item-name" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="ชื่อสินค้า" class="px-3 py-2 border rounded-lg text-sm">
         <input id="new-item-unit" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="หน่วย (เช่น กิโลกรัม หรือ กรัม/กิโลกรัม)" class="px-3 py-2 border rounded-lg text-sm">
+        <input id="new-item-sku" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="บาร์โค้ด/SKU (ถ้ามี)" class="px-3 py-2 border rounded-lg text-sm">
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="new-item-header"> เป็นหัวข้อหมวดย่อย</label>
       </div>
       ` + newItemBranchTargets + `
@@ -2710,11 +2902,16 @@ function renderAdminItemsTabFromCache_() {
     <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-100" data-item-row data-item-id="${it.id}" data-category="${it.category.replace(/"/g,'&quot;')}">
       <div class="flex items-center gap-1 min-w-0">
         <span class="text-gray-300 text-base px-1 select-none" style="touch-action:none;cursor:grab;" onpointerdown="onItemDragStart_(event, this)">⠿</span>
-        <span class="truncate ${String(it.is_header).toUpperCase() === 'TRUE' ? 'font-semibold' : ''}">${it.name} ${it.unit ? '· '+it.unit : ''} ${unitConfig[it.name] ? `<span class="text-xs text-indigo-600">(หน่วยหลัก: ${unitConfig[it.name].primary})</span>` : ''}</span>
+        ${it.image_url ? `<img src="${it.image_url}" class="w-7 h-7 rounded object-cover flex-shrink-0" loading="lazy">` : ''}
+        <span class="truncate ${String(it.is_header).toUpperCase() === 'TRUE' ? 'font-semibold' : ''}">${it.name} ${it.unit ? '· '+it.unit : ''} ${unitConfig[it.name] ? `<span class="text-xs text-indigo-600">(หน่วยหลัก: ${unitConfig[it.name].primary})</span>` : ''}${it.sku ? ` <span class="text-xs text-gray-400">· ${it.sku}</span>` : ''}</span>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
         <button onclick="renameItem_('${it.id}', '${it.name.replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขชื่อ">✏️</button>
-        ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `<button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold">⚖️ หน่วย</button>`}
+        ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `
+          <button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold">⚖️ หน่วย</button>
+          <button onclick="editItemSku_('${it.id}', '${(it.sku||'').replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขบาร์โค้ด/SKU">🔖</button>
+          <button onclick="pickItemImage_('${it.id}')" class="text-gray-500 hover:text-gray-700 text-xs" title="อัปโหลดรูป">🖼️</button>
+        `}
         <button onclick="removeItem('${it.id}')" class="text-red-500 text-xs">${t('delete')}</button>
       </div>
     </div>`;
@@ -3309,6 +3506,7 @@ async function submitNewItem() {
   const category = document.getElementById('new-item-category').value.trim();
   const name = document.getElementById('new-item-name').value.trim();
   const unit = document.getElementById('new-item-unit').value.trim();
+  const sku = document.getElementById('new-item-sku').value.trim();
   const isHeader = document.getElementById('new-item-header').checked;
   if (!category || !name) { showToast('กรอกหมวดหมู่และชื่อสินค้า', 'error'); return; }
 
@@ -3324,7 +3522,7 @@ async function submitNewItem() {
     // เตือนครั้งแรกของวันเฉยๆ เผื่อแอดมินเข้าใจผิดว่ากำลังเพิ่มแค่ให้สาขาที่เพิ่งดูอยู่ก่อนหน้า
     notifyOncePerDay_('add_from_central', 'เพิ่มรายการจากหน้าส่วนกลาง รายการนี้จะถูกเพิ่มให้ทุกสาขาโดยอัตโนมัติ');
     try {
-      const res = await jsonpGet('saveItem', { password: adminPassword, category, name, unit, is_header: isHeader ? 'TRUE':'FALSE', branch_id: '' });
+      const res = await jsonpGet('saveItem', { password: adminPassword, category, name, unit, sku, is_header: isHeader ? 'TRUE':'FALSE', branch_id: '' });
       if (res && res.ok) {
         adminScopeItems.push(res.item);
         addToCentralCatalog(res.item);
@@ -3342,7 +3540,7 @@ async function submitNewItem() {
   let anyOk = false;
   for (const branchId of targetBranches) {
     try {
-      const res = await jsonpGet('saveItem', { password: adminPassword, category, name, unit, is_header: isHeader ? 'TRUE':'FALSE', branch_id: branchId });
+      const res = await jsonpGet('saveItem', { password: adminPassword, category, name, unit, sku, is_header: isHeader ? 'TRUE':'FALSE', branch_id: branchId });
       if (res && res.ok) {
         anyOk = true;
         if (branchId === adminItemScope) adminScopeItems.push(res.item); // โชว์ในรายการสโคปที่กำลังดูอยู่ทันที
@@ -3376,6 +3574,84 @@ async function removeItem(id) {
       }
     } else showToast(t('wrongPassword'),'error');
   } catch(e){ showToast(t('error'),'error'); }
+}
+
+/** อัปเดตข้อมูลรายการในแคตตาล็อกกลาง (catalogFlat กับ catalogByCategory ใช้ object เดียวกันอยู่แล้ว
+ *  แก้ที่นี่จุดเดียวสะท้อนทั้งคู่) และใน adminScopeItems ถ้าสินค้านั้นอยู่ในสโคปที่กำลังดูอยู่พอดี */
+function patchCatalogItem_(id, patch) {
+  const flatItem = catalogFlat.find(it => it.id === id);
+  if (flatItem) Object.assign(flatItem, patch);
+  const idx = adminScopeItems.findIndex(it => it.id === id);
+  if (idx !== -1) adminScopeItems[idx] = { ...adminScopeItems[idx], ...patch };
+  catalogDirty = true;
+}
+
+/** แก้ไขบาร์โค้ด/SKU ของรายการสินค้า — ใช้คู่กับปุ่มสแกนในหน้าปรับสต็อค (ยิงแล้วกระโดดไปรายการนั้นเลย) */
+async function editItemSku_(id, currentSku) {
+  const next = prompt('บาร์โค้ด/SKU:', currentSku || '');
+  if (next === null) return;
+  const trimmed = next.trim();
+  try {
+    const res = await jsonpGet('saveItem', { password: adminPassword, id, sku: trimmed });
+    if (res && res.ok) {
+      patchCatalogItem_(id, { sku: trimmed });
+      renderAdminItemsTabFromCache_();
+      showToast(t('saveOk'), 'success');
+    } else showToast(t('wrongPassword'), 'error');
+  } catch (e) { showToast(t('error'), 'error'); }
+}
+
+let pendingImageItemId_ = null; // id ของรายการที่กำลังจะอัพโหลดรูปให้ (ตั้งไว้ก่อนเปิด file picker)
+function pickItemImage_(id) {
+  pendingImageItemId_ = id;
+  document.getElementById('item-image-file-input').click();
+}
+
+async function onItemImageFileChosen_(input) {
+  const file = input.files && input.files[0];
+  input.value = ''; // เคลียร์ไว้ เผื่อเลือกไฟล์เดิมซ้ำอีกครั้งจะได้ trigger onchange อีกรอบ
+  if (!file || !pendingImageItemId_) return;
+  const id = pendingImageItemId_;
+  pendingImageItemId_ = null;
+  try {
+    const base64 = await compressImageToBase64_(file);
+    const res = await jsonpGet('uploadItemImage', { password: adminPassword, id, image_base64: base64 });
+    if (res && res.ok) {
+      patchCatalogItem_(id, { image_url: res.image_url });
+      renderAdminItemsTabFromCache_();
+      showToast('อัปโหลดรูปแล้ว', 'success');
+    } else showToast('อัปโหลดรูปไม่สำเร็จ', 'error');
+  } catch (e) {
+    showToast((e && e.message) || 'อัปโหลดรูปไม่สำเร็จ', 'error');
+  }
+}
+
+/** ย่อ/บีบอัดรูปฝั่งเบราว์เซอร์ก่อนอัพโหลดเสมอ กันไฟล์ใหญ่เกินจำเป็น (ด้านยาวสุด 800px, JPEG คุณภาพ 70%)
+ *  — ทำให้ไฟล์ที่ส่งจริงมักเหลือแค่หลักสิบ-ร้อย KB ไม่ว่าไฟล์ต้นฉบับจากกล้องมือถือจะใหญ่แค่ไหน */
+function compressImageToBase64_(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('อ่านไฟล์ไม่สำเร็จ'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('เปิดรูปไม่สำเร็จ'));
+      img.onload = () => {
+        const maxSide = 800;
+        let { width, height } = img;
+        if (width > maxSide || height > maxSide) {
+          if (width > height) { height = Math.round(height * maxSide / width); width = maxSide; }
+          else { width = Math.round(width * maxSide / height); height = maxSide; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        resolve(dataUrl.split(',')[1]); // ตัด prefix "data:image/jpeg;base64," ออก เหลือแต่ base64 ล้วน
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 let editingBranchId = ''; // สาขาที่กำลังแก้ไขชื่อ/รหัสผ่านอยู่ (แสดงฟอร์มแก้ไขแทนแถวปกติ)
