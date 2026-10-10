@@ -61,7 +61,11 @@
     /* padding+margin ลบ เพิ่มพื้นที่กดได้จริงรอบไอคอน โดยไม่ไปดันระยะห่างกับตัวอักษร/ไอคอนข้างๆ ให้เปลี่ยน
        (กดยาก/กดไม่ค่อยติดเพราะพื้นที่กดเดิมมีแค่ขนาดไอคอนจริงๆ 15x15 ซึ่งเล็กกว่าขนาดนิ้วมาก)
        ขนาดอยู่ใน class นี้ (ไม่ใช่ inline style) เพื่อให้ปรับใหญ่ขึ้นตาม breakpoint จอกว้างได้ด้านล่าง */
-    .item-thumb-icon{ cursor:pointer; padding:6px; margin:-6px; width:20px; height:20px; }
+    /* box-sizing:content-box สำคัญมาก — ปกติทั้งไฟล์ตั้ง border-box ไว้ (Tailwind preflight) ซึ่งจะเอา padding
+       ไปหักออกจาก width/height ที่ตั้งไว้ ทำให้รูปจริงข้างในเหลือแค่ 20-6*2=8px (เล็กกว่าที่ตั้งใจไว้มาก ไม่เท่า
+       ไอคอนอื่นที่ไม่มี padding) เปลี่ยนเป็น content-box ให้ width/height คือขนาดรูปจริง แล้ว padding มาบวกเพิ่ม
+       พื้นที่กดข้างนอกต่างหาก */
+    .item-thumb-icon{ cursor:pointer; box-sizing:content-box; padding:6px; margin:-6px; width:20px; height:20px; }
     /* ไอคอนปุ่มอื่นๆ ในแถวรายการสินค้า (แก้ไข SKU / อัปโหลดรูป / ซ่อน-เลิกซ่อน) — ขนาดเดียวกับไอคอนดูรูปข้างบน
        เพื่อให้ดูสม่ำเสมอกันทั้งแถว ไม่มีอันไหนเด่นเล็ก/ใหญ่ผิดจากเพื่อน */
     .item-row-action-icon{ width:20px; height:20px; }
