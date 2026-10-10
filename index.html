@@ -70,6 +70,15 @@
       .item-thumb-wrap:hover .item-thumb-zoom{ display:block; }
     }
     .item-thumb-wrap.show-zoom .item-thumb-zoom{ display:block; }
+    /* ปุ่มสแกนบาร์โค้ดของช่อง SKU (หน้าเพิ่มรายการสินค้า) มี 2 ตัวในหน้าเดียวกัน — ตัวหนึ่งอยู่ติดกับช่อง SKU
+       เลย (จอกว้างแบบคอม มีที่พอ) อีกตัวอยู่แถวเดียวกับ checkbox "เป็นหัวข้อหมวดย่อย" (จอแคบแบบมือถือ/แท็บเล็ต/
+       แล็ปท็อป ไม่งั้นช่อง SKU จะถูกบีบแคบเกินไป) โชว์ทีละตัวตามความกว้างจอ ไม่ใช่ตามชนิดอุปกรณ์ */
+    @media (min-width: 1024px) {
+      .sku-scan-btn-narrow{ display:none; }
+    }
+    @media (max-width: 1023.98px) {
+      .sku-scan-btn-wide{ display:none; }
+    }
     /* ไอคอน PNG (เส้นสีดำ พื้นหลังโปร่งใส) ใช้แทนอิโมจิในบางจุด — สลับเป็นสีขาวอัตโนมัติในธีมมืด */
     .icon-img{ vertical-align:middle; }
     html[data-theme="dark"] .icon-img{ filter:invert(1); }
@@ -2919,11 +2928,14 @@ function renderAdminItemsTabFromCache_() {
         <datalist id="cat-list">${cats.map(c=>`<option value="${c}">`).join('')}</datalist>
         <input id="new-item-name" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="ชื่อสินค้า" class="px-3 py-2 border rounded-lg text-sm">
         <input id="new-item-unit" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="หน่วย (เช่น กิโลกรัม หรือ กรัม/กิโลกรัม)" class="px-3 py-2 border rounded-lg text-sm">
-        <div class="flex flex-wrap gap-1 min-w-0">
+        <div class="flex gap-1 min-w-0">
           <input id="new-item-sku" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="บาร์โค้ด/SKU (ถ้ามี)" class="flex-1 min-w-0 px-3 py-2 border rounded-lg text-sm">
-          <button type="button" onclick="scanSkuIntoInput_('new-item-sku')" title="สแกนบาร์โค้ด (ใส่ใน SKU)" class="flex-shrink-0 w-10 h-10 bg-gray-100 border border-gray-200 rounded-lg inline-flex items-center justify-center" style="padding:7px;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกนบาร์โค้ด" style="width:100%;height:100%;"></button>
+          <button type="button" onclick="scanSkuIntoInput_('new-item-sku')" title="สแกนบาร์โค้ด (ใส่ใน SKU)" class="sku-scan-btn-wide flex-shrink-0 w-10 h-10 bg-gray-100 border border-gray-200 rounded-lg inline-flex items-center justify-center" style="padding:7px;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกนบาร์โค้ด" style="width:100%;height:100%;"></button>
         </div>
+      </div>
+      <div class="flex items-center justify-between mb-2">
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="new-item-header"> เป็นหัวข้อหมวดย่อย</label>
+        <button type="button" onclick="scanSkuIntoInput_('new-item-sku')" title="สแกนบาร์โค้ด (ใส่ใน SKU)" class="sku-scan-btn-narrow flex-shrink-0 w-10 h-10 bg-gray-100 border border-gray-200 rounded-lg inline-flex items-center justify-center" style="padding:7px;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกนบาร์โค้ด" style="width:100%;height:100%;"></button>
       </div>
       ` + newItemBranchTargets + `
       <button onclick="submitNewItem()" class="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-semibold">${t('addItem')}</button>
