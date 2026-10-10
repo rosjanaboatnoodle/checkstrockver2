@@ -232,7 +232,9 @@ async function handleListItems(p: Record<string, unknown>) {
       const keyA = `${a.category}||${a.name}`, keyB = `${b.category}||${b.name}`;
       const oa = centralOrder.get(keyA) ?? (a.sort_order as number);
       const ob = centralOrder.get(keyB) ?? (b.sort_order as number);
-      return oa - ob;
+      // Name as a tiebreaker: many items share the same sort_order (0, the default for anything
+      // added one at a time), and without one the order isn't stable across requests.
+      return oa - ob || String(a.name).localeCompare(String(b.name));
     });
   return json({ ok: true, items });
 }
@@ -240,7 +242,11 @@ async function handleListItems(p: Record<string, unknown>) {
 async function handleListItemsAdmin(p: Record<string, unknown>) {
   if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
   const scope = String(p.scope ?? "");
-  const q = supabase.from("items").select("*").eq("active", true).order("sort_order");
+  // Secondary sort by name breaks ties deterministically — a lot of items share the same
+  // sort_order (0, the default for anything added one at a time instead of via bulk-seed), and
+  // without a tiebreaker Postgres doesn't guarantee the same order across requests, so the list
+  // visibly reshuffles itself on every reload even when nothing was actually changed.
+  const q = supabase.from("items").select("*").eq("active", true).order("sort_order").order("name");
   const { data } = rowIsCentral(scope) ? await q.is("branch_id", null) : await q.eq("branch_id", scope);
   return json({ ok: true, items: data ?? [] });
 }
