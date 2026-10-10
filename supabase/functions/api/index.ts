@@ -216,7 +216,18 @@ async function handleListItems(p: Record<string, unknown>) {
     byKey.set(key, it);
     centralOrder.set(key, it.sort_order as number);
   }
-  for (const it of branchItems ?? []) byKey.set(`${it.category}||${it.name}`, it); // branch row overrides central
+  for (const it of branchItems ?? []) {
+    // A branch row overrides the central one for this name, but it shouldn't blank out a photo/SKU
+    // that only exists on the central row — a branch override is usually just "this branch also
+    // stocks this item", not a deliberate wipe of fields nobody touched on the branch copy.
+    const key = `${it.category}||${it.name}`;
+    const centralIt = byKey.get(key);
+    if (centralIt) {
+      if (!it.image_url && centralIt.image_url) it.image_url = centralIt.image_url;
+      if (!it.sku && centralIt.sku) it.sku = centralIt.sku;
+    }
+    byKey.set(key, it);
+  }
 
   let hiddenCategories: string[] = [];
   if (branchId) {

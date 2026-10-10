@@ -56,6 +56,9 @@
     .item-thumb-zoom{ display:none; position:absolute; top:0; left:22px; z-index:80; max-width:320px; max-height:320px; width:auto; height:auto; background:white; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); border:2px solid white; }
     .item-thumb-wrap:hover .item-thumb-zoom{ display:block; }
     .item-thumb-wrap.show-zoom .item-thumb-zoom{ display:block; }
+    /* ไอคอน PNG (เส้นสีดำ พื้นหลังโปร่งใส) ใช้แทนอิโมจิในบางจุด — สลับเป็นสีขาวอัตโนมัติในธีมมืด */
+    .icon-img{ vertical-align:middle; }
+    html[data-theme="dark"] .icon-img{ filter:invert(1); }
     .admin-tab{ padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;color:#6b7280; }
     .admin-tab.active{ background:#ea580c;color:white; }
     .badge-check{ background:#dbeafe;color:#1d4ed8; }
@@ -367,7 +370,7 @@
           <input id="mv-quick-search" type="text" autocomplete="off" data-t-placeholder="mvQuickSearchPlaceholder" placeholder="ค้นหาด่วน: พิมพ์ชื่อสินค้าที่จะปรับ..."
             class="flex-1 min-w-0 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
             oninput="filterMovementQuickSearch(this.value)">
-          <button type="button" onclick="openScanModal_(onMovementScanResult_)" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-12 h-12 text-white rounded-xl text-xl" style="background:#1f2937;">📷</button>
+          <button type="button" onclick="openScanModal_(onMovementScanResult_)" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-12 h-12 text-white rounded-xl text-xl" style="background:#1f2937;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกนบาร์โค้ด" style="width:22px;height:22px;filter:invert(1);"></button>
         </div>
 
         <div id="mv-category-chips" class="flex gap-2 overflow-x-auto pb-1 mb-4"></div>
@@ -486,7 +489,7 @@
     <div id="scan-modal" class="confirm-overlay hidden" onclick="if(event.target===this) closeScanModal_()">
       <div class="confirm-box" style="max-width:420px;">
         <div class="flex items-center justify-between mb-2">
-          <p class="text-sm font-semibold text-gray-800">📷 สแกนบาร์โค้ด</p>
+          <p class="text-sm font-semibold text-gray-800 flex items-center gap-2"><img src="icons/icon-barcode.png" class="icon-img" alt="" style="width:16px;height:16px;"> สแกนบาร์โค้ด</p>
           <button onclick="closeScanModal_()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
         </div>
         <video id="scan-video" class="w-full rounded-lg" style="aspect-ratio:4/3;object-fit:cover;background:#111827;" playsinline muted></video>
@@ -2856,7 +2859,10 @@ function renderAdminItemsTabFromCache_() {
   // เลือกได้ว่าหมวดไหน (รวมหมวดส่วนกลาง) จะไม่ให้สาขานี้เห็นเลย — มีความหมายเฉพาะตอนดูสโคปของ
   // สาขาใดสาขาหนึ่ง (ส่วนกลางเองไม่มี "สาขา" ให้ซ่อนจาก)
   let hiddenCatToggle = adminItemScope ? `
-    <button type="button" onclick="toggleBranchCategoryVisibility_()" class="text-xs text-indigo-600 underline mb-3 block">👁️ ตั้งค่าหมวดที่ซ่อนจากสาขานี้</button>
+    <button type="button" onclick="toggleBranchCategoryVisibility_()" class="text-xs text-indigo-600 underline mb-3 inline-flex items-center gap-2">
+      <img src="icons/icon-eye.png" class="icon-img" alt="" style="width:14px;height:14px;">
+      ตั้งค่าหมวดที่ซ่อนจากสาขานี้
+    </button>
     <div id="branch-cat-visibility-panel" class="hidden mb-3"></div>
   ` : '';
   // เพิ่มรายการจากส่วนกลาง = มีผลทุกสาขาอัตโนมัติอยู่แล้ว (ไม่ต้องเลือก) ส่วนเพิ่มจากสาขาใดสาขาหนึ่ง
@@ -2910,8 +2916,8 @@ function renderAdminItemsTabFromCache_() {
         <button onclick="renameItem_('${it.id}', '${it.name.replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขชื่อ">✏️</button>
         ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `
           <button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold">⚖️ หน่วย</button>
-          <button onclick="editItemSku_('${it.id}', '${(it.sku||'').replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขบาร์โค้ด/SKU">🔖</button>
-          <button onclick="pickItemImage_('${it.id}')" class="text-gray-500 hover:text-gray-700 text-xs" title="อัปโหลดรูป">🖼️</button>
+          <button onclick="editItemSku_('${it.id}', '${(it.sku||'').replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขบาร์โค้ด/SKU"><img src="icons/icon-barcode.png" class="icon-img" alt="แก้ไขบาร์โค้ด/SKU" style="width:14px;height:14px;"></button>
+          <button onclick="pickItemImage_('${it.id}')" class="text-gray-500 hover:text-gray-700 text-xs" title="อัปโหลดรูป"><img src="icons/icon-upload.png" class="icon-img" alt="อัปโหลดรูป" style="width:14px;height:14px;"></button>
         `}
         <button onclick="removeItem('${it.id}')" class="text-red-500 text-xs">${t('delete')}</button>
       </div>
@@ -3609,7 +3615,7 @@ async function editItemSku_(id, currentSku) {
 function itemPhotoIconHtml_(url) {
   if (!url) return '';
   return `<span class="item-thumb-wrap" data-photo-url="${url}" onmouseenter="onItemThumbHover_(this)" ontouchstart="onItemThumbTouchStart_(this)" ontouchend="onItemThumbTouchEnd_(this)" ontouchcancel="onItemThumbTouchEnd_(this)">
-    <span class="item-thumb-icon text-gray-400 text-sm" title="ดูรูป">🖼️</span>
+    <img src="icons/icon-photo.png" class="item-thumb-icon icon-img" title="ดูรูป" alt="ดูรูป" style="width:15px;height:15px;">
     <img class="item-thumb-zoom" loading="lazy">
   </span>`;
 }
