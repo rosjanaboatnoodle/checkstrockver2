@@ -23,6 +23,9 @@
        ย้ายไปโหลดแบบ lazy (ensureXlsxLoaded_) ตอนกดใช้ฟีเจอร์นำเข้าไฟล์จริงๆ แทน -->
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
   <style>
+    /* overflow-x:hidden กันหน้าทั้งหน้าเลื่อน/ขยับซ้ายขวาได้ ถ้ามีคอนเทนต์ตรงไหนล้นกว้างเกินจอโดยไม่ตั้งใจ
+       (เช่นแถวที่มีปุ่มเรียงกันแล้วหดไม่ลงบนจอแคบ) จะโดนตัดแทนที่จะดันทั้งหน้าให้เลื่อนได้ */
+    html, body { overflow-x: hidden; }
     body { box-sizing: border-box; touch-action: manipulation; } /* ปิดการซูมด้วยการแตะ 2 ครั้ง (double-tap-to-zoom) กันเผลอโดนตอนกดปุ่มถี่ๆ — ยังพินช์ซูมด้วยนิ้วได้ตามปกติ */
     * { font-family: 'Sarabun', sans-serif; }
     input[type="number"]::-webkit-inner-spin-button,
@@ -36,7 +39,7 @@
     .trend-up{ color:#ef4444; } .trend-down{ color:#22c55e; } .trend-neutral{ color:#6b7280; }
     .qty-invalid{ border-color:#ef4444 !important; background: #fff1f2; }
     .top-bar-btn{ background:white;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-radius:10px; }
-    .modal-overlay{ position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:60;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 12px; }
+    .modal-overlay{ position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:60;display:flex;align-items:flex-start;justify-content:center;overflow-x:hidden;overflow-y:auto;padding:24px 12px; }
     .modal-overlay.hidden{ display:none !important; }
     .modal-box{ background:white;border-radius:16px;max-width:720px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25); }
     /* กล่องยืนยัน custom (แทน confirm() ของเบราว์เซอร์) — แยกคลาสเอง ไม่พึ่ง Tailwind ที่ compile แบบ
@@ -2911,7 +2914,7 @@ function renderAdminItemsTabFromCache_() {
         <datalist id="cat-list">${cats.map(c=>`<option value="${c}">`).join('')}</datalist>
         <input id="new-item-name" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="ชื่อสินค้า" class="px-3 py-2 border rounded-lg text-sm">
         <input id="new-item-unit" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="หน่วย (เช่น กิโลกรัม หรือ กรัม/กิโลกรัม)" class="px-3 py-2 border rounded-lg text-sm">
-        <div class="flex gap-1">
+        <div class="flex gap-1 min-w-0">
           <input id="new-item-sku" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="บาร์โค้ด/SKU (ถ้ามี)" class="flex-1 min-w-0 px-3 py-2 border rounded-lg text-sm">
           <button type="button" onclick="scanSkuIntoInput_('new-item-sku')" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-10 h-10 text-white rounded-lg inline-flex items-center justify-center" style="background:#1f2937;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกน" style="width:22px;height:22px;filter:invert(1);"></button>
         </div>
