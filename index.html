@@ -58,7 +58,9 @@
     /* ไอคอนดูรูปสินค้า — ใช้ทั้งหน้าจัดการสินค้าและหน้าเช็คสต็อก ไม่โหลดรูปเลยจนกว่าจะเอาเมาส์ชี้ (คอม)
        หรือกดค้าง (มือถือ) ครั้งแรก กันหน้าที่มีเป็นพันรายการโหลดรูปพร้อมกันหมดจนช้า */
     .item-thumb-wrap{ position:relative; display:inline-block; }
-    .item-thumb-icon{ cursor:pointer; }
+    /* padding+margin ลบ เพิ่มพื้นที่กดได้จริงรอบไอคอน โดยไม่ไปดันระยะห่างกับตัวอักษร/ไอคอนข้างๆ ให้เปลี่ยน
+       (กดยาก/กดไม่ค่อยติดเพราะพื้นที่กดเดิมมีแค่ขนาดไอคอนจริงๆ 15x15 ซึ่งเล็กกว่าขนาดนิ้วมาก) */
+    .item-thumb-icon{ cursor:pointer; padding:6px; margin:-6px; }
     /* position:fixed (คำนวณพิกัดจาก JS ตอนจะโชว์) ไม่ใช่ absolute — กันโดนตัดโดย overflow:hidden
        ของตารางเช็คสต็อก/แถวในโมดัลแอดมิน และรับประกันว่าลอยทับคอลัมน์อื่นได้เสมอ */
     .item-thumb-zoom{ display:none; position:fixed; z-index:9999; max-width:320px; max-height:320px; width:auto; height:auto; background:white; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); border:2px solid white; }
@@ -80,7 +82,10 @@
       .sku-scan-btn-wide{ display:none; }
     }
     /* ไอคอน PNG (เส้นสีดำ พื้นหลังโปร่งใส) ใช้แทนอิโมจิในบางจุด — สลับเป็นสีขาวอัตโนมัติในธีมมืด */
-    .icon-img{ vertical-align:middle; }
+    /* max-width:none ยกเลิก img,video{max-width:100%} ของ Tailwind preflight — ถ้าไม่ตัดออก ไอคอนที่ตั้ง
+       width/height เป็น px ตรงๆ แล้วอยู่ใน inline-block/flex ที่ไม่ได้ตั้งความกว้างไว้ตายตัว จะโดนบีบแคบกว่าที่
+       ตั้งใจไว้จริง (เจอจริง: ตั้ง 20px แต่เรนเดอร์ออกมาแค่ ~12px เพราะไปอิงความกว้างที่เหลือของ flex แทน) */
+    .icon-img{ vertical-align:middle; max-width:none; }
     html[data-theme="dark"] .icon-img{ filter:invert(1); }
     .admin-tab{ padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;color:#6b7280; }
     .admin-tab.active{ background:#ea580c;color:white; }
@@ -3766,7 +3771,7 @@ async function editItemSku_(id, currentSku) {
 function itemPhotoIconHtml_(url) {
   if (!url) return '';
   return `<span class="item-thumb-wrap" data-photo-url="${url}" onmouseenter="onItemThumbHover_(this)" ontouchstart="onItemThumbTouchStart_(this)">
-    <img src="icons/icon-photo.png" class="item-thumb-icon icon-img" title="ดูรูป" alt="ดูรูป" style="width:15px;height:15px;">
+    <img src="icons/icon-photo.png" class="item-thumb-icon icon-img" title="ดูรูป" alt="ดูรูป" style="width:20px;height:20px;">
     <img class="item-thumb-zoom" loading="lazy">
   </span>`;
 }
