@@ -490,7 +490,9 @@
       </div>
     </div>
 
-    <div id="admin-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeAdminModal()">
+    <!-- ไม่ปิดเมื่อแตะ/คลิกนอกกรอบแล้ว (เคยปิดได้) — กันข้อมูลที่กรอกไว้หายไปเฉยๆ ถ้าเผลอแตะโดนพื้นที่นอกกรอบ
+         ต้องกดปุ่ม ✕ ที่หัวโมดัลเท่านั้นถึงจะปิด -->
+    <div id="admin-modal" class="modal-overlay hidden">
       <div class="modal-box p-5 mt-10 mb-10">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-xl font-bold text-gray-800" data-t="admin">แอดมิน</h3>
@@ -542,7 +544,8 @@
       </div>
     </div>
 
-    <div id="unit-editor-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeUnitEditor()">
+    <!-- ไม่ปิดเมื่อแตะ/คลิกนอกกรอบ — เหตุผลเดียวกับ #admin-modal กันข้อมูลหน่วยที่กำลังกรอกหายไป -->
+    <div id="unit-editor-modal" class="modal-overlay hidden">
       <div class="modal-box p-5 mt-16 mb-10">
         <div class="flex items-center justify-between mb-1">
           <h3 class="text-lg font-bold text-gray-800">⚖️ จัดการหน่วย: <span id="unit-editor-item-name" class="text-indigo-600"></span></h3>
@@ -599,7 +602,8 @@
     </div>
 
     <!-- โมดัลดึงรายการสินค้าจากส่วนกลางเข้าสาขาที่กำลังดูอยู่ (ให้เลือกเป็นรายหมวดหมู่) -->
-    <div id="import-central-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeImportFromCentralModal()">
+    <!-- ไม่ปิดเมื่อแตะ/คลิกนอกกรอบ — กันตัวเลือกหมวดหมู่ที่ติ๊กไว้หายไปเฉยๆ -->
+    <div id="import-central-modal" class="modal-overlay hidden">
       <div class="modal-box p-5 mt-10 mb-10">
         <div class="flex items-center justify-between mb-1">
           <h3 class="text-lg font-bold text-gray-800">📥 ดึงรายการจากส่วนกลาง</h3>
