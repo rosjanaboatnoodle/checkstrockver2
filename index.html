@@ -3765,7 +3765,7 @@ async function editItemSku_(id, currentSku) {
  *  escape อักขระพิเศษถ้าฝัง url ตรงๆ ใน onclick */
 function itemPhotoIconHtml_(url) {
   if (!url) return '';
-  return `<span class="item-thumb-wrap" data-photo-url="${url}" onmouseenter="onItemThumbHover_(this)" ontouchstart="onItemThumbTouchStart_(this)" ontouchend="onItemThumbTouchEnd_(this)" ontouchcancel="onItemThumbTouchEnd_(this)">
+  return `<span class="item-thumb-wrap" data-photo-url="${url}" onmouseenter="onItemThumbHover_(this)" ontouchstart="onItemThumbTouchStart_(this)">
     <img src="icons/icon-photo.png" class="item-thumb-icon icon-img" title="ดูรูป" alt="ดูรูป" style="width:15px;height:15px;">
     <img class="item-thumb-zoom" loading="lazy">
   </span>`;
@@ -3796,7 +3796,6 @@ function onItemThumbHover_(el) {
   positionItemThumbZoom_(el);
   loadItemThumbZoom_(el);
 }
-let itemThumbLongPressTimer_ = null;
 let activeZoomWrap_ = null; // wrap ที่กำลังโชว์รูปขยายอยู่ตอนนี้ (ทางฝั่งทัช) — ใช้ปิดตอนแตะที่ไหนก็ได้
 function showItemThumbZoom_(wrapEl) {
   if (activeZoomWrap_ && activeZoomWrap_ !== wrapEl) activeZoomWrap_.classList.remove('show-zoom');
@@ -3806,18 +3805,16 @@ function showItemThumbZoom_(wrapEl) {
 function hideActiveItemThumbZoom_() {
   if (activeZoomWrap_) { activeZoomWrap_.classList.remove('show-zoom'); activeZoomWrap_ = null; }
 }
+/** แตะแปะเดียวโชว์รูปทันที (ไม่ต้องกดค้างรอ 350ms เหมือนเดิม — คนกดครั้งเดียวสั้นๆ แล้วไม่เห็นอะไรเลยเพราะ
+ *  ปล่อยนิ้วก่อนครบเวลา) ปิดด้วยการแตะที่ไหนก็ได้แทน (pointerdown ด้านล่าง) — pointerdown ของเบราว์เซอร์ยิง
+ *  ก่อน touchstart เสมอ เลยปิดตัวที่เปิดค้างไว้ก่อนหน้าได้ทันโดยไม่ไปปิดตัวที่เพิ่งกดเปิดในจังหวะเดียวกัน */
 function onItemThumbTouchStart_(el) {
   positionItemThumbZoom_(el);
   loadItemThumbZoom_(el);
-  itemThumbLongPressTimer_ = setTimeout(() => showItemThumbZoom_(el), 350);
+  showItemThumbZoom_(el);
 }
-function onItemThumbTouchEnd_(el) {
-  clearTimeout(itemThumbLongPressTimer_);
-  hideActiveItemThumbZoom_();
-}
-// แตะ/คลิกที่ไหนก็ได้บนหน้าจอ (รวมถึงรายการอื่น ไม่ใช่แค่ช่องกรอก) ปิดรูปขยายที่ค้างอยู่ทันที — เผื่อกรณี
-// touchend ของตัวที่กำลังโชว์อยู่ไม่ทำงานตามคาด (เช่นนิ้วลากหลุดจากไอคอนตอนปล่อย) capture:true ให้ทำงาน
-// ก่อน handler อื่นเสมอ ไม่บล็อก event ปกติ (ไม่เรียก preventDefault/stopPropagation)
+// แตะ/คลิกที่ไหนก็ได้บนหน้าจอ (รวมถึงรายการอื่น ไม่ใช่แค่ช่องกรอก) ปิดรูปขยายที่ค้างอยู่ทันที capture:true ให้
+// ทำงานก่อน handler อื่นเสมอ ไม่บล็อก event ปกติ (ไม่เรียก preventDefault/stopPropagation)
 document.addEventListener('pointerdown', hideActiveItemThumbZoom_, { capture: true });
 
 let pendingImageItemId_ = null; // id ของรายการที่กำลังจะอัพโหลดรูปให้ (ตั้งไว้ก่อนเปิด file picker)
