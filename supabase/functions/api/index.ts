@@ -155,6 +155,12 @@ async function handleUpdateBranch(p: Record<string, unknown>) {
       if (Array.isArray(parsed)) update.hidden_categories = parsed.map((c) => String(c));
     } catch { /* malformed — leave hidden_categories untouched rather than wipe it */ }
   }
+  if (p.hidden_items !== undefined) {
+    try {
+      const parsed = JSON.parse(String(p.hidden_items));
+      if (Array.isArray(parsed)) update.hidden_items = parsed.map((c) => String(c));
+    } catch { /* malformed — leave hidden_items untouched rather than wipe it */ }
+  }
   const { error } = await supabase.from("branches").update(update).eq("id", id);
   if (error) return json({ ok: false, error: error.message });
   await logAdmin("updateBranch", { id });
@@ -173,9 +179,32 @@ async function handleGetBranchCategories(p: Record<string, unknown>) {
   const categories = [...new Set(
     [...(central ?? []), ...(branchItems ?? [])].map((it) => it.category as string),
   )].sort();
-  const { data: branch } = await supabase.from("branches").select("hidden_categories").eq("id", branchId).maybeSingle();
+  const { data: branch } = await supabase.from("branches").select("hidden_categories, hidden_items").eq("id", branchId).maybeSingle();
   const hidden = (branch?.hidden_categories as string[] | null) ?? [];
-  return json({ ok: true, categories, hidden });
+  const hiddenItems = (branch?.hidden_items as string[] | null) ?? [];
+  return json({ ok: true, categories, hidden, hidden_items: hiddenItems });
+}
+
+// Hides (or unhides) one specific item from one branch's staff view, keyed by category+name rather
+// than item id — an item hidden this way is almost always the CENTRAL row (that's the whole point:
+// branches no longer need their own duplicate row, with its own disconnected photo/SKU, just to
+// opt out of one central item). Mirrors hidden_categories but at single-item granularity.
+async function handleSetItemHiddenForBranch(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const branchId = String(p.branch_id ?? "");
+  const category = String(p.category ?? "");
+  const name = String(p.name ?? "");
+  const hidden = String(p.hidden ?? "") === "true";
+  if (!branchId || !category || !name) return json({ ok: false, error: "missing_fields" });
+  const { data: branch } = await supabase.from("branches").select("hidden_items").eq("id", branchId).maybeSingle();
+  const key = `${category}||${name}`;
+  let list = ((branch?.hidden_items as string[] | null) ?? []).slice();
+  if (hidden) { if (!list.includes(key)) list.push(key); }
+  else { list = list.filter((k) => k !== key); }
+  const { error } = await supabase.from("branches").update({ hidden_items: list }).eq("id", branchId);
+  if (error) return json({ ok: false, error: error.message });
+  await logAdmin("setItemHiddenForBranch", { branchId, key, hidden });
+  return json({ ok: true, hidden_items: list });
 }
 
 async function handleDeleteBranch(p: Record<string, unknown>) {
@@ -203,24 +232,25 @@ async function handleChangeAdminPassword(p: Record<string, unknown>) {
 
 function rowIsCentral(branchId: string | null) { return branchId === null || branchId === ""; }
 
-async function handleListItems(p: Record<string, unknown>) {
-  const branchId = String(p.branch_id ?? "");
-  const { data: central } = await supabase.from("items").select("*").is("branch_id", null).eq("active", true);
-  const { data: branchItems } = branchId
-    ? await supabase.from("items").select("*").eq("branch_id", branchId).eq("active", true)
-    : { data: [] as Record<string, unknown>[] };
+function itemKey_(it: Record<string, unknown>) { return `${it.category}||${it.name}`; }
+
+// Shared by the staff-facing merged catalog and the branch-scoped admin item list, so both agree
+// on exactly the same "what does this branch actually have" view: central items, with any
+// same-name branch-owned row overriding them (sort position still follows the central row, so a
+// branch missing a sort_order override still lines up with every other branch's ordering).
+function mergeItemsForBranch_(central: Record<string, unknown>[], branchItems: Record<string, unknown>[]) {
   const byKey = new Map<string, Record<string, unknown>>();
   const centralOrder = new Map<string, number>();
-  for (const it of central ?? []) {
-    const key = `${it.category}||${it.name}`;
+  for (const it of central) {
+    const key = itemKey_(it);
     byKey.set(key, it);
     centralOrder.set(key, it.sort_order as number);
   }
-  for (const it of branchItems ?? []) {
+  for (const it of branchItems) {
     // A branch row overrides the central one for this name, but it shouldn't blank out a photo/SKU
     // that only exists on the central row — a branch override is usually just "this branch also
     // stocks this item", not a deliberate wipe of fields nobody touched on the branch copy.
-    const key = `${it.category}||${it.name}`;
+    const key = itemKey_(it);
     const centralIt = byKey.get(key);
     if (centralIt) {
       if (!it.image_url && centralIt.image_url) it.image_url = centralIt.image_url;
@@ -228,41 +258,53 @@ async function handleListItems(p: Record<string, unknown>) {
     }
     byKey.set(key, it);
   }
+  return [...byKey.values()].sort((a, b) => {
+    const keyA = itemKey_(a), keyB = itemKey_(b);
+    const oa = centralOrder.get(keyA) ?? (a.sort_order as number);
+    const ob = centralOrder.get(keyB) ?? (b.sort_order as number);
+    // created_at (insertion order) as a tiebreaker — not name: items are deliberately grouped
+    // into physical/work zones by drag-reorder, not alphabetically, and most share sort_order 0
+    // (the default for anything added one at a time) without ever having been dragged. Insertion
+    // order stays stable across requests without imposing an ordering nobody asked for.
+    return oa - ob || String(a.created_at).localeCompare(String(b.created_at));
+  });
+}
+
+async function handleListItems(p: Record<string, unknown>) {
+  const branchId = String(p.branch_id ?? "");
+  const { data: central } = await supabase.from("items").select("*").is("branch_id", null).eq("active", true);
+  const { data: branchItems } = branchId
+    ? await supabase.from("items").select("*").eq("branch_id", branchId).eq("active", true)
+    : { data: [] as Record<string, unknown>[] };
 
   let hiddenCategories: string[] = [];
+  let hiddenItems: string[] = [];
   if (branchId) {
-    const { data: branch } = await supabase.from("branches").select("hidden_categories").eq("id", branchId).maybeSingle();
+    const { data: branch } = await supabase.from("branches").select("hidden_categories, hidden_items").eq("id", branchId).maybeSingle();
     hiddenCategories = (branch?.hidden_categories as string[] | null) ?? [];
+    hiddenItems = (branch?.hidden_items as string[] | null) ?? [];
   }
-  const items = [...byKey.values()]
-    .filter((it) => !hiddenCategories.includes(it.category as string))
-    .sort((a, b) => {
-      // A branch override keeps the CENTRAL item's position when one exists, so a branch missing
-      // some items still shows the rest in the same relative order as every other branch — only
-      // an item with no central counterpart at all falls back to its own (branch-local) order.
-      const keyA = `${a.category}||${a.name}`, keyB = `${b.category}||${b.name}`;
-      const oa = centralOrder.get(keyA) ?? (a.sort_order as number);
-      const ob = centralOrder.get(keyB) ?? (b.sort_order as number);
-      // created_at (insertion order) as a tiebreaker — not name: items are deliberately grouped
-      // into physical/work zones by drag-reorder, not alphabetically, and most share sort_order 0
-      // (the default for anything added one at a time) without ever having been dragged. Insertion
-      // order stays stable across requests without imposing an ordering nobody asked for.
-      return oa - ob || String(a.created_at).localeCompare(String(b.created_at));
-    });
+  const items = mergeItemsForBranch_(central ?? [], branchItems ?? [])
+    .filter((it) => !hiddenCategories.includes(it.category as string) && !hiddenItems.includes(itemKey_(it)));
   return json({ ok: true, items });
 }
 
 async function handleListItemsAdmin(p: Record<string, unknown>) {
   if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
   const scope = String(p.scope ?? "");
-  // Secondary sort by created_at (insertion order) breaks ties deterministically — a lot of items
-  // share the same sort_order (0, the default for anything added one at a time instead of via
-  // bulk-seed), and without a tiebreaker Postgres doesn't guarantee the same order across
-  // requests, so the list visibly reshuffled on every reload even when nothing changed. Insertion
-  // order rather than name, since items are grouped into zones by drag-reorder, not alphabetized.
-  const q = supabase.from("items").select("*").eq("active", true).order("sort_order").order("created_at");
-  const { data } = rowIsCentral(scope) ? await q.is("branch_id", null) : await q.eq("branch_id", scope);
-  return json({ ok: true, items: data ?? [] });
+  if (rowIsCentral(scope)) {
+    const { data } = await supabase.from("items").select("*").eq("active", true).is("branch_id", null)
+      .order("sort_order").order("created_at");
+    return json({ ok: true, items: data ?? [] });
+  }
+  // A branch's admin item list shows the exact same merged view staff see (central ∪ this
+  // branch's own overrides) rather than just this branch's own rows — so editing a photo/SKU/name
+  // here always lands on the one real row behind it (the central row, when there is one), instead
+  // of silently creating a separate copy that only this branch's staff page would ever see.
+  const { data: central } = await supabase.from("items").select("*").eq("active", true).is("branch_id", null);
+  const { data: branchItems } = await supabase.from("items").select("*").eq("active", true).eq("branch_id", scope);
+  const items = mergeItemsForBranch_(central ?? [], branchItems ?? []);
+  return json({ ok: true, items });
 }
 
 async function handleSaveItem(p: Record<string, unknown>) {
@@ -1508,6 +1550,7 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   updateBranch: handleUpdateBranch,
   deleteBranch: handleDeleteBranch,
   getBranchCategories: handleGetBranchCategories,
+  setItemHiddenForBranch: handleSetItemHiddenForBranch,
   changeAdminPassword: handleChangeAdminPassword,
   listItems: handleListItems,
   listItemsAdmin: handleListItemsAdmin,

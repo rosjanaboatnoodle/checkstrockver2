@@ -53,7 +53,9 @@
        หรือกดค้าง (มือถือ) ครั้งแรก กันหน้าที่มีเป็นพันรายการโหลดรูปพร้อมกันหมดจนช้า */
     .item-thumb-wrap{ position:relative; display:inline-block; }
     .item-thumb-icon{ cursor:pointer; }
-    .item-thumb-zoom{ display:none; position:absolute; top:0; left:22px; z-index:80; max-width:320px; max-height:320px; width:auto; height:auto; background:white; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); border:2px solid white; }
+    /* position:fixed (คำนวณพิกัดจาก JS ตอนจะโชว์) ไม่ใช่ absolute — กันโดนตัดโดย overflow:hidden
+       ของตารางเช็คสต็อก/แถวในโมดัลแอดมิน และรับประกันว่าลอยทับคอลัมน์อื่นได้เสมอ */
+    .item-thumb-zoom{ display:none; position:fixed; z-index:9999; max-width:320px; max-height:320px; width:auto; height:auto; background:white; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); border:2px solid white; }
     .item-thumb-wrap:hover .item-thumb-zoom{ display:block; }
     .item-thumb-wrap.show-zoom .item-thumb-zoom{ display:block; }
     /* ไอคอน PNG (เส้นสีดำ พื้นหลังโปร่งใส) ใช้แทนอิโมจิในบางจุด — สลับเป็นสีขาวอัตโนมัติในธีมมืด */
@@ -1272,8 +1274,8 @@ function renderStockTable() {
       <tr class="slide-in hover:bg-orange-50 transition-colors" style="animation-delay:${index*20}ms" data-stock-row="${item.name}">
         <td class="px-4 py-3">
           <div class="flex items-center gap-2">
-            <span class="font-medium text-gray-800">${tItem(item.name)}</span>
             ${itemPhotoIconHtml_(item.image_url)}
+            <span class="font-medium text-gray-800">${tItem(item.name)}</span>
           </div>
         </td>
         <td class="px-4 py-3" data-label="${t('quantity')||'จำนวน'}">
@@ -2782,6 +2784,7 @@ let adminOpenCategories = new Set(); // จำหมวดที่เปิด�
    รีเซ็ตตอนเปิด admin modal ใหม่ทุกครั้ง เพื่อยังได้ข้อมูลสดอย่างน้อย 1 ครั้งต่อเซสชัน */
 let adminItemsLoadedScope = null; // scope ที่ adminScopeItems โหลดล่าสุด (null = ยังไม่เคยโหลด)
 let adminScopeHidden = []; // หมวดที่ถูกซ่อนไว้สำหรับสาขาที่กำลังดูอยู่ (branch scope เท่านั้น ส่วนกลาง = [])
+let adminScopeHiddenItems = []; // รายการเดี่ยว (category||name) ที่ถูกซ่อนไว้สำหรับสาขาที่กำลังดูอยู่
 let branchesLoaded = false;
 let bufferConfigLoaded = false;
 let reorderConfigLoaded = false;
@@ -2831,10 +2834,11 @@ async function renderAdminItemsTab(prefetchItems, prefetchScope) {
     adminItemsLoadedScope = adminItemScope;
   } catch (e) { adminScopeItems = []; }
   adminScopeHidden = [];
+  adminScopeHiddenItems = [];
   if (adminItemScope) {
     try {
       const hres = await jsonpGet('getBranchCategories', { password: adminPassword, branch_id: adminItemScope });
-      if (hres && hres.ok) adminScopeHidden = hres.hidden || [];
+      if (hres && hres.ok) { adminScopeHidden = hres.hidden || []; adminScopeHiddenItems = hres.hidden_items || []; }
     } catch (e) {}
   }
   renderAdminItemsTabFromCache_();
@@ -2905,12 +2909,26 @@ function renderAdminItemsTabFromCache_() {
   adminByCatCache = byCat; // เก็บไว้ใช้ตอนลากจัดลำดับ ไม่ต้องคำนวณซ้ำ
   const catNames = Object.keys(byCat);
 
-  const itemRowHtml = (it) => `
+  const itemRowHtml = (it) => {
+    // รายการที่มาจากส่วนกลาง (branch_id ว่าง) ตอนดูสโคปของสาขา — แก้ไข/อัปโหลดรูป/SKU ตรงนี้ลงที่แถวส่วน
+    // กลางแถวเดียวกันจริงๆ เลย (ลิงค์กันทุกสาขาทันที) ส่วนปุ่ม "ลบ" ของแถวแบบนี้เปลี่ยนเป็น "ซ่อนจากสาขานี้"
+    // แทน เพราะกดลบจริงจะลบออกจากส่วนกลาง กระทบทุกสาขา ไม่ใช่แค่สาขาที่กำลังดูอยู่
+    const isCentralRowInBranchScope = !!adminItemScope && (it.branch_id === null || it.branch_id === undefined);
+    const itemKey = `${it.category}||${it.name}`;
+    const isHiddenFromBranch = isCentralRowInBranchScope && adminScopeHiddenItems.includes(itemKey);
+    const catEsc = it.category.replace(/'/g,"\\'");
+    const nameEsc = it.name.replace(/'/g,"\\'");
+    const removeBtnHtml = isCentralRowInBranchScope
+      ? (isHiddenFromBranch
+          ? `<button onclick="unhideItemFromBranch_('${catEsc}', '${nameEsc}')" class="text-indigo-600 text-xs font-semibold">เลิกซ่อน</button>`
+          : `<button onclick="hideItemFromBranch_('${catEsc}', '${nameEsc}')" class="text-red-500 text-xs">ซ่อนจากสาขานี้</button>`)
+      : `<button onclick="removeItem('${it.id}')" class="text-red-500 text-xs">${t('delete')}</button>`;
+    return `
     <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-100" data-item-row data-item-id="${it.id}" data-category="${it.category.replace(/"/g,'&quot;')}">
       <div class="flex items-center gap-1 min-w-0">
         <span class="text-gray-300 text-base px-1 select-none" style="touch-action:none;cursor:grab;" onpointerdown="onItemDragStart_(event, this)">⠿</span>
         ${itemPhotoIconHtml_(it.image_url)}
-        <span class="truncate ${String(it.is_header).toUpperCase() === 'TRUE' ? 'font-semibold' : ''}">${it.name} ${it.unit ? '· '+it.unit : ''} ${unitConfig[it.name] ? `<span class="text-xs text-indigo-600">(หน่วยหลัก: ${unitConfig[it.name].primary})</span>` : ''}${it.sku ? ` <span class="text-xs text-gray-400">· ${it.sku}</span>` : ''}</span>
+        <span class="truncate ${String(it.is_header).toUpperCase() === 'TRUE' ? 'font-semibold' : ''}">${it.name} ${it.unit ? '· '+it.unit : ''} ${unitConfig[it.name] ? `<span class="text-xs text-indigo-600">(หน่วยหลัก: ${unitConfig[it.name].primary})</span>` : ''}${it.sku ? ` <span class="text-xs text-gray-400">· ${it.sku}</span>` : ''}${isHiddenFromBranch ? ` <span class="text-xs font-normal text-amber-600">🙈 ซ่อนจากสาขานี้</span>` : ''}</span>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
         <button onclick="renameItem_('${it.id}', '${it.name.replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขชื่อ">✏️</button>
@@ -2919,9 +2937,10 @@ function renderAdminItemsTabFromCache_() {
           <button onclick="editItemSku_('${it.id}', '${(it.sku||'').replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขบาร์โค้ด/SKU"><img src="icons/icon-barcode.png" class="icon-img" alt="แก้ไขบาร์โค้ด/SKU" style="width:14px;height:14px;"></button>
           <button onclick="pickItemImage_('${it.id}')" class="text-gray-500 hover:text-gray-700 text-xs" title="อัปโหลดรูป"><img src="icons/icon-upload.png" class="icon-img" alt="อัปโหลดรูป" style="width:14px;height:14px;"></button>
         `}
-        <button onclick="removeItem('${it.id}')" class="text-red-500 text-xs">${t('delete')}</button>
+        ${removeBtnHtml}
       </div>
     </div>`;
+  };
 
   html += `
     <p class="text-xs text-gray-400 mb-2">กดชื่อหมวดเพื่อเปิด/หุบ · กดค้างที่ ⠿ แล้วลากขึ้น/ลงเพื่อเรียงลำดับ</p>
@@ -3541,29 +3560,29 @@ async function submitNewItem() {
     return;
   }
 
-  // เพิ่มจากสโคปสาขาใดสาขาหนึ่ง — เพิ่มให้ทุกสาขาที่ติ๊กเลือกไว้ (ค่าเริ่มต้นติ๊กแค่สาขาที่กำลังดูอยู่)
+  // เพิ่มจากสโคปสาขาใดสาขาหนึ่ง — ตั้งแต่นี้สร้างเป็นรายการ "ส่วนกลาง" รายการเดียวเสมอ (ไม่สร้างแถวซ้ำแยกราย
+  // สาขาแบบเดิมอีกต่อไป) แล้วซ่อนจากสาขาที่ไม่ได้ติ๊กไว้แทน รูป/บาร์โค้ดที่อัปเดตทีหลังจะได้ลิงค์กันทุกสาขา
+  // ทันที ไม่ต้องอัปโหลดซ้ำทีละสาขาเหมือนก่อนหน้านี้
   const targetBranches = [...document.querySelectorAll('[data-new-item-branch]:checked')].map(cb => cb.value);
   if (!targetBranches.length) { showToast('เลือกอย่างน้อย 1 สาขา', 'error'); return; }
-  let anyOk = false;
-  for (const branchId of targetBranches) {
-    try {
-      const res = await jsonpGet('saveItem', { password: adminPassword, category, name, unit, sku, is_header: isHeader ? 'TRUE':'FALSE', branch_id: branchId });
-      if (res && res.ok) {
-        anyOk = true;
-        if (branchId === adminItemScope) adminScopeItems.push(res.item); // โชว์ในรายการสโคปที่กำลังดูอยู่ทันที
-        addToCentralCatalog(res.item);
-      } else {
-        showToast(`เพิ่มให้สาขา ${branches.find(b=>b.id===branchId)?.name || branchId} ไม่สำเร็จ`, 'error');
-      }
-    } catch (e) {
-      showToast(`เพิ่มให้สาขา ${branches.find(b=>b.id===branchId)?.name || branchId} ไม่สำเร็จ`, 'error');
+  notifyOncePerDay_('add_linked_to_central', 'รายการที่เพิ่มจะถูกสร้างเป็นรายการส่วนกลางรายการเดียว (รูป/บาร์โค้ดใช้ร่วมกันทุกสาขาที่ติ๊กไว้) แล้วซ่อนจากสาขาที่ไม่ได้ติ๊ก');
+  try {
+    const res = await jsonpGet('saveItem', { password: adminPassword, category, name, unit, sku, is_header: isHeader ? 'TRUE':'FALSE', branch_id: '' });
+    if (!res || !res.ok) {
+      showToast(res && res.error === 'duplicate_name' ? 'มีรายการนี้ (หมวด+ชื่อ) อยู่แล้วในส่วนกลาง' : t('error'), 'error');
+      return;
     }
-  }
-  if (anyOk) {
+    addToCentralCatalog(res.item);
+    if (targetBranches.includes(adminItemScope)) adminScopeItems.push(res.item); // โชว์ในสโคปที่กำลังดูอยู่ทันที ถ้าติ๊กไว้
+    const uncheckedBranches = branches.filter(b => !targetBranches.includes(b.id));
+    for (const b of uncheckedBranches) {
+      try { await jsonpGet('setItemHiddenForBranch', { password: adminPassword, branch_id: b.id, category, name, hidden: 'true' }); }
+      catch (e) { /* ไม่ critical พอ รายการยังสร้างสำเร็จ แค่สาขานั้นอาจยังเห็นอยู่ ซ่อนเพิ่มทีหลังได้ */ }
+    }
     catalogDirty = true;
     renderAdminItemsTabFromCache_();
     showToast(t('saveOk'),'success');
-  }
+  } catch (e) { showToast(t('error'),'error'); }
 }
 
 async function removeItem(id) {
@@ -3581,6 +3600,35 @@ async function removeItem(id) {
       }
     } else showToast(t('wrongPassword'),'error');
   } catch(e){ showToast(t('error'),'error'); }
+}
+
+/** ซ่อน/เลิกซ่อนรายการเดี่ยว (ที่มาจากส่วนกลาง) จากสาขาที่กำลังดูอยู่ — ใช้แทนปุ่ม "ลบ" สำหรับรายการแบบนี้
+ *  เพราะลบจริงจะลบออกจากส่วนกลาง กระทบทุกสาขา ส่วนซ่อนกระทบแค่สาขานี้ รูป/SKU ของรายการยังอยู่เหมือนเดิม
+ *  ไม่ต้องสร้างสำเนาแยกต่างหาก */
+async function hideItemFromBranch_(category, name) {
+  if (!adminItemScope) return;
+  if (!confirm(`ซ่อน "${name}" จากสาขานี้? (รายการยังอยู่ในส่วนกลางเหมือนเดิม แค่สาขานี้จะไม่เห็น)`)) return;
+  try {
+    const res = await jsonpGet('setItemHiddenForBranch', { password: adminPassword, branch_id: adminItemScope, category, name, hidden: 'true' });
+    if (res && res.ok) {
+      adminScopeHiddenItems = res.hidden_items || [];
+      renderAdminItemsTabFromCache_();
+      if (currentBranchId === adminItemScope) await loadCatalog();
+      showToast('ซ่อนจากสาขานี้แล้ว', 'success');
+    } else showToast(t('wrongPassword'),'error');
+  } catch (e) { showToast(t('error'),'error'); }
+}
+async function unhideItemFromBranch_(category, name) {
+  if (!adminItemScope) return;
+  try {
+    const res = await jsonpGet('setItemHiddenForBranch', { password: adminPassword, branch_id: adminItemScope, category, name, hidden: 'false' });
+    if (res && res.ok) {
+      adminScopeHiddenItems = res.hidden_items || [];
+      renderAdminItemsTabFromCache_();
+      if (currentBranchId === adminItemScope) await loadCatalog();
+      showToast('เลิกซ่อนแล้ว', 'success');
+    } else showToast(t('wrongPassword'),'error');
+  } catch (e) { showToast(t('error'),'error'); }
 }
 
 /** อัปเดตข้อมูลรายการในแคตตาล็อกกลาง (catalogFlat กับ catalogByCategory ใช้ object เดียวกันอยู่แล้ว
@@ -3624,12 +3672,30 @@ function loadItemThumbZoom_(wrapEl) {
   const url = wrapEl.dataset.photoUrl;
   if (img && url && !img.src) img.src = url; // ตั้ง src แค่ครั้งแรกเท่านั้น — นี่คือจุดที่รูปเริ่มโหลดจริงๆ
 }
+/** คำนวณพิกัดจริงบนจอ (ไอคอนอยู่ตรงไหนก็ตาม ไม่ว่าจะอยู่ในตารางที่มี overflow:hidden หรือโมดัลแอดมิน)
+ *  แล้วค่อยวางรูป position:fixed ไว้ตรงนั้น กันไม่ให้โดนตัดโดยคอลัมน์/กรอบข้างเคียง และเด้งไปอีกด้าน
+ *  ถ้าจะล้นขอบจอ */
+function positionItemThumbZoom_(wrapEl) {
+  const icon = wrapEl.querySelector('.item-thumb-icon');
+  const zoomEl = wrapEl.querySelector('.item-thumb-zoom');
+  if (!icon || !zoomEl) return;
+  const rect = icon.getBoundingClientRect();
+  const margin = 8, boxSize = 320;
+  let left = rect.right + margin;
+  if (left + boxSize > window.innerWidth) left = Math.max(margin, rect.left - boxSize - margin);
+  let top = rect.top;
+  if (top + boxSize > window.innerHeight) top = Math.max(margin, window.innerHeight - boxSize - margin);
+  zoomEl.style.left = left + 'px';
+  zoomEl.style.top = top + 'px';
+}
 /** เอาเมาส์ชี้ (คอม) โหลด+โชว์รูปทันที — กดค้าง (มือถือ ไม่มี hover) เพื่อขยายดูรูปเต็มชั่วคราว */
 function onItemThumbHover_(el) {
+  positionItemThumbZoom_(el);
   loadItemThumbZoom_(el);
 }
 let itemThumbLongPressTimer_ = null;
 function onItemThumbTouchStart_(el) {
+  positionItemThumbZoom_(el);
   loadItemThumbZoom_(el);
   itemThumbLongPressTimer_ = setTimeout(() => el.classList.add('show-zoom'), 350);
 }
