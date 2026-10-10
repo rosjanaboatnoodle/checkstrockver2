@@ -49,9 +49,11 @@
     html[data-theme="dark"] .confirm-box{ background:#1f242b; color:#e5e7eb; }
     /* ไฮไลท์แถวที่สแกนบาร์โค้ดเจอ ชั่วคราวให้เห็นชัดว่าเลื่อนมาถึงตัวไหน */
     .scan-highlight{ outline:3px solid #f97316; outline-offset:2px; transition:outline-color .3s; }
-    /* รูปย่อในหน้าจัดการสินค้า — เอาเมาส์ชี้ (คอม) หรือกดค้าง (มือถือ) เพื่อขยายดูรูปเต็ม */
+    /* ไอคอนดูรูปสินค้า — ใช้ทั้งหน้าจัดการสินค้าและหน้าเช็คสต็อก ไม่โหลดรูปเลยจนกว่าจะเอาเมาส์ชี้ (คอม)
+       หรือกดค้าง (มือถือ) ครั้งแรก กันหน้าที่มีเป็นพันรายการโหลดรูปพร้อมกันหมดจนช้า */
     .item-thumb-wrap{ position:relative; display:inline-block; }
-    .item-thumb-zoom{ display:none; position:absolute; top:0; left:34px; z-index:80; max-width:320px; max-height:320px; width:auto; height:auto; background:white; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); border:2px solid white; }
+    .item-thumb-icon{ cursor:pointer; }
+    .item-thumb-zoom{ display:none; position:absolute; top:0; left:22px; z-index:80; max-width:320px; max-height:320px; width:auto; height:auto; background:white; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); border:2px solid white; }
     .item-thumb-wrap:hover .item-thumb-zoom{ display:block; }
     .item-thumb-wrap.show-zoom .item-thumb-zoom{ display:block; }
     .admin-tab{ padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;color:#6b7280; }
@@ -1268,9 +1270,8 @@ function renderStockTable() {
         <td class="px-4 py-3">
           <div class="flex items-center gap-2">
             <span class="font-medium text-gray-800">${tItem(item.name)}</span>
-            ${item.image_url ? `<button type="button" onclick="toggleStockItemPhoto_(this, '${item.image_url}')" class="text-gray-400 hover:text-gray-600 text-sm flex-shrink-0" title="ดูรูป">🖼️</button>` : ''}
+            ${itemPhotoIconHtml_(item.image_url)}
           </div>
-          <div class="stock-photo-slot hidden mt-2"></div>
         </td>
         <td class="px-4 py-3" data-label="${t('quantity')||'จำนวน'}">
           <div class="flex items-center gap-2">
@@ -1299,19 +1300,6 @@ function renderStockTable() {
     index++;
   });
   tbody.innerHTML = html;
-}
-
-/** เปิด/ปิดรูปสินค้าแบบขยายอยู่ในแถวเดิม (ไม่เด้ง popup) — ไม่โหลดรูปเลยจนกว่าจะกดดูครั้งแรก
- *  กดซ้ำแค่ซ่อน/โชว์ ไม่โหลดรูปซ้ำ จะได้ไม่หน่วงตอนเปิดหน้าเช็คสต็อกที่มีเป็นร้อยเป็นพันรายการ */
-function toggleStockItemPhoto_(btn, url) {
-  const slot = btn.closest('td').querySelector('.stock-photo-slot');
-  if (!slot) return;
-  if (!slot.classList.contains('hidden')) { slot.classList.add('hidden'); return; }
-  slot.classList.remove('hidden');
-  if (!slot.dataset.loaded) {
-    slot.innerHTML = `<img src="${url}" class="rounded-lg border border-gray-200" style="max-width:140px;max-height:140px;object-fit:cover;">`;
-    slot.dataset.loaded = '1';
-  }
 }
 
 /* ปุ่มแปลภาษา — เรียก Gemini ผ่าน Apps Script middleware
@@ -2915,11 +2903,7 @@ function renderAdminItemsTabFromCache_() {
     <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-100" data-item-row data-item-id="${it.id}" data-category="${it.category.replace(/"/g,'&quot;')}">
       <div class="flex items-center gap-1 min-w-0">
         <span class="text-gray-300 text-base px-1 select-none" style="touch-action:none;cursor:grab;" onpointerdown="onItemDragStart_(event, this)">⠿</span>
-        ${it.image_url ? `
-          <span class="item-thumb-wrap" ontouchstart="onItemThumbTouchStart_(this)" ontouchend="onItemThumbTouchEnd_(this)" ontouchcancel="onItemThumbTouchEnd_(this)">
-            <img src="${it.image_url}" loading="lazy" style="width:28px;height:28px;border-radius:6px;object-fit:cover;flex-shrink:0;">
-            <img src="${it.image_url}" class="item-thumb-zoom" loading="lazy">
-          </span>` : ''}
+        ${itemPhotoIconHtml_(it.image_url)}
         <span class="truncate ${String(it.is_header).toUpperCase() === 'TRUE' ? 'font-semibold' : ''}">${it.name} ${it.unit ? '· '+it.unit : ''} ${unitConfig[it.name] ? `<span class="text-xs text-indigo-600">(หน่วยหลัก: ${unitConfig[it.name].primary})</span>` : ''}${it.sku ? ` <span class="text-xs text-gray-400">· ${it.sku}</span>` : ''}</span>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
@@ -3619,9 +3603,28 @@ async function editItemSku_(id, currentSku) {
   } catch (e) { showToast(t('error'), 'error'); }
 }
 
-/** กดค้างที่รูปย่อ (มือถือ ไม่มี hover) เพื่อขยายดูรูปเต็มชั่วคราว — ฝั่งคอมใช้ :hover ล้วนๆ ไม่ต้องพึ่ง JS เลย */
+/** ไอคอน "ดูรูป" ใช้ร่วมกันทั้งหน้าจัดการสินค้าและหน้าเช็คสต็อก — ไม่มี <img src> ตั้งไว้ล่วงหน้าเลย
+ *  (ไม่โหลดรูปจนกว่าจะเอาเมาส์ชี้/กดค้างครั้งแรก) ส่งแค่ url ไว้ใน data attribute เพื่อหลีกเลี่ยงปัญหา
+ *  escape อักขระพิเศษถ้าฝัง url ตรงๆ ใน onclick */
+function itemPhotoIconHtml_(url) {
+  if (!url) return '';
+  return `<span class="item-thumb-wrap" data-photo-url="${url}" onmouseenter="onItemThumbHover_(this)" ontouchstart="onItemThumbTouchStart_(this)" ontouchend="onItemThumbTouchEnd_(this)" ontouchcancel="onItemThumbTouchEnd_(this)">
+    <span class="item-thumb-icon text-gray-400 text-sm" title="ดูรูป">🖼️</span>
+    <img class="item-thumb-zoom" loading="lazy">
+  </span>`;
+}
+function loadItemThumbZoom_(wrapEl) {
+  const img = wrapEl.querySelector('.item-thumb-zoom');
+  const url = wrapEl.dataset.photoUrl;
+  if (img && url && !img.src) img.src = url; // ตั้ง src แค่ครั้งแรกเท่านั้น — นี่คือจุดที่รูปเริ่มโหลดจริงๆ
+}
+/** เอาเมาส์ชี้ (คอม) โหลด+โชว์รูปทันที — กดค้าง (มือถือ ไม่มี hover) เพื่อขยายดูรูปเต็มชั่วคราว */
+function onItemThumbHover_(el) {
+  loadItemThumbZoom_(el);
+}
 let itemThumbLongPressTimer_ = null;
 function onItemThumbTouchStart_(el) {
+  loadItemThumbZoom_(el);
   itemThumbLongPressTimer_ = setTimeout(() => el.classList.add('show-zoom'), 350);
 }
 function onItemThumbTouchEnd_(el) {
