@@ -2920,8 +2920,8 @@ function renderAdminItemsTabFromCache_() {
     const nameEsc = it.name.replace(/'/g,"\\'");
     const removeBtnHtml = isCentralRowInBranchScope
       ? (isHiddenFromBranch
-          ? `<button onclick="unhideItemFromBranch_('${catEsc}', '${nameEsc}')" class="text-indigo-600 text-xs font-semibold">เลิกซ่อน</button>`
-          : `<button onclick="hideItemFromBranch_('${catEsc}', '${nameEsc}')" class="text-red-500 text-xs">ซ่อนจากสาขานี้</button>`)
+          ? `<button onclick="unhideItemFromBranch_('${catEsc}', '${nameEsc}')" class="text-indigo-600 text-xs" title="เลิกซ่อน"><img src="icons/icon-eye-open.png" class="icon-img" alt="เลิกซ่อน" style="width:14px;height:14px;"></button>`
+          : `<button onclick="hideItemFromBranch_('${catEsc}', '${nameEsc}')" class="text-red-500 text-xs" title="ซ่อนจากสาขานี้"><img src="icons/icon-eye-slash.png" class="icon-img" alt="ซ่อนจากสาขานี้" style="width:14px;height:14px;"></button>`)
       : `<button onclick="removeItem('${it.id}')" class="text-red-500 text-xs">${t('delete')}</button>`;
     return `
     <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-100" data-item-row data-item-id="${it.id}" data-category="${it.category.replace(/"/g,'&quot;')}">
@@ -3528,6 +3528,19 @@ function notifyOncePerDay_(key, message) {
   alert(message);
 }
 
+/** เหมือน notifyOncePerDay_ แต่ใช้กับ confirm() — ถามจริงแค่ครั้งแรกของวัน (ไม่ว่ารายการไหน) หลังจากนั้น
+ *  ถือว่ายืนยันแล้วทำต่อได้เลยไม่ต้องถามซ้ำ (กดยืนยันไปแล้วครั้งหนึ่งถือว่าเข้าใจผลที่ตามมาแล้ว) */
+function confirmOncePerDay_(key, message) {
+  const storageKey = 'confirmed_' + key;
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    if (localStorage.getItem(storageKey) === today) return true;
+  } catch (e) {}
+  const ok = confirm(message);
+  if (ok) { try { localStorage.setItem(storageKey, today); } catch (e) {} }
+  return ok;
+}
+
 async function submitNewItem() {
   const category = document.getElementById('new-item-category').value.trim();
   const name = document.getElementById('new-item-name').value.trim();
@@ -3607,7 +3620,7 @@ async function removeItem(id) {
  *  ไม่ต้องสร้างสำเนาแยกต่างหาก */
 async function hideItemFromBranch_(category, name) {
   if (!adminItemScope) return;
-  if (!confirm(`ซ่อน "${name}" จากสาขานี้? (รายการยังอยู่ในส่วนกลางเหมือนเดิม แค่สาขานี้จะไม่เห็น)`)) return;
+  if (!confirmOncePerDay_('hide_item_from_branch', `ซ่อน "${name}" จากสาขานี้? (รายการยังอยู่ในส่วนกลางเหมือนเดิม แค่สาขานี้จะไม่เห็น)`)) return;
   try {
     const res = await jsonpGet('setItemHiddenForBranch', { password: adminPassword, branch_id: adminItemScope, category, name, hidden: 'true' });
     if (res && res.ok) {
