@@ -73,6 +73,16 @@
       /* จอคอมมีที่ว่างเยอะ แถวห่างกว่ามือถือมาก ไอคอนขนาดเดิม 20px เลยดูเล็กจนแทบมองไม่ออกว่าคืออะไร */
       .item-thumb-icon, .item-row-action-icon{ width:28px; height:28px; }
     }
+    /* ปุ่ม ⋮ ซ่อน/โชว์ไอคอน แก้ไขชื่อ/หน่วย/บาร์โค้ด/ลบ ในแถวรายการสินค้า — เฉพาะมือถือแนวตั้งเท่านั้น (จอแคบสุด
+       ไอคอนพวกนี้แน่นเกินไป) แนวนอนหรือจอกว้างกว่านี้ (รวมไอแพด/แล็ปท็อป/คอม) โชว์ไอคอนปกติเหมือนเดิมหมด ไม่ซ่อน */
+    .item-row-overflow-toggle{ display:none; cursor:pointer; font-size:18px; line-height:1; padding:4px 6px; font-weight:700; }
+    @media (max-width: 767px) and (orientation: portrait) {
+      .item-row-overflow-toggle{ display:inline-flex; align-items:center; justify-content:center; }
+      /* ซ่อนไว้เป็น position:fixed ลอยเป็นเมนูป็อปอัพ แทนที่จะโชว์อินไลน์แล้วดันแถวให้ล้นจอแคบๆ */
+      .item-row-collapsible-icons{ display:none; position:fixed; z-index:9999; background:white; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.35); padding:10px; gap:14px !important; }
+      .item-row-collapsible-icons.show-overflow-menu{ display:flex; }
+    }
+    html[data-theme="dark"] .item-row-collapsible-icons{ background:#1f242b; }
     /* position:fixed (คำนวณพิกัดจาก JS ตอนจะโชว์) ไม่ใช่ absolute — กันโดนตัดโดย overflow:hidden
        ของตารางเช็คสต็อก/แถวในโมดัลแอดมิน และรับประกันว่าลอยทับคอลัมน์อื่นได้เสมอ */
     .item-thumb-zoom{ display:none; position:fixed; z-index:9999; max-width:320px; max-height:320px; width:auto; height:auto; background:white; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); border:2px solid white; }
@@ -2997,14 +3007,17 @@ function renderAdminItemsTabFromCache_() {
         ${itemPhotoIconHtml_(it.image_url)}
         <span class="truncate ${String(it.is_header).toUpperCase() === 'TRUE' ? 'font-semibold' : ''}">${it.name} ${it.unit ? '· '+it.unit : ''} ${unitConfig[it.name] ? `<span class="text-xs text-indigo-600">(หน่วยหลัก: ${unitConfig[it.name].primary})</span>` : ''}${it.sku ? ` <span class="text-xs text-gray-400">· ${it.sku}</span>` : ''}${isHiddenFromBranch ? ` <span class="text-xs font-normal text-amber-600">🙈 ซ่อนจากสาขานี้</span>` : ''}</span>
       </div>
-      <div class="flex items-center gap-2 flex-shrink-0">
-        <button onclick="renameItem_('${it.id}', '${it.name.replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขชื่อ"><img src="icons/icon-pencil.png" class="icon-img item-row-action-icon" alt="แก้ไขชื่อ"></button>
-        ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `
-          <button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold" title="หน่วย"><img src="icons/icon-scale.png" class="icon-img item-row-action-icon" alt="หน่วย"></button>
-          <button onclick="editItemSku_('${it.id}', '${(it.sku||'').replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขบาร์โค้ด/SKU"><img src="icons/icon-barcode.png" class="icon-img item-row-action-icon" alt="แก้ไขบาร์โค้ด/SKU"></button>
-          <button onclick="pickItemImage_('${it.id}')" class="text-gray-500 hover:text-gray-700 text-xs" title="อัปโหลดรูป"><img src="icons/icon-upload.png" class="icon-img item-row-action-icon" alt="อัปโหลดรูป"></button>
-        `}
-        ${removeBtnHtml}
+      <div class="flex items-center gap-2 flex-shrink-0" style="position:relative;">
+        <div class="item-row-collapsible-icons flex items-center gap-2">
+          <button onclick="renameItem_('${it.id}', '${it.name.replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขชื่อ"><img src="icons/icon-pencil.png" class="icon-img item-row-action-icon" alt="แก้ไขชื่อ"></button>
+          ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `
+            <button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold" title="หน่วย"><img src="icons/icon-scale.png" class="icon-img item-row-action-icon" alt="หน่วย"></button>
+            <button onclick="editItemSku_('${it.id}', '${(it.sku||'').replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขบาร์โค้ด/SKU"><img src="icons/icon-barcode.png" class="icon-img item-row-action-icon" alt="แก้ไขบาร์โค้ด/SKU"></button>
+          `}
+          ${removeBtnHtml}
+        </div>
+        ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `<button onclick="pickItemImage_('${it.id}')" class="text-gray-500 hover:text-gray-700 text-xs" title="อัปโหลดรูป"><img src="icons/icon-upload.png" class="icon-img item-row-action-icon" alt="อัปโหลดรูป"></button>`}
+        <button type="button" class="item-row-overflow-toggle text-gray-500" onclick="toggleItemRowOverflowMenu_(this)" title="เพิ่มเติม">⋮</button>
       </div>
     </div>`;
   };
@@ -3038,6 +3051,37 @@ function onAdminCategoryToggle_(detailsEl, cat) {
   if (detailsEl.open) adminOpenCategories.add(cat);
   else adminOpenCategories.delete(cat);
 }
+
+/** ปุ่ม ⋮ ในแถวรายการสินค้า (เฉพาะมือถือแนวตั้ง) — เปิดเป็นเมนูป็อปอัพลอยใกล้ปุ่มที่กด แทนที่จะโชว์อินไลน์
+ *  แล้วดันแถวให้ล้นจอแคบๆ ปิดอัตโนมัติเมื่อแตะที่อื่น (ใช้ pointerdown ด้านล่างแบบเดียวกับรูปขยาย) */
+let activeOverflowMenu_ = null;
+function toggleItemRowOverflowMenu_(toggleBtn) {
+  const wrap = toggleBtn.closest('.flex-shrink-0');
+  const menu = wrap && wrap.querySelector('.item-row-collapsible-icons');
+  if (!menu) return;
+  const wasOpen = menu.classList.contains('show-overflow-menu');
+  hideActiveOverflowMenu_();
+  if (wasOpen) return; // กดซ้ำที่ปุ่มเดิม = ปิด
+  const rect = toggleBtn.getBoundingClientRect();
+  const margin = 8, menuWidth = 180;
+  let left = rect.right - menuWidth;
+  if (left < margin) left = margin;
+  if (left + menuWidth > window.innerWidth) left = Math.max(margin, window.innerWidth - menuWidth - margin);
+  const top = rect.bottom + margin;
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+  menu.classList.add('show-overflow-menu');
+  activeOverflowMenu_ = menu;
+}
+function hideActiveOverflowMenu_() {
+  if (activeOverflowMenu_) { activeOverflowMenu_.classList.remove('show-overflow-menu'); activeOverflowMenu_ = null; }
+}
+document.addEventListener('pointerdown', (e) => {
+  if (!activeOverflowMenu_) return;
+  if (activeOverflowMenu_.contains(e.target)) return; // แตะข้างในเมนูเอง (เช่นกดปุ่มแก้ไข) ไม่ปิด
+  if (e.target.closest && e.target.closest('.item-row-overflow-toggle')) return; // ปุ่ม ⋮ จัดการเปิด/ปิดเองแล้ว
+  hideActiveOverflowMenu_();
+}, { capture: true });
 
 /** ลาก-วางรายการสินค้าเพื่อจัดลำดับ (คล้ายลากไอคอนในมือถือ) — ใช้ Pointer Events ตัวเดียวรองรับ
  *  ทั้งเมาส์และนิ้วสัมผัส จับที่ไอคอน ⠿ แล้วลากขึ้น/ลง สลับกับแถวข้างเคียงทันทีที่ลากผ่านครึ่งแถว */
