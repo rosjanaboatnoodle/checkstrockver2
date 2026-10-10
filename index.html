@@ -2844,6 +2844,14 @@ async function renderAdminItemsTab(prefetchItems, prefetchScope) {
   renderAdminItemsTabFromCache_();
 }
 
+/** true ถ้ารายการนี้มาจากส่วนกลางและถูกซ่อนไว้สำหรับสาขาที่กำลังดูอยู่ — ใช้ทั้งตอนเรนเดอร์ (ดันไปท้ายหมวด)
+ *  และตอนคำนวณลำดับใหม่หลังลาก (กันไม่ให้รายการที่ซ่อนโดน sort_order ทับตอนแค่ลากรายการอื่นในหมวดเดียวกัน) */
+function isItemHiddenFromCurrentScope_(it) {
+  if (!adminItemScope) return false;
+  if (!(it.branch_id === null || it.branch_id === undefined)) return false;
+  return adminScopeHiddenItems.includes(`${it.category}||${it.name}`);
+}
+
 /** เรนเดอร์จาก adminScopeItems ที่มีอยู่แล้วในหน่วยความจำ ไม่ยิง network — ใช้หลังแก้ไข/เรียงลำดับ เพื่อให้ UI ตอบสนองทันที */
 function renderAdminItemsTabFromCache_() {
   const el = document.getElementById('admin-tab-items');
@@ -2905,6 +2913,10 @@ function renderAdminItemsTabFromCache_() {
   adminScopeItems.forEach(it => { (byCat[it.category] = byCat[it.category] || []).push(it); });
   Object.keys(byCat).forEach(cat => {
     byCat[cat].sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+    // ดันรายการที่ถูกซ่อนไว้สำหรับสาขานี้ไปไว้ท้ายสุดของหมวด — แค่ตอนแสดงผลเท่านั้น ไม่แตะ sort_order จริง
+    // เลยกลับไปอยู่ตำแหน่งเดิมทันทีที่เลิกซ่อน (ลำดับเดิมในแต่ละกลุ่มยังคงอยู่ตาม sort_order เหมือนเดิม)
+    byCat[cat] = byCat[cat].filter(it => !isItemHiddenFromCurrentScope_(it))
+      .concat(byCat[cat].filter(it => isItemHiddenFromCurrentScope_(it)));
   });
   adminByCatCache = byCat; // เก็บไว้ใช้ตอนลากจัดลำดับ ไม่ต้องคำนวณซ้ำ
   const catNames = Object.keys(byCat);
@@ -2914,8 +2926,7 @@ function renderAdminItemsTabFromCache_() {
     // กลางแถวเดียวกันจริงๆ เลย (ลิงค์กันทุกสาขาทันที) ส่วนปุ่ม "ลบ" ของแถวแบบนี้เปลี่ยนเป็น "ซ่อนจากสาขานี้"
     // แทน เพราะกดลบจริงจะลบออกจากส่วนกลาง กระทบทุกสาขา ไม่ใช่แค่สาขาที่กำลังดูอยู่
     const isCentralRowInBranchScope = !!adminItemScope && (it.branch_id === null || it.branch_id === undefined);
-    const itemKey = `${it.category}||${it.name}`;
-    const isHiddenFromBranch = isCentralRowInBranchScope && adminScopeHiddenItems.includes(itemKey);
+    const isHiddenFromBranch = isItemHiddenFromCurrentScope_(it);
     const catEsc = it.category.replace(/'/g,"\\'");
     const nameEsc = it.name.replace(/'/g,"\\'");
     const removeBtnHtml = isCentralRowInBranchScope
@@ -3038,8 +3049,12 @@ async function onItemDragEnd_(e) {
     .filter(Boolean);
   adminByCatCache[category] = newOrder;
 
+  // รายการที่ถูกซ่อนไว้ (ดันไปท้ายสุดตอนแสดงผลเท่านั้น) ไม่นับรวมตอนคำนวณลำดับใหม่ — กันไม่ให้ลากรายการ
+  // อื่นในหมวดเดียวกันไปเขียน sort_order ของรายการที่ซ่อนอยู่ทับโดยไม่ตั้งใจ ไม่งั้นพอเลิกซ่อนจะไม่กลับไป
+  // อยู่ตำแหน่งเดิมอีกต่อไป
+  const visibleOrder = newOrder.filter(it => !isItemHiddenFromCurrentScope_(it));
   const changed = [];
-  newOrder.forEach((it, i) => { if (Number(it.sort_order) !== i) { it.sort_order = i; changed.push(it); } });
+  visibleOrder.forEach((it, i) => { if (Number(it.sort_order) !== i) { it.sort_order = i; changed.push(it); } });
   if (!changed.length) return;
   catalogDirty = true;
   try {
