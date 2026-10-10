@@ -62,9 +62,12 @@
        (กดยาก/กดไม่ค่อยติดเพราะพื้นที่กดเดิมมีแค่ขนาดไอคอนจริงๆ 15x15 ซึ่งเล็กกว่าขนาดนิ้วมาก)
        ขนาดอยู่ใน class นี้ (ไม่ใช่ inline style) เพื่อให้ปรับใหญ่ขึ้นตาม breakpoint จอกว้างได้ด้านล่าง */
     .item-thumb-icon{ cursor:pointer; padding:6px; margin:-6px; width:20px; height:20px; }
+    /* ไอคอนปุ่มอื่นๆ ในแถวรายการสินค้า (แก้ไข SKU / อัปโหลดรูป / ซ่อน-เลิกซ่อน) — ขนาดเดียวกับไอคอนดูรูปข้างบน
+       เพื่อให้ดูสม่ำเสมอกันทั้งแถว ไม่มีอันไหนเด่นเล็ก/ใหญ่ผิดจากเพื่อน */
+    .item-row-action-icon{ width:20px; height:20px; }
     @media (min-width: 1024px) {
       /* จอคอมมีที่ว่างเยอะ แถวห่างกว่ามือถือมาก ไอคอนขนาดเดิม 20px เลยดูเล็กจนแทบมองไม่ออกว่าคืออะไร */
-      .item-thumb-icon{ width:28px; height:28px; }
+      .item-thumb-icon, .item-row-action-icon{ width:28px; height:28px; }
     }
     /* position:fixed (คำนวณพิกัดจาก JS ตอนจะโชว์) ไม่ใช่ absolute — กันโดนตัดโดย overflow:hidden
        ของตารางเช็คสต็อก/แถวในโมดัลแอดมิน และรับประกันว่าลอยทับคอลัมน์อื่นได้เสมอ */
@@ -2976,8 +2979,8 @@ function renderAdminItemsTabFromCache_() {
     const nameEsc = it.name.replace(/'/g,"\\'");
     const removeBtnHtml = isCentralRowInBranchScope
       ? (isHiddenFromBranch
-          ? `<button onclick="unhideItemFromBranch_('${catEsc}', '${nameEsc}')" class="text-indigo-600 text-xs" title="เลิกซ่อน"><img src="icons/icon-eye-open.png" class="icon-img" alt="เลิกซ่อน" style="width:14px;height:14px;"></button>`
-          : `<button onclick="hideItemFromBranch_('${catEsc}', '${nameEsc}')" class="text-red-500 text-xs" title="ซ่อนจากสาขานี้"><img src="icons/icon-eye-slash.png" class="icon-img" alt="ซ่อนจากสาขานี้" style="width:14px;height:14px;"></button>`)
+          ? `<button onclick="unhideItemFromBranch_('${catEsc}', '${nameEsc}')" class="text-indigo-600 text-xs" title="เลิกซ่อน"><img src="icons/icon-eye-open.png" class="icon-img item-row-action-icon" alt="เลิกซ่อน"></button>`
+          : `<button onclick="hideItemFromBranch_('${catEsc}', '${nameEsc}')" class="text-red-500 text-xs" title="ซ่อนจากสาขานี้"><img src="icons/icon-eye-slash.png" class="icon-img item-row-action-icon" alt="ซ่อนจากสาขานี้"></button>`)
       : `<button onclick="removeItem('${it.id}')" class="text-red-500 text-xs">${t('delete')}</button>`;
     return `
     <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-100" data-item-row data-item-id="${it.id}" data-category="${it.category.replace(/"/g,'&quot;')}">
@@ -2990,8 +2993,8 @@ function renderAdminItemsTabFromCache_() {
         <button onclick="renameItem_('${it.id}', '${it.name.replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขชื่อ">✏️</button>
         ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `
           <button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold">⚖️ หน่วย</button>
-          <button onclick="editItemSku_('${it.id}', '${(it.sku||'').replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขบาร์โค้ด/SKU"><img src="icons/icon-barcode.png" class="icon-img" alt="แก้ไขบาร์โค้ด/SKU" style="width:14px;height:14px;"></button>
-          <button onclick="pickItemImage_('${it.id}')" class="text-gray-500 hover:text-gray-700 text-xs" title="อัปโหลดรูป"><img src="icons/icon-upload.png" class="icon-img" alt="อัปโหลดรูป" style="width:14px;height:14px;"></button>
+          <button onclick="editItemSku_('${it.id}', '${(it.sku||'').replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขบาร์โค้ด/SKU"><img src="icons/icon-barcode.png" class="icon-img item-row-action-icon" alt="แก้ไขบาร์โค้ด/SKU"></button>
+          <button onclick="pickItemImage_('${it.id}')" class="text-gray-500 hover:text-gray-700 text-xs" title="อัปโหลดรูป"><img src="icons/icon-upload.png" class="icon-img item-row-action-icon" alt="อัปโหลดรูป"></button>
         `}
         ${removeBtnHtml}
       </div>
