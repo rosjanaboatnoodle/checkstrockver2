@@ -2920,7 +2920,10 @@ function renderAdminItemsTabFromCache_() {
         <input id="new-item-name" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="ชื่อสินค้า" class="px-3 py-2 border rounded-lg text-sm">
         <input id="new-item-unit" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="หน่วย (เช่น กิโลกรัม หรือ กรัม/กิโลกรัม)" class="px-3 py-2 border rounded-lg text-sm">
         <input id="new-item-sku" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="บาร์โค้ด/SKU (ถ้ามี)" class="px-3 py-2 border rounded-lg text-sm">
+      </div>
+      <div class="flex items-center justify-between mb-2">
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="new-item-header"> เป็นหัวข้อหมวดย่อย</label>
+        <button type="button" onclick="scanSkuIntoInput_('new-item-sku')" title="สแกนบาร์โค้ด (ใส่ใน SKU)" class="flex-shrink-0 w-10 h-10 text-white rounded-lg inline-flex items-center justify-center" style="background:#1f2937;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกนบาร์โค้ด" style="width:22px;height:22px;filter:invert(1);"></button>
       </div>
       ` + newItemBranchTargets + `
       <button onclick="submitNewItem()" class="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-semibold">${t('addItem')}</button>
@@ -3684,6 +3687,14 @@ function patchCatalogItem_(id, patch) {
   const idx = adminScopeItems.findIndex(it => it.id === id);
   if (idx !== -1) adminScopeItems[idx] = { ...adminScopeItems[idx], ...patch };
   catalogDirty = true;
+}
+
+/** สแกนบาร์โค้ดแล้วใส่ผลลัพธ์ลงช่อง input ที่ระบุ id ไว้ตรงๆ — ใช้กับช่อง SKU ตอนเพิ่มรายการใหม่ ไม่ต้องพิมพ์เอง */
+function scanSkuIntoInput_(inputId) {
+  openScanModal_((code) => {
+    const input = document.getElementById(inputId);
+    if (input) input.value = code;
+  });
 }
 
 /** โมดัลแก้ไขบาร์โค้ด/SKU — พิมพ์เองหรือกดสแกนก็ได้ (แทน prompt() เดิมที่ใส่ปุ่มสแกนเข้าไปไม่ได้) */
