@@ -2989,7 +2989,7 @@ function renderAdminItemsTabFromCache_() {
       ? (isHiddenFromBranch
           ? `<button onclick="unhideItemFromBranch_('${catEsc}', '${nameEsc}')" class="text-indigo-600 text-xs" title="เลิกซ่อน"><img src="icons/icon-eye-open.png" class="icon-img item-row-action-icon" alt="เลิกซ่อน"></button>`
           : `<button onclick="hideItemFromBranch_('${catEsc}', '${nameEsc}')" class="text-red-500 text-xs" title="ซ่อนจากสาขานี้"><img src="icons/icon-eye-slash.png" class="icon-img item-row-action-icon" alt="ซ่อนจากสาขานี้"></button>`)
-      : `<button onclick="removeItem('${it.id}')" class="text-red-500 text-xs">${t('delete')}</button>`;
+      : `<button onclick="removeItem('${it.id}')" class="text-red-500 text-xs" title="${t('delete')}"><img src="icons/icon-trash.png" class="icon-img item-row-action-icon" alt="${t('delete')}"></button>`;
     return `
     <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-100" data-item-row data-item-id="${it.id}" data-category="${it.category.replace(/"/g,'&quot;')}">
       <div class="flex items-center gap-1 min-w-0">
@@ -2998,9 +2998,9 @@ function renderAdminItemsTabFromCache_() {
         <span class="truncate ${String(it.is_header).toUpperCase() === 'TRUE' ? 'font-semibold' : ''}">${it.name} ${it.unit ? '· '+it.unit : ''} ${unitConfig[it.name] ? `<span class="text-xs text-indigo-600">(หน่วยหลัก: ${unitConfig[it.name].primary})</span>` : ''}${it.sku ? ` <span class="text-xs text-gray-400">· ${it.sku}</span>` : ''}${isHiddenFromBranch ? ` <span class="text-xs font-normal text-amber-600">🙈 ซ่อนจากสาขานี้</span>` : ''}</span>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
-        <button onclick="renameItem_('${it.id}', '${it.name.replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขชื่อ">✏️</button>
+        <button onclick="renameItem_('${it.id}', '${it.name.replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขชื่อ"><img src="icons/icon-pencil.png" class="icon-img item-row-action-icon" alt="แก้ไขชื่อ"></button>
         ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `
-          <button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold">⚖️ หน่วย</button>
+          <button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold" title="หน่วย"><img src="icons/icon-scale.png" class="icon-img item-row-action-icon" alt="หน่วย"></button>
           <button onclick="editItemSku_('${it.id}', '${(it.sku||'').replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขบาร์โค้ด/SKU"><img src="icons/icon-barcode.png" class="icon-img item-row-action-icon" alt="แก้ไขบาร์โค้ด/SKU"></button>
           <button onclick="pickItemImage_('${it.id}')" class="text-gray-500 hover:text-gray-700 text-xs" title="อัปโหลดรูป"><img src="icons/icon-upload.png" class="icon-img item-row-action-icon" alt="อัปโหลดรูป"></button>
         `}
