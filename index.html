@@ -360,7 +360,7 @@
           <input id="mv-quick-search" type="text" autocomplete="off" data-t-placeholder="mvQuickSearchPlaceholder" placeholder="ค้นหาด่วน: พิมพ์ชื่อสินค้าที่จะปรับ..."
             class="flex-1 min-w-0 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
             oninput="filterMovementQuickSearch(this.value)">
-          <button type="button" onclick="openScanModal_(onMovementScanResult_)" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-12 h-12 bg-gray-800 text-white rounded-xl text-xl">📷</button>
+          <button type="button" onclick="openScanModal_(onMovementScanResult_)" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-12 h-12 text-white rounded-xl text-xl" style="background:#1f2937;">📷</button>
         </div>
 
         <div id="mv-category-chips" class="flex gap-2 overflow-x-auto pb-1 mb-4"></div>
@@ -482,7 +482,7 @@
           <p class="text-sm font-semibold text-gray-800">📷 สแกนบาร์โค้ด</p>
           <button onclick="closeScanModal_()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
         </div>
-        <video id="scan-video" class="w-full rounded-lg bg-gray-900" style="aspect-ratio:4/3;object-fit:cover;" playsinline muted></video>
+        <video id="scan-video" class="w-full rounded-lg" style="aspect-ratio:4/3;object-fit:cover;background:#111827;" playsinline muted></video>
         <p id="scan-status" class="text-xs text-gray-500 mt-2 text-center">กำลังเปิดกล้อง...</p>
       </div>
     </div>
@@ -2147,18 +2147,25 @@ function renderOverviewContent_(categories) {
   if (!categories.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-4">ยังไม่มีรายการสินค้าในสาขานี้</p>`; return; }
   el.innerHTML = categories.map(cat => {
     const open = overviewOpenCategories.has(cat.category);
-    const itemsHtml = cat.items.map(it => `
-      <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-100">
-        <span class="truncate">${it.name}</span>
-        <span class="text-gray-500 flex-shrink-0 ml-2">${it.hasBaseline ? (fmtQty(it.qty) + ' ' + (it.unit||'')) : '<span class="text-gray-300">ยังไม่เคยเช็ค</span>'}</span>
-      </div>`).join('');
+    // "เหลือน้อย" = หมดแล้ว (qty <= 0) — ค่าที่โชว์ตรงนี้คือยอดคาดคะเนปัจจุบัน ไม่มีค่า "จุดสั่งซื้อ" แยก
+    // เก็บไว้ต่อรายการในระบบ (บัฟเฟอร์ % ที่ตั้งไว้ใช้เทียบตอนเพิ่งเช็คเสร็จเท่านั้น ไม่ใช่ตัวเลขคงที่)
+    const lowCount = cat.items.filter(it => it.hasBaseline && Number(it.qty) <= 0).length;
+    const chips = cat.items.map(it => {
+      const low = it.hasBaseline && Number(it.qty) <= 0;
+      const valueText = it.hasBaseline ? (fmtQty(it.qty) + (it.unit ? ' ' + it.unit : '')) : 'ยังไม่เคยเช็ค';
+      const cls = low ? 'border-red-500 bg-red-50 text-red-600 font-semibold' : 'border-gray-300 bg-gray-50 text-gray-600';
+      return `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs border ${cls}">${it.name}: ${valueText}</span>`;
+    }).join('');
     return `
       <details class="mb-2 border border-gray-200 rounded-xl overflow-hidden" ${open?'open':''} ontoggle="onOverviewCategoryToggle_(this,'${cat.category.replace(/'/g,"\\'")}')">
         <summary class="cursor-pointer select-none px-3 py-2.5 bg-gray-100 text-sm font-semibold text-gray-700 flex items-center justify-between flex-wrap gap-1">
           <span>${tCategory(cat.category)}</span>
-          <span class="text-xs text-gray-400 font-normal">${cat.itemCount} รายการ · อัพเดตล่าสุด: ${fmtOverviewDate_(cat.lastUpdated)}</span>
+          <span class="text-xs font-normal flex items-center gap-2">
+            ${lowCount ? `<span class="text-red-600 font-semibold">⚠️ ${lowCount} รายการหมด</span>` : ''}
+            <span class="text-gray-400">${cat.itemCount} รายการ · ${fmtOverviewDate_(cat.lastUpdated)}</span>
+          </span>
         </summary>
-        <div class="p-3 pt-1">${itemsHtml}</div>
+        <div class="p-2 flex flex-wrap gap-1">${chips}</div>
       </details>`;
   }).join('');
 }
@@ -2903,7 +2910,7 @@ function renderAdminItemsTabFromCache_() {
     <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-100" data-item-row data-item-id="${it.id}" data-category="${it.category.replace(/"/g,'&quot;')}">
       <div class="flex items-center gap-1 min-w-0">
         <span class="text-gray-300 text-base px-1 select-none" style="touch-action:none;cursor:grab;" onpointerdown="onItemDragStart_(event, this)">⠿</span>
-        ${it.image_url ? `<img src="${it.image_url}" class="w-7 h-7 rounded object-cover flex-shrink-0" loading="lazy">` : ''}
+        ${it.image_url ? `<img src="${it.image_url}" loading="lazy" style="width:28px;height:28px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : ''}
         <span class="truncate ${String(it.is_header).toUpperCase() === 'TRUE' ? 'font-semibold' : ''}">${it.name} ${it.unit ? '· '+it.unit : ''} ${unitConfig[it.name] ? `<span class="text-xs text-indigo-600">(หน่วยหลัก: ${unitConfig[it.name].primary})</span>` : ''}${it.sku ? ` <span class="text-xs text-gray-400">· ${it.sku}</span>` : ''}</span>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
