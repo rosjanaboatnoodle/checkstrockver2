@@ -49,6 +49,11 @@
     html[data-theme="dark"] .confirm-box{ background:#1f242b; color:#e5e7eb; }
     /* ไฮไลท์แถวที่สแกนบาร์โค้ดเจอ ชั่วคราวให้เห็นชัดว่าเลื่อนมาถึงตัวไหน */
     .scan-highlight{ outline:3px solid #f97316; outline-offset:2px; transition:outline-color .3s; }
+    /* รูปย่อในหน้าจัดการสินค้า — เอาเมาส์ชี้ (คอม) หรือกดค้าง (มือถือ) เพื่อขยายดูรูปเต็ม */
+    .item-thumb-wrap{ position:relative; display:inline-block; }
+    .item-thumb-zoom{ display:none; position:absolute; top:0; left:34px; z-index:80; width:160px; height:160px; object-fit:cover; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); border:2px solid white; }
+    .item-thumb-wrap:hover .item-thumb-zoom{ display:block; }
+    .item-thumb-wrap.show-zoom .item-thumb-zoom{ display:block; }
     .admin-tab{ padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;color:#6b7280; }
     .admin-tab.active{ background:#ea580c;color:white; }
     .badge-check{ background:#dbeafe;color:#1d4ed8; }
@@ -2910,7 +2915,11 @@ function renderAdminItemsTabFromCache_() {
     <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-100" data-item-row data-item-id="${it.id}" data-category="${it.category.replace(/"/g,'&quot;')}">
       <div class="flex items-center gap-1 min-w-0">
         <span class="text-gray-300 text-base px-1 select-none" style="touch-action:none;cursor:grab;" onpointerdown="onItemDragStart_(event, this)">⠿</span>
-        ${it.image_url ? `<img src="${it.image_url}" loading="lazy" style="width:28px;height:28px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : ''}
+        ${it.image_url ? `
+          <span class="item-thumb-wrap" ontouchstart="onItemThumbTouchStart_(this)" ontouchend="onItemThumbTouchEnd_(this)" ontouchcancel="onItemThumbTouchEnd_(this)">
+            <img src="${it.image_url}" loading="lazy" style="width:28px;height:28px;border-radius:6px;object-fit:cover;flex-shrink:0;">
+            <img src="${it.image_url}" class="item-thumb-zoom" loading="lazy">
+          </span>` : ''}
         <span class="truncate ${String(it.is_header).toUpperCase() === 'TRUE' ? 'font-semibold' : ''}">${it.name} ${it.unit ? '· '+it.unit : ''} ${unitConfig[it.name] ? `<span class="text-xs text-indigo-600">(หน่วยหลัก: ${unitConfig[it.name].primary})</span>` : ''}${it.sku ? ` <span class="text-xs text-gray-400">· ${it.sku}</span>` : ''}</span>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
@@ -3607,6 +3616,16 @@ async function editItemSku_(id, currentSku) {
       showToast(t('saveOk'), 'success');
     } else showToast(t('wrongPassword'), 'error');
   } catch (e) { showToast(t('error'), 'error'); }
+}
+
+/** กดค้างที่รูปย่อ (มือถือ ไม่มี hover) เพื่อขยายดูรูปเต็มชั่วคราว — ฝั่งคอมใช้ :hover ล้วนๆ ไม่ต้องพึ่ง JS เลย */
+let itemThumbLongPressTimer_ = null;
+function onItemThumbTouchStart_(el) {
+  itemThumbLongPressTimer_ = setTimeout(() => el.classList.add('show-zoom'), 350);
+}
+function onItemThumbTouchEnd_(el) {
+  clearTimeout(itemThumbLongPressTimer_);
+  el.classList.remove('show-zoom');
 }
 
 let pendingImageItemId_ = null; // id ของรายการที่กำลังจะอัพโหลดรูปให้ (ตั้งไว้ก่อนเปิด file picker)
