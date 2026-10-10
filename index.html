@@ -1491,6 +1491,9 @@ async function openScanModal_(onResult) {
   scanOnResult_ = onResult;
   const modal = document.getElementById('scan-modal');
   const statusEl = document.getElementById('scan-status');
+  // ย้ายไปท้าย <body> เสมอก่อนโชว์ — กันโดนบังโดยโมดัลอื่นที่ z-index เท่ากัน (เช่นโมดัลแก้ไข SKU ที่เปิดปุ่ม
+  // สแกนซ้อนขึ้นมาอีกชั้น) เพราะ DOM ตัวหลังพิมพ์ทับตัวก่อนหน้าเสมอเมื่อ z-index เท่ากัน
+  document.body.appendChild(modal);
   modal.classList.remove('hidden');
   statusEl.textContent = 'กำลังโหลดตัวสแกน...';
   try {
@@ -2908,7 +2911,10 @@ function renderAdminItemsTabFromCache_() {
         <datalist id="cat-list">${cats.map(c=>`<option value="${c}">`).join('')}</datalist>
         <input id="new-item-name" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="ชื่อสินค้า" class="px-3 py-2 border rounded-lg text-sm">
         <input id="new-item-unit" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="หน่วย (เช่น กิโลกรัม หรือ กรัม/กิโลกรัม)" class="px-3 py-2 border rounded-lg text-sm">
-        <input id="new-item-sku" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="บาร์โค้ด/SKU (ถ้ามี)" class="px-3 py-2 border rounded-lg text-sm">
+        <div class="flex gap-1">
+          <input id="new-item-sku" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="บาร์โค้ด/SKU (ถ้ามี)" class="flex-1 min-w-0 px-3 py-2 border rounded-lg text-sm">
+          <button type="button" onclick="scanSkuIntoInput_('new-item-sku')" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-10 h-10 text-white rounded-lg inline-flex items-center justify-center" style="background:#1f2937;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกน" style="width:22px;height:22px;filter:invert(1);"></button>
+        </div>
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="new-item-header"> เป็นหัวข้อหมวดย่อย</label>
       </div>
       ` + newItemBranchTargets + `
@@ -3675,9 +3681,49 @@ function patchCatalogItem_(id, patch) {
   catalogDirty = true;
 }
 
+/** สแกนบาร์โค้ดแล้วใส่ผลลัพธ์ลงช่อง input ที่ระบุ id ไว้ตรงๆ — ใช้กับช่อง SKU ตอนเพิ่มรายการใหม่ ไม่ต้องพิมพ์เอง */
+function scanSkuIntoInput_(inputId) {
+  openScanModal_((code) => {
+    const input = document.getElementById(inputId);
+    if (input) input.value = code;
+  });
+}
+
+/** โมดัลแก้ไขบาร์โค้ด/SKU — พิมพ์เองหรือกดสแกนก็ได้ (แทน prompt() เดิมที่ใส่ปุ่มสแกนเข้าไปไม่ได้) */
+function showSkuEditModal_(currentSku) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-box">
+        <p class="text-sm font-semibold text-gray-800 mb-2">บาร์โค้ด/SKU</p>
+        <div class="flex gap-2 mb-3">
+          <input id="sku-edit-input" type="text" class="flex-1 min-w-0 px-3 py-2 border rounded-lg text-sm">
+          <button type="button" id="sku-edit-scan-btn" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-10 h-10 text-white rounded-xl inline-flex items-center justify-center" style="background:#1f2937;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกน" style="width:24px;height:24px;filter:invert(1);"></button>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" id="sku-edit-cancel-btn" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600">ยกเลิก</button>
+          <button type="button" id="sku-edit-save-btn" class="flex-1 py-2 rounded-lg bg-orange-500 text-white text-sm font-semibold">บันทึก</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const input = overlay.querySelector('#sku-edit-input');
+    input.value = currentSku || '';
+    input.focus();
+    const cleanup = (result) => { overlay.remove(); resolve(result); };
+    overlay.querySelector('#sku-edit-cancel-btn').onclick = () => cleanup(null);
+    overlay.querySelector('#sku-edit-save-btn').onclick = () => cleanup(input.value.trim());
+    overlay.querySelector('#sku-edit-scan-btn').onclick = () => {
+      openScanModal_((code) => { input.value = code; });
+    };
+    input.onkeydown = (e) => { if (e.key === 'Enter') cleanup(input.value.trim()); };
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(null); });
+  });
+}
+
 /** แก้ไขบาร์โค้ด/SKU ของรายการสินค้า — ใช้คู่กับปุ่มสแกนในหน้าปรับสต็อค (ยิงแล้วกระโดดไปรายการนั้นเลย) */
 async function editItemSku_(id, currentSku) {
-  const next = prompt('บาร์โค้ด/SKU:', currentSku || '');
+  const next = await showSkuEditModal_(currentSku);
   if (next === null) return;
   const trimmed = next.trim();
   try {
