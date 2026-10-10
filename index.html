@@ -43,6 +43,7 @@
        static ไว้แล้ว (ไฟล์นี้ไม่มีขั้นตอน build ใหม่ คลาสที่ไม่เคยถูกใช้มาก่อนจะไม่มีสไตล์ใดๆ เลย)
        z-index สูงกว่า .modal-overlay (60) เพราะมักถูกเรียกขึ้นมาซ้อนตอนอยู่ในหน้าแอดมินอยู่แล้ว */
     .confirm-overlay{ position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:70;display:flex;align-items:center;justify-content:center;padding:16px; }
+    .confirm-overlay.hidden{ display:none !important; }
     .confirm-box{ background:white;border-radius:16px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25);padding:20px; }
     html[data-theme="dark"] .confirm-overlay{ background:rgba(0,0,0,.65); }
     html[data-theme="dark"] .confirm-box{ background:#1f242b; color:#e5e7eb; }
