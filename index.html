@@ -2919,10 +2919,7 @@ function renderAdminItemsTabFromCache_() {
         <datalist id="cat-list">${cats.map(c=>`<option value="${c}">`).join('')}</datalist>
         <input id="new-item-name" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="ชื่อสินค้า" class="px-3 py-2 border rounded-lg text-sm">
         <input id="new-item-unit" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="หน่วย (เช่น กิโลกรัม หรือ กรัม/กิโลกรัม)" class="px-3 py-2 border rounded-lg text-sm">
-        <div class="flex gap-1 min-w-0">
-          <input id="new-item-sku" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="บาร์โค้ด/SKU (ถ้ามี)" class="flex-1 min-w-0 px-3 py-2 border rounded-lg text-sm">
-          <button type="button" onclick="scanSkuIntoInput_('new-item-sku')" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-10 h-10 text-white rounded-lg inline-flex items-center justify-center" style="background:#1f2937;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกน" style="width:22px;height:22px;filter:invert(1);"></button>
-        </div>
+        <input id="new-item-sku" onkeydown="if(event.key==='Enter') submitNewItem()" placeholder="บาร์โค้ด/SKU (ถ้ามี)" class="px-3 py-2 border rounded-lg text-sm">
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="new-item-header"> เป็นหัวข้อหมวดย่อย</label>
       </div>
       ` + newItemBranchTargets + `
@@ -3158,14 +3155,14 @@ function closeUnitEditor() { document.getElementById('unit-editor-modal').classL
 function renderUnitEditorRows(rows) {
   const wrap = document.getElementById('unit-editor-rows');
   wrap.innerHTML = rows.map((r, idx) => `
-    <div class="flex items-center gap-2 ${r.primary ? 'bg-indigo-50 rounded-lg -mx-1 px-1 py-1' : ''}" data-unit-row="${idx}">
+    <div class="flex items-center gap-1 ${r.primary ? 'bg-indigo-50 rounded-lg -mx-1 px-1 py-1' : ''}" data-unit-row="${idx}">
       <input type="radio" name="unit-primary" ${r.primary ? 'checked' : ''} onclick="setUnitRowPrimary(${idx})" title="ใช้หน่วยนี้ในรายงาน LINE">
       <input type="text" value="${r.name||''}" placeholder="ชื่อหน่วย เช่น กรัม" class="flex-1 min-w-0 px-2 py-1.5 border rounded-lg text-sm" data-unit-name="${idx}">
       <span class="text-xs text-gray-400">×</span>
       <input type="number" step="any" value="${r.primary ? 1 : (r.ratio===''?'':r.ratio)}" ${r.primary ? 'disabled' : ''} placeholder="0.001"
-        class="w-20 px-2 py-1.5 border rounded-lg text-sm ${r.primary ? 'bg-gray-100 text-gray-400' : ''}" data-unit-ratio="${idx}">
-      ${r.primary ? '<span class="text-[10px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0">ใช้ในไลน์</span>' : '<span class="w-4"></span>'}
-      <button onclick="removeUnitRow(${idx})" class="text-red-400 text-xs px-1">✕</button>
+        style="width:56px;" class="px-1 py-1.5 border rounded-lg text-sm ${r.primary ? 'bg-gray-100 text-gray-400' : ''}" data-unit-ratio="${idx}">
+      ${r.primary ? '<span class="text-[10px] bg-indigo-600 text-white px-1 py-0.5 rounded-full font-semibold flex-shrink-0">ใช้ในไลน์</span>' : '<span class="w-4 flex-shrink-0"></span>'}
+      <button onclick="removeUnitRow(${idx})" class="text-red-400 text-xs px-1 flex-shrink-0">✕</button>
     </div>`).join('');
   wrap.dataset.rowCount = rows.length;
   wrap.__rows = rows; // เก็บ state ชั่วคราวไว้ใน DOM node เพื่อความง่าย
@@ -3687,14 +3684,6 @@ function patchCatalogItem_(id, patch) {
   const idx = adminScopeItems.findIndex(it => it.id === id);
   if (idx !== -1) adminScopeItems[idx] = { ...adminScopeItems[idx], ...patch };
   catalogDirty = true;
-}
-
-/** สแกนบาร์โค้ดแล้วใส่ผลลัพธ์ลงช่อง input ที่ระบุ id ไว้ตรงๆ — ใช้กับช่อง SKU ตอนเพิ่มรายการใหม่ ไม่ต้องพิมพ์เอง */
-function scanSkuIntoInput_(inputId) {
-  openScanModal_((code) => {
-    const input = document.getElementById(inputId);
-    if (input) input.value = code;
-  });
 }
 
 /** โมดัลแก้ไขบาร์โค้ด/SKU — พิมพ์เองหรือกดสแกนก็ได้ (แทน prompt() เดิมที่ใส่ปุ่มสแกนเข้าไปไม่ได้) */
