@@ -41,13 +41,16 @@
     .top-bar-btn{ background:white;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-radius:10px; }
     .modal-overlay{ position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:60;display:flex;align-items:flex-start;justify-content:center;overflow-x:hidden;overflow-y:auto;padding:24px 12px; }
     .modal-overlay.hidden{ display:none !important; }
-    .modal-box{ background:white;border-radius:16px;max-width:720px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25); }
+    /* min-width:0 สำคัญ — .modal-box เป็น flex item ของ .modal-overlay (display:flex) ถ้าไม่ตั้งไว้ กล่องจะไม่
+       ยอมหดแคบกว่าความกว้างล้นสุดของลูกข้างในแม้ตั้ง width:100% ไว้แล้วก็ตาม (ดันกว้างเกินจอได้) overflow-x:hidden
+       กันไว้อีกชั้น เผื่อลูกข้างในยังไม่หดพอดี จะโดนตัดในกรอบกล่องเอง ไม่ใช่ล้นออกไปถึงขอบจอ */
+    .modal-box{ background:white;border-radius:16px;max-width:720px;width:100%;min-width:0;overflow-x:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.25); }
     /* กล่องยืนยัน custom (แทน confirm() ของเบราว์เซอร์) — แยกคลาสเอง ไม่พึ่ง Tailwind ที่ compile แบบ
        static ไว้แล้ว (ไฟล์นี้ไม่มีขั้นตอน build ใหม่ คลาสที่ไม่เคยถูกใช้มาก่อนจะไม่มีสไตล์ใดๆ เลย)
        z-index สูงกว่า .modal-overlay (60) เพราะมักถูกเรียกขึ้นมาซ้อนตอนอยู่ในหน้าแอดมินอยู่แล้ว */
     .confirm-overlay{ position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:70;display:flex;align-items:center;justify-content:center;padding:16px; }
     .confirm-overlay.hidden{ display:none !important; }
-    .confirm-box{ background:white;border-radius:16px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25);padding:20px; }
+    .confirm-box{ background:white;border-radius:16px;max-width:380px;width:100%;min-width:0;overflow-x:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.25);padding:20px; }
     html[data-theme="dark"] .confirm-overlay{ background:rgba(0,0,0,.65); }
     html[data-theme="dark"] .confirm-box{ background:#1f242b; color:#e5e7eb; }
     /* ไฮไลท์แถวที่สแกนบาร์โค้ดเจอ ชั่วคราวให้เห็นชัดว่าเลื่อนมาถึงตัวไหน */
@@ -494,7 +497,9 @@
 
     <!-- โมดัลจัดการหน่วย + อัตราแปลง + หน่วยหลัก -->
     <!-- input ไฟล์รูปสินค้าที่ซ่อนไว้ (ใช้ร่วมกันทุกแถว) — pickItemImage_() จำว่าจะอัพรูปให้ id ไหน แล้วค่อยกด click() ให้ -->
-    <input type="file" id="item-image-file-input" accept="image/*" capture="environment" class="hidden" onchange="onItemImageFileChosen_(this)">
+    <!-- ไม่ใส่ capture="environment" เพื่อเจตนาเปิดตัวเลือกให้เลือกได้ทั้งถ่ายรูปใหม่หรืออัปจากอัลบั้ม — ใส่ capture
+         จะบังคับเปิดกล้องตรงๆ เลย ข้ามหน้าต่างเลือกไปเลย (พฤติกรรมเดิมที่ผู้ใช้แจ้งว่าอัปจากอัลบั้มไม่ได้) -->
+    <input type="file" id="item-image-file-input" accept="image/*" class="hidden" onchange="onItemImageFileChosen_(this)">
 
     <!-- โมดัลสแกนบาร์โค้ด/SKU — ใช้กล้องมือถือผ่านเบราว์เซอร์ตรงๆ ไม่ต้องติดตั้งแอปแยก -->
     <div id="scan-modal" class="confirm-overlay hidden" onclick="if(event.target===this) closeScanModal_()">
@@ -3155,7 +3160,7 @@ function renderUnitEditorRows(rows) {
   wrap.innerHTML = rows.map((r, idx) => `
     <div class="flex items-center gap-2 ${r.primary ? 'bg-indigo-50 rounded-lg -mx-1 px-1 py-1' : ''}" data-unit-row="${idx}">
       <input type="radio" name="unit-primary" ${r.primary ? 'checked' : ''} onclick="setUnitRowPrimary(${idx})" title="ใช้หน่วยนี้ในรายงาน LINE">
-      <input type="text" value="${r.name||''}" placeholder="ชื่อหน่วย เช่น กรัม" class="flex-1 px-2 py-1.5 border rounded-lg text-sm" data-unit-name="${idx}">
+      <input type="text" value="${r.name||''}" placeholder="ชื่อหน่วย เช่น กรัม" class="flex-1 min-w-0 px-2 py-1.5 border rounded-lg text-sm" data-unit-name="${idx}">
       <span class="text-xs text-gray-400">×</span>
       <input type="number" step="any" value="${r.primary ? 1 : (r.ratio===''?'':r.ratio)}" ${r.primary ? 'disabled' : ''} placeholder="0.001"
         class="w-20 px-2 py-1.5 border rounded-lg text-sm ${r.primary ? 'bg-gray-100 text-gray-400' : ''}" data-unit-ratio="${idx}">
