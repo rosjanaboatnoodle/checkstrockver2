@@ -108,6 +108,9 @@
     /* Tailwind ในไฟล์นี้ compile ไว้ล่วงหน้า ไม่มี build step — คลาส min-w-0 ไม่เคยถูกใช้มาก่อนเลยไม่ถูก compile เข้ามา
        ถ้าไม่มีตัวนี้ select จะไม่ยอมหดต่ำกว่าความกว้างเนื้อหาของมันเอง ทำให้แบ่ง 50/50 กับ flex-1 ไม่ได้จริง */
     .flex-half{ flex:1 1 0%;min-width:0; }
+    /* min-w-0 แบบทั่วไป (ไม่ผูกกับ .flex-half) — มีหลายจุดในไฟล์นี้ใช้คลาสนี้ตรงๆ (ช่อง input ที่ต้องหดได้ใน
+       flex/grid แคบๆ) แต่คลาสนี้ไม่เคย compile มาจาก Tailwind เหมือนที่คอมเมนต์ข้างบนอธิบายไว้ — เพิ่มเองตรงนี้ */
+    .min-w-0{ min-width:0; }
     .mv-truncate{ overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
     /* หน้ารายการเบิกสินค้า — ปุ่มเลือกประเภท (รับ/ออก/ปรับ) ในแต่ละแถว + ปุ่มล็อค + แถบลอยกดบันทึกทั้งหมด */
     .mv-dir-btn{ padding:5px 10px;border-radius:8px;font-size:12px;font-weight:700;border:1.5px solid #e5e7eb;background:#fff;color:#6b7280;cursor:pointer;white-space:nowrap; }
