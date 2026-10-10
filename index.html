@@ -378,7 +378,7 @@
           <input id="mv-quick-search" type="text" autocomplete="off" data-t-placeholder="mvQuickSearchPlaceholder" placeholder="ค้นหาด่วน: พิมพ์ชื่อสินค้าที่จะปรับ..."
             class="flex-1 min-w-0 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
             oninput="filterMovementQuickSearch(this.value)">
-          <button type="button" onclick="openScanModal_(onMovementScanResult_)" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-12 h-12 text-white rounded-xl text-xl" style="background:#1f2937;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกนบาร์โค้ด" style="width:22px;height:22px;filter:invert(1);"></button>
+          <button type="button" onclick="openScanModal_(onMovementScanResult_)" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-12 h-12 text-white rounded-xl text-xl" style="background:#1f2937;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกนบาร์โค้ด" style="width:34px;height:34px;filter:invert(1);"></button>
         </div>
 
         <div id="mv-category-chips" class="flex gap-2 overflow-x-auto pb-1 mb-4"></div>
@@ -1592,8 +1592,8 @@ function movementRowHtml_(it) {
   const dirBtn = (dir, label) => `<button type="button" ${locked ? 'disabled' : ''} data-dir="${dir}" data-active="${pending.direction===dir?'1':'0'}" onclick="mvSelectDirection('${esc(name)}','${dir}')" class="mv-dir-btn">${label}</button>`;
   return `
     <div class="bg-white rounded-xl shadow-md p-3 mv-row ${locked?'locked':''}" data-mv-row="${name}">
+      <p class="font-medium text-gray-800 mb-2">${tItem(name)}</p>
       <div class="flex items-center justify-between gap-2 mb-2">
-        <p class="font-medium text-gray-800 mv-truncate flex-half">${tItem(name)}</p>
         <div class="flex gap-2">
           ${dirBtn('in', t('movementIn') || 'รับ')}
           ${dirBtn('out', t('movementOut') || 'ออก')}
