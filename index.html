@@ -59,8 +59,13 @@
        หรือกดค้าง (มือถือ) ครั้งแรก กันหน้าที่มีเป็นพันรายการโหลดรูปพร้อมกันหมดจนช้า */
     .item-thumb-wrap{ position:relative; display:inline-block; }
     /* padding+margin ลบ เพิ่มพื้นที่กดได้จริงรอบไอคอน โดยไม่ไปดันระยะห่างกับตัวอักษร/ไอคอนข้างๆ ให้เปลี่ยน
-       (กดยาก/กดไม่ค่อยติดเพราะพื้นที่กดเดิมมีแค่ขนาดไอคอนจริงๆ 15x15 ซึ่งเล็กกว่าขนาดนิ้วมาก) */
-    .item-thumb-icon{ cursor:pointer; padding:6px; margin:-6px; }
+       (กดยาก/กดไม่ค่อยติดเพราะพื้นที่กดเดิมมีแค่ขนาดไอคอนจริงๆ 15x15 ซึ่งเล็กกว่าขนาดนิ้วมาก)
+       ขนาดอยู่ใน class นี้ (ไม่ใช่ inline style) เพื่อให้ปรับใหญ่ขึ้นตาม breakpoint จอกว้างได้ด้านล่าง */
+    .item-thumb-icon{ cursor:pointer; padding:6px; margin:-6px; width:20px; height:20px; }
+    @media (min-width: 1024px) {
+      /* จอคอมมีที่ว่างเยอะ แถวห่างกว่ามือถือมาก ไอคอนขนาดเดิม 20px เลยดูเล็กจนแทบมองไม่ออกว่าคืออะไร */
+      .item-thumb-icon{ width:28px; height:28px; }
+    }
     /* position:fixed (คำนวณพิกัดจาก JS ตอนจะโชว์) ไม่ใช่ absolute — กันโดนตัดโดย overflow:hidden
        ของตารางเช็คสต็อก/แถวในโมดัลแอดมิน และรับประกันว่าลอยทับคอลัมน์อื่นได้เสมอ */
     .item-thumb-zoom{ display:none; position:fixed; z-index:9999; max-width:320px; max-height:320px; width:auto; height:auto; background:white; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); border:2px solid white; }
@@ -3771,7 +3776,7 @@ async function editItemSku_(id, currentSku) {
 function itemPhotoIconHtml_(url) {
   if (!url) return '';
   return `<span class="item-thumb-wrap" data-photo-url="${url}" onmouseenter="onItemThumbHover_(this)" ontouchstart="onItemThumbTouchStart_(this)">
-    <img src="icons/icon-photo.png" class="item-thumb-icon icon-img" title="ดูรูป" alt="ดูรูป" style="width:20px;height:20px;">
+    <img src="icons/icon-photo.png" class="item-thumb-icon icon-img" title="ดูรูป" alt="ดูรูป">
     <img class="item-thumb-zoom" loading="lazy">
   </span>`;
 }
