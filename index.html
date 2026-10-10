@@ -56,7 +56,13 @@
     /* position:fixed (คำนวณพิกัดจาก JS ตอนจะโชว์) ไม่ใช่ absolute — กันโดนตัดโดย overflow:hidden
        ของตารางเช็คสต็อก/แถวในโมดัลแอดมิน และรับประกันว่าลอยทับคอลัมน์อื่นได้เสมอ */
     .item-thumb-zoom{ display:none; position:fixed; z-index:9999; max-width:320px; max-height:320px; width:auto; height:auto; background:white; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); border:2px solid white; }
-    .item-thumb-wrap:hover .item-thumb-zoom{ display:block; }
+    /* เฉพาะอุปกรณ์ที่มีเมาส์จริง (hover ได้จริง) เท่านั้นที่ใช้ :hover โชว์รูป — บนมือถือ/แท็บเล็ต ทัชสกรีนมักติด
+       ":hover ค้าง" หลังแตะ (เบราว์เซอร์จำ element ที่เพิ่งแตะว่ายัง hover อยู่ จนกว่าจะไปแตะที่อื่น) ถ้าเอากฎนี้
+       ไปใช้กับทัชด้วยจะกลายเป็นว่ารูปค้าง ปิดไม่ได้จนกว่าจะไปแตะช่องกรอกอื่น — เลยกันไว้ไม่ให้ทัชมาเจอกฎนี้เลย
+       ฝั่งทัชคุมการโชว์/ซ่อนด้วยคลาส .show-zoom (จาก JS) อย่างเดียว ไม่พึ่ง :hover */
+    @media (hover: hover) and (pointer: fine) {
+      .item-thumb-wrap:hover .item-thumb-zoom{ display:block; }
+    }
     .item-thumb-wrap.show-zoom .item-thumb-zoom{ display:block; }
     /* ไอคอน PNG (เส้นสีดำ พื้นหลังโปร่งใส) ใช้แทนอิโมจิในบางจุด — สลับเป็นสีขาวอัตโนมัติในธีมมืด */
     .icon-img{ vertical-align:middle; }
@@ -3722,15 +3728,28 @@ function onItemThumbHover_(el) {
   loadItemThumbZoom_(el);
 }
 let itemThumbLongPressTimer_ = null;
+let activeZoomWrap_ = null; // wrap ที่กำลังโชว์รูปขยายอยู่ตอนนี้ (ทางฝั่งทัช) — ใช้ปิดตอนแตะที่ไหนก็ได้
+function showItemThumbZoom_(wrapEl) {
+  if (activeZoomWrap_ && activeZoomWrap_ !== wrapEl) activeZoomWrap_.classList.remove('show-zoom');
+  wrapEl.classList.add('show-zoom');
+  activeZoomWrap_ = wrapEl;
+}
+function hideActiveItemThumbZoom_() {
+  if (activeZoomWrap_) { activeZoomWrap_.classList.remove('show-zoom'); activeZoomWrap_ = null; }
+}
 function onItemThumbTouchStart_(el) {
   positionItemThumbZoom_(el);
   loadItemThumbZoom_(el);
-  itemThumbLongPressTimer_ = setTimeout(() => el.classList.add('show-zoom'), 350);
+  itemThumbLongPressTimer_ = setTimeout(() => showItemThumbZoom_(el), 350);
 }
 function onItemThumbTouchEnd_(el) {
   clearTimeout(itemThumbLongPressTimer_);
-  el.classList.remove('show-zoom');
+  hideActiveItemThumbZoom_();
 }
+// แตะ/คลิกที่ไหนก็ได้บนหน้าจอ (รวมถึงรายการอื่น ไม่ใช่แค่ช่องกรอก) ปิดรูปขยายที่ค้างอยู่ทันที — เผื่อกรณี
+// touchend ของตัวที่กำลังโชว์อยู่ไม่ทำงานตามคาด (เช่นนิ้วลากหลุดจากไอคอนตอนปล่อย) capture:true ให้ทำงาน
+// ก่อน handler อื่นเสมอ ไม่บล็อก event ปกติ (ไม่เรียก preventDefault/stopPropagation)
+document.addEventListener('pointerdown', hideActiveItemThumbZoom_, { capture: true });
 
 let pendingImageItemId_ = null; // id ของรายการที่กำลังจะอัพโหลดรูปให้ (ตั้งไว้ก่อนเปิด file picker)
 function pickItemImage_(id) {
