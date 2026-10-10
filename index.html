@@ -51,7 +51,7 @@
     .scan-highlight{ outline:3px solid #f97316; outline-offset:2px; transition:outline-color .3s; }
     /* รูปย่อในหน้าจัดการสินค้า — เอาเมาส์ชี้ (คอม) หรือกดค้าง (มือถือ) เพื่อขยายดูรูปเต็ม */
     .item-thumb-wrap{ position:relative; display:inline-block; }
-    .item-thumb-zoom{ display:none; position:absolute; top:0; left:34px; z-index:80; width:160px; height:160px; object-fit:cover; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); border:2px solid white; }
+    .item-thumb-zoom{ display:none; position:absolute; top:0; left:34px; z-index:80; width:300px; height:300px; object-fit:contain; background:white; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.35); border:2px solid white; }
     .item-thumb-wrap:hover .item-thumb-zoom{ display:block; }
     .item-thumb-wrap.show-zoom .item-thumb-zoom{ display:block; }
     .admin-tab{ padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;color:#6b7280; }
@@ -3613,6 +3613,7 @@ async function editItemSku_(id, currentSku) {
     if (res && res.ok) {
       patchCatalogItem_(id, { sku: trimmed });
       renderAdminItemsTabFromCache_();
+      await loadCatalog();
       showToast(t('saveOk'), 'success');
     } else showToast(t('wrongPassword'), 'error');
   } catch (e) { showToast(t('error'), 'error'); }
@@ -3646,6 +3647,10 @@ async function onItemImageFileChosen_(input) {
     if (res && res.ok) {
       patchCatalogItem_(id, { image_url: res.image_url });
       renderAdminItemsTabFromCache_();
+      // โหลดแคตตาล็อกกลางจากเซิร์ฟเวอร์ใหม่ทันที (ไม่รอให้ปิดหน้าแอดมินก่อน) หน้าเช็คสต็อกที่เปิดอยู่
+      // แยกแท็บ/แยกเซสชันกันจะได้เห็นรูปใหม่ทันทีที่กลับไปเปิดหน้านั้น ไม่ต้องงงว่าทำไมยังไม่ขึ้น
+      await loadCatalog();
+      rerenderVisiblePages();
       showToast('อัปโหลดรูปแล้ว', 'success');
     } else showToast('อัปโหลดรูปไม่สำเร็จ', 'error');
   } catch (e) {
