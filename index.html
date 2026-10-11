@@ -622,6 +622,39 @@
       </div>
     </div>
 
+    <!-- รวม แก้ไขชื่อ/บาร์โค้ด/ตำแหน่งจัดเก็บ ไว้ที่เดียว (เดิมแยกเป็นไอค่อนดินสอ/บาร์โค้ตคนละปุ่ม) ลดจำนวนไอค่อน
+         ในแถวแอดมินลง — จัดการหน่วยยังแยกโมดัลเดิมอยู่ (unit-editor-modal) เพราะเป็น UI คนละแบบ (หลายแถว/อัตรา
+         เทียบ) เปิดต่อจากปุ่ม "จัดการหน่วย" ในนี้แทนไอค่อนตาชั่งเดิม
+         ไม่ปิดเมื่อแตะ/คลิกนอกกรอบ — เหตุผลเดียวกับ #admin-modal กันข้อมูลที่กำลังกรอกหายไป -->
+    <div id="item-details-modal" class="modal-overlay hidden">
+      <div class="modal-box p-5 mt-16 mb-10">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-lg font-bold text-gray-800">แก้ไขรายละเอียด</h3>
+          <button onclick="closeItemDetailsModal_()" class="text-gray-400 hover:text-gray-600 text-3xl leading-none w-10 h-10 flex items-center justify-center -m-2">&times;</button>
+        </div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อสินค้า</label>
+        <input id="item-details-name" type="text" class="w-full px-3 py-2 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none">
+
+        <label class="block text-sm font-medium text-gray-700 mb-1">บาร์โค้ด/SKU <span class="text-xs text-gray-400 font-normal">(ไม่กรอกก็ได้)</span></label>
+        <div class="flex gap-2 mb-3">
+          <input id="item-details-sku" type="text" class="flex-1 min-w-0 px-3 py-2 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none">
+          <button type="button" onclick="scanIntoItemDetailsField_('item-details-sku')" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-11 h-11 bg-gray-100 border border-gray-200 rounded-xl inline-flex items-center justify-center" style="padding:8px;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกนบาร์โค้ด" style="width:100%;height:100%;"></button>
+        </div>
+
+        <label class="block text-sm font-medium text-gray-700 mb-1">ตำแหน่งจัดเก็บ <span class="text-xs text-gray-400 font-normal">(ไม่กรอกก็ได้)</span></label>
+        <input id="item-details-location" type="text" placeholder="เช่น ชั้น A1, ตู้เย็น 2" class="w-full px-3 py-2 border-2 border-gray-200 rounded-xl mb-4 focus:border-orange-500 focus:outline-none">
+
+        <button type="button" onclick="openUnitEditorFromDetails_()" class="w-full text-left px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-semibold text-indigo-600 mb-4 flex items-center justify-between">
+          <span>⚖️ จัดการหน่วย</span><span>→</span>
+        </button>
+
+        <div class="flex gap-2">
+          <button onclick="saveItemDetails_()" class="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึก</button>
+          <button onclick="closeItemDetailsModal_()" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold">ยกเลิก</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ไม่ปิดเมื่อแตะ/คลิกนอกกรอบ — เหตุผลเดียวกับ #admin-modal กันข้อมูลหน่วยที่กำลังกรอกหายไป -->
     <div id="unit-editor-modal" class="modal-overlay hidden">
       <div class="modal-box p-5 mt-16 mb-10">
@@ -3225,10 +3258,10 @@ function renderAdminItemsTabFromCache_() {
       </div>
       <div class="flex items-center gap-2 flex-shrink-0" style="position:relative;">
         <div class="item-row-collapsible-icons flex items-center gap-2">
-          <button onclick="renameItem_('${it.id}', '${it.name.replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขชื่อ"><img src="icons/icon-pencil.png" class="icon-img item-row-action-icon" alt="แก้ไขชื่อ"></button>
-          ${String(it.is_header).toUpperCase() === 'TRUE' ? '' : `
-            <button onclick="openUnitEditor('${it.name.replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-indigo-600 text-xs font-semibold" title="หน่วย"><img src="icons/icon-scale.png" class="icon-img item-row-action-icon" alt="หน่วย"></button>
-            <button onclick="editItemSku_('${it.id}', '${(it.sku||'').replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขบาร์โค้ด/SKU"><img src="icons/icon-barcode.png" class="icon-img item-row-action-icon" alt="แก้ไขบาร์โค้ด/SKU"></button>
+          ${String(it.is_header).toUpperCase() === 'TRUE'
+            ? `<button onclick="renameItem_('${it.id}', '${it.name.replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขชื่อ"><img src="icons/icon-pencil.png" class="icon-img item-row-action-icon" alt="แก้ไขชื่อ"></button>`
+            : `
+            <button onclick="openItemDetailsModal_('${it.id}', '${it.name.replace(/'/g,"\\'")}', '${(it.sku||'').replace(/'/g,"\\'")}', '${(it.location||'').replace(/'/g,"\\'")}', '${(it.unit||'').replace(/'/g,"\\'")}')" class="text-gray-500 hover:text-gray-700 text-xs" title="แก้ไขรายละเอียด"><img src="icons/icon-pencil.png" class="icon-img item-row-action-icon" alt="แก้ไขรายละเอียด"></button>
             <button onclick="pickItemImage_('${it.id}')" class="text-gray-500 hover:text-gray-700 text-xs" title="อัปโหลดรูป"><img src="icons/icon-upload.png" class="icon-img item-row-action-icon" alt="อัปโหลดรูป"></button>
           `}
           ${removeBtnHtml}
@@ -3431,11 +3464,65 @@ async function doRenameItem_(id, newName) {
 }
 
 /* =========================================================
+   โมดัลแก้ไขรายละเอียดสินค้า (ชื่อ/บาร์โค้ด/ตำแหน่งจัดเก็บ รวมไว้ที่เดียว — กดบันทึกทีเดียวจบ
+   แทนที่จะแยกเป็นไอค่อนดินสอ/บาร์โค้ตคนละปุ่มเหมือนเดิม) ส่วนหน่วยยังแยกโมดัล unit-editor-modal
+   เดิมอยู่ เปิดต่อจากปุ่มในนี้
+   ========================================================= */
+let itemDetailsItemId_ = null;
+let itemDetailsOriginalName_ = ''; // ใช้ตอนเปิดตัวจัดการหน่วย — ใช้ชื่อที่ยังไม่แก้ไข (ที่มีอยู่จริงบนเซิร์ฟเวอร์)
+                                    // เสมอ ไม่ใช่ชื่อที่เพิ่งพิมพ์ในช่องแต่ยังไม่กดบันทึก กัน unitConfig ผูกกับ
+                                    // ชื่อที่ยังไม่มีอยู่จริง
+let itemDetailsUnit_ = '';
+
+function openItemDetailsModal_(id, name, sku, location, unit) {
+  itemDetailsItemId_ = id;
+  itemDetailsOriginalName_ = name;
+  itemDetailsUnit_ = unit || '';
+  document.getElementById('item-details-name').value = name || '';
+  document.getElementById('item-details-sku').value = sku || '';
+  document.getElementById('item-details-location').value = location || '';
+  // ย้ายไปท้าย <body> เสมอก่อนโชว์ — กันโดนบังตอน z-index เท่ากับ #admin-modal เหตุผลเดียวกับ openScanModal_
+  document.body.appendChild(document.getElementById('item-details-modal'));
+  document.getElementById('item-details-modal').classList.remove('hidden');
+}
+function closeItemDetailsModal_() {
+  document.getElementById('item-details-modal').classList.add('hidden');
+}
+function scanIntoItemDetailsField_(inputId) {
+  openScanModal_((code) => { document.getElementById(inputId).value = code; });
+}
+function openUnitEditorFromDetails_() {
+  openUnitEditor(itemDetailsOriginalName_, itemDetailsUnit_);
+}
+async function saveItemDetails_() {
+  const id = itemDetailsItemId_;
+  const name = document.getElementById('item-details-name').value.trim();
+  const sku = document.getElementById('item-details-sku').value.trim();
+  const location = document.getElementById('item-details-location').value.trim();
+  if (!name) { showToast('กรุณากรอกชื่อสินค้า', 'error'); return; }
+  try {
+    const res = await jsonpGet('saveItem', { password: adminPassword, id, name, sku, location });
+    if (res && res.ok) {
+      adminItemsLoadedScope = null;
+      closeItemDetailsModal_();
+      await renderAdminItemsTab();
+      await loadCatalog();
+      showToast(t('saveOk'), 'success');
+    } else if (res && res.error === 'duplicate_name') {
+      showToast('บันทึกไม่สำเร็จ ชื่อรายการซ้ำ', 'error');
+    } else showToast(t('error'), 'error');
+  } catch (e) { showToast(t('error'), 'error'); }
+}
+
+/* =========================================================
    โมดัลจัดการหน่วย + อัตราแปลง + หน่วยหลัก (ต่อรายการสินค้า)
    ========================================================= */
 let unitEditorItemName = '';
 function openUnitEditor(itemName, legacyUnitStr) {
   unitEditorItemName = itemName;
+  // ย้ายไปท้าย <body> เสมอก่อนโชว์ — กันโดนบังตอนถูกเรียกซ้อนจากโมดัลอื่น (เช่น item-details-modal) ที่มี
+  // z-index เท่ากัน เหตุผลเดียวกับ openScanModal_
+  document.body.appendChild(document.getElementById('unit-editor-modal'));
   document.getElementById('unit-editor-item-name').textContent = tItem(itemName);
   const existing = unitConfig[itemName];
   let rows;
@@ -3991,54 +4078,6 @@ function scanSkuIntoInput_(inputId) {
     const input = document.getElementById(inputId);
     if (input) input.value = code;
   });
-}
-
-/** โมดัลแก้ไขบาร์โค้ด/SKU — พิมพ์เองหรือกดสแกนก็ได้ (แทน prompt() เดิมที่ใส่ปุ่มสแกนเข้าไปไม่ได้) */
-function showSkuEditModal_(currentSku) {
-  return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'confirm-overlay';
-    overlay.innerHTML = `
-      <div class="confirm-box">
-        <p class="text-sm font-semibold text-gray-800 mb-2">บาร์โค้ด/SKU</p>
-        <div class="flex gap-2 mb-3">
-          <input id="sku-edit-input" type="text" class="flex-1 min-w-0 px-3 py-2 border rounded-lg text-sm">
-          <button type="button" id="sku-edit-scan-btn" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-10 h-10 bg-gray-100 border border-gray-200 rounded-xl inline-flex items-center justify-center" style="padding:7px;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกน" style="width:100%;height:100%;"></button>
-        </div>
-        <div class="flex gap-2">
-          <button type="button" id="sku-edit-cancel-btn" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600">ยกเลิก</button>
-          <button type="button" id="sku-edit-save-btn" class="flex-1 py-2 rounded-lg bg-orange-500 text-white text-sm font-semibold">บันทึก</button>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-    const input = overlay.querySelector('#sku-edit-input');
-    input.value = currentSku || '';
-    input.focus();
-    const cleanup = (result) => { overlay.remove(); resolve(result); };
-    overlay.querySelector('#sku-edit-cancel-btn').onclick = () => cleanup(null);
-    overlay.querySelector('#sku-edit-save-btn').onclick = () => cleanup(input.value.trim());
-    overlay.querySelector('#sku-edit-scan-btn').onclick = () => {
-      openScanModal_((code) => { input.value = code; });
-    };
-    input.onkeydown = (e) => { if (e.key === 'Enter') cleanup(input.value.trim()); };
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(null); });
-  });
-}
-
-/** แก้ไขบาร์โค้ด/SKU ของรายการสินค้า — ใช้คู่กับปุ่มสแกนในหน้าปรับสต็อค (ยิงแล้วกระโดดไปรายการนั้นเลย) */
-async function editItemSku_(id, currentSku) {
-  const next = await showSkuEditModal_(currentSku);
-  if (next === null) return;
-  const trimmed = next.trim();
-  try {
-    const res = await jsonpGet('saveItem', { password: adminPassword, id, sku: trimmed });
-    if (res && res.ok) {
-      patchCatalogItem_(id, { sku: trimmed });
-      renderAdminItemsTabFromCache_();
-      await loadCatalog();
-      showToast(t('saveOk'), 'success');
-    } else showToast(t('wrongPassword'), 'error');
-  } catch (e) { showToast(t('error'), 'error'); }
 }
 
 /** ไอคอน "ดูรูป" ใช้ร่วมกันทั้งหน้าจัดการสินค้าและหน้าเช็คสต็อก — ไม่มี <img src> ตั้งไว้ล่วงหน้าเลย

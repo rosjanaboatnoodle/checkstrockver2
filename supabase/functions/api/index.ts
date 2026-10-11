@@ -255,6 +255,7 @@ function mergeItemsForBranch_(central: Record<string, unknown>[], branchItems: R
     if (centralIt) {
       if (!it.image_url && centralIt.image_url) it.image_url = centralIt.image_url;
       if (!it.sku && centralIt.sku) it.sku = centralIt.sku;
+      if (!it.location && centralIt.location) it.location = centralIt.location;
     }
     byKey.set(key, it);
   }
@@ -313,7 +314,7 @@ async function handleSaveItem(p: Record<string, unknown>) {
     const { data: before } = await supabase.from("items").select("name, category").eq("id", p.id).maybeSingle();
     // Partial update (e.g. just sort_order from the reorder buttons).
     const update: Record<string, unknown> = {};
-    for (const k of ["category", "name", "unit", "sku", "is_header", "sort_order"] as const) {
+    for (const k of ["category", "name", "unit", "sku", "location", "is_header", "sort_order"] as const) {
       if (p[k] !== undefined) update[k] = k === "is_header" ? String(p[k]).toUpperCase() === "TRUE" : p[k];
     }
     const { data, error } = await supabase.from("items").update(update).eq("id", p.id).select().maybeSingle();
