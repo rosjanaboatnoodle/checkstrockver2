@@ -533,6 +533,7 @@
         <div class="bg-white rounded-2xl p-4 shadow-md mb-6">
           <div class="flex items-center gap-2 mb-3">
             <input id="overview-page-search" type="text" oninput="onOverviewPageFilterChange_()" placeholder="ค้นหาชื่อสินค้า หรือ รหัสสินค้า..." class="flex-1 min-w-0 px-3 py-2 border rounded-lg text-sm">
+            <button type="button" onclick="openScanModal_(onOverviewScanResult_)" title="สแกนบาร์โค้ด" class="flex-shrink-0 w-10 h-10 bg-gray-100 border border-gray-200 rounded-lg inline-flex items-center justify-center" style="padding:7px;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกนบาร์โค้ด" style="width:100%;height:100%;"></button>
             <div class="flex items-center gap-1 flex-shrink-0">
               <button type="button" onclick="setOverviewPageViewMode_('grid')" id="overview-page-view-grid" class="overview-view-btn active" title="มุมมองตาราง">⊞</button>
               <button type="button" onclick="setOverviewPageViewMode_('list')" id="overview-page-view-list" class="overview-view-btn" title="มุมมองรายการ">☰</button>
@@ -2334,6 +2335,22 @@ function onOverviewPageFilterChange_() {
   overviewPageSearch_ = document.getElementById('overview-page-search').value.trim().toLowerCase();
   overviewPageLowOnly_ = document.getElementById('overview-page-low-only').checked;
   overviewPageHideUnchecked_ = document.getElementById('overview-page-hide-unchecked').checked;
+  renderOverviewPageFiltered_();
+}
+
+/** ผลสแกนบาร์โค้ดในหน้าภาพรวม — หาสินค้าที่ตรงกับ SKU แล้วค้นหาให้อัตโนมัติ
+    เคลียร์ตัวกรองอื่น (หมวดหมู่/เฉพาะใกล้หมด/ซ่อนที่ยังไม่เคยเช็ค) ด้วย กันสินค้าที่สแกนเจอโดนตัวกรองอื่นบังไว้ */
+function onOverviewScanResult_(code) {
+  const item = lookupItemBySku_(code);
+  if (!item) { showToast('ไม่พบสินค้าที่มีบาร์โค้ดนี้ (' + code + ')', 'error'); return; }
+  overviewPageCategoryFilter_ = '';
+  overviewPageLowOnly_ = false;
+  overviewPageHideUnchecked_ = false;
+  document.getElementById('overview-page-low-only').checked = false;
+  document.getElementById('overview-page-hide-unchecked').checked = false;
+  document.getElementById('overview-page-search').value = item.name;
+  overviewPageSearch_ = item.name.toLowerCase();
+  renderOverviewPageCategoryPills_();
   renderOverviewPageFiltered_();
 }
 
