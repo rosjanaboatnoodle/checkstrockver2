@@ -108,10 +108,6 @@
        width/height เป็น px ตรงๆ แล้วอยู่ใน inline-block/flex ที่ไม่ได้ตั้งความกว้างไว้ตายตัว จะโดนบีบแคบกว่าที่
        ตั้งใจไว้จริง (เจอจริง: ตั้ง 20px แต่เรนเดอร์ออกมาแค่ ~12px เพราะไปอิงความกว้างที่เหลือของ flex แทน) */
     .icon-img{ vertical-align:middle; max-width:none; }
-    /* Tailwind ในไฟล์นี้คอมไพล์ไว้ล่วงหน้า (ไม่ใช่ JIT) — ไม่มี .sm:grid-cols-3 คอมไพล์อยู่จริง ต้องเขียน grid เองตรงนี้ */
-    .overview-card-grid{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:.75rem; }
-    @media (min-width: 768px) { .overview-card-grid{ grid-template-columns:repeat(3, minmax(0, 1fr)); } }
-    @media (min-width: 1024px) { .overview-card-grid{ grid-template-columns:repeat(4, minmax(0, 1fr)); } }
     html[data-theme="dark"] .icon-img{ filter:invert(1); }
     .admin-tab{ padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;color:#6b7280; }
     .admin-tab.active{ background:#ea580c;color:white; }
@@ -513,10 +509,16 @@
         <div class="bg-white rounded-2xl p-4 shadow-md mb-6">
           <input id="overview-page-search" type="text" oninput="onOverviewPageFilterChange_()" placeholder="ค้นหาชื่อสินค้า..." class="w-full px-3 py-2 border rounded-lg text-sm mb-3">
           <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
-            <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-              <input type="checkbox" id="overview-page-low-only" onchange="onOverviewPageFilterChange_()">
-              เฉพาะใกล้หมด
-            </label>
+            <div class="flex items-center gap-4 flex-wrap">
+              <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                <input type="checkbox" id="overview-page-low-only" onchange="onOverviewPageFilterChange_()">
+                เฉพาะใกล้หมด
+              </label>
+              <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                <input type="checkbox" id="overview-page-hide-unchecked" checked onchange="onOverviewPageFilterChange_()">
+                ซ่อนรายการที่ยังไม่เคยเช็ค
+              </label>
+            </div>
             <span id="overview-page-stats" class="text-xs text-gray-400"></span>
           </div>
           <div id="overview-page-category-pills" class="flex items-center gap-2 flex-wrap"></div>
@@ -2207,6 +2209,7 @@ let overviewPageCategories_ = []; // ข้อมูลดิบที่ดึ�
 let overviewPageSearch_ = '';
 let overviewPageCategoryFilter_ = ''; // '' = ทุกหมวดหมู่
 let overviewPageLowOnly_ = false;
+let overviewPageHideUnchecked_ = true; // ซ่อนรายการที่ไม่เคยเช็คไว้ก่อน (ค่าเริ่มต้น) — ไม่งั้นหมวดที่มีหลายสิบรายการจะเต็มไปด้วยรายการที่ไม่มีข้อมูลจริง
 
 async function openOverviewPage() {
   showPage('overview-page');
@@ -2239,8 +2242,10 @@ async function loadOverviewPageContent_() {
     overviewPageSearch_ = '';
     overviewPageCategoryFilter_ = '';
     overviewPageLowOnly_ = false;
+    overviewPageHideUnchecked_ = true;
     document.getElementById('overview-page-search').value = '';
     document.getElementById('overview-page-low-only').checked = false;
+    document.getElementById('overview-page-hide-unchecked').checked = true;
     renderOverviewPageCategoryPills_();
     renderOverviewPageFiltered_();
   } catch (e) {
@@ -2263,6 +2268,7 @@ function onOverviewPageCategoryPillClick_(cat) {
 function onOverviewPageFilterChange_() {
   overviewPageSearch_ = document.getElementById('overview-page-search').value.trim().toLowerCase();
   overviewPageLowOnly_ = document.getElementById('overview-page-low-only').checked;
+  overviewPageHideUnchecked_ = document.getElementById('overview-page-hide-unchecked').checked;
   renderOverviewPageFiltered_();
 }
 
@@ -2275,20 +2281,21 @@ function renderOverviewPageFiltered_() {
   const filtered = overviewPageCategories_
     .filter(cat => !overviewPageCategoryFilter_ || cat.category === overviewPageCategoryFilter_)
     .map(cat => ({ ...cat, items: cat.items.filter(it => {
+      if (overviewPageHideUnchecked_ && !it.hasBaseline) return false;
       if (overviewPageLowOnly_ && !(it.hasBaseline && Number(it.qty) <= 0)) return false;
       if (overviewPageSearch_ && !it.name.toLowerCase().includes(overviewPageSearch_)) return false;
       return true;
     }) }))
     .filter(cat => cat.items.length > 0);
   const shownItems = filtered.reduce((sum, c) => sum + c.items.length, 0);
-  const filtersActive = !!(overviewPageSearch_ || overviewPageLowOnly_ || overviewPageCategoryFilter_);
+  const filtersActive = !!(overviewPageSearch_ || overviewPageLowOnly_ || overviewPageCategoryFilter_ || overviewPageHideUnchecked_);
 
   document.getElementById('overview-page-stats').textContent = filtersActive
     ? `แสดง ${shownItems} จาก ${totalItems} รายการ`
     : `ทั้งหมด ${totalItems} รายการ · ใกล้หมด ${totalLow} รายการ`;
 
   if (!filtered.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-8">ไม่พบรายการที่ตรงกับตัวกรอง</p>`; return; }
-  renderOverviewPageCards_(filtered);
+  renderOverviewPageRows_(filtered);
 }
 
 function fmtOverviewDate_(d) {
@@ -2296,33 +2303,28 @@ function fmtOverviewDate_(d) {
   return new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function renderOverviewPageCards_(categories) {
+function renderOverviewPageRows_(categories) {
   const el = document.getElementById('overview-page-content');
   el.innerHTML = categories.map(cat => {
     // "เหลือน้อย" = หมดแล้ว (qty <= 0) — ค่าที่โชว์ตรงนี้คือยอดคาดคะเนปัจจุบัน ไม่มีค่า "จุดสั่งซื้อ" แยก
     // เก็บไว้ต่อรายการในระบบ (บัฟเฟอร์ % ที่ตั้งไว้ใช้เทียบตอนเพิ่งเช็คเสร็จเท่านั้น ไม่ใช่ตัวเลขคงที่)
     const lowCount = cat.items.filter(it => it.hasBaseline && Number(it.qty) <= 0).length;
-    const cards = cat.items.map(it => {
+    const rows = cat.items.map(it => {
       const low = it.hasBaseline && Number(it.qty) <= 0;
-      const valueHtml = it.hasBaseline
-        ? `<p class="text-xl font-bold ${low ? 'text-red-600' : 'text-gray-800'}">${fmtQty(it.qty)}<span class="text-xs font-normal text-gray-400 ml-1">${it.unit || ''}</span></p>`
-        : `<p class="text-sm text-gray-400">ยังไม่เคยเช็ค</p>`;
-      return `
-        <div class="bg-white rounded-xl p-3 shadow-sm border ${low ? 'border-red-200' : 'border-gray-100'}">
-          <p class="text-sm font-semibold text-gray-800 truncate mb-2" title="${it.name}">${it.name}</p>
-          ${valueHtml}
-        </div>`;
+      const valueText = it.hasBaseline ? (fmtQty(it.qty) + (it.unit ? ' ' + it.unit : '')) : 'ยังไม่เคยเช็ค';
+      const cls = low ? 'text-red-600 font-semibold' : (it.hasBaseline ? 'text-gray-800 font-semibold' : 'text-gray-400');
+      return `<div class="flex items-center justify-between px-3 py-2 text-sm"><span class="text-gray-700">${it.name}</span><span class="${cls}">${valueText}</span></div>`;
     }).join('');
     return `
-      <div class="mb-6">
-        <div class="flex items-center justify-between flex-wrap gap-1 mb-3">
-          <h3 class="text-base font-bold text-gray-800">${tCategory(cat.category)}</h3>
+      <div class="mb-4 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="flex items-center justify-between flex-wrap gap-1 px-3 py-2.5 bg-gray-100 text-sm font-semibold text-gray-700">
+          <span>${tCategory(cat.category)}</span>
           <span class="text-xs font-normal flex items-center gap-2">
             ${lowCount ? `<span class="text-red-600 font-semibold">⚠️ ${lowCount} รายการหมด</span>` : ''}
             <span class="text-gray-400">${cat.items.length} รายการ · ${fmtOverviewDate_(cat.lastUpdated)}</span>
           </span>
         </div>
-        <div class="overview-card-grid">${cards}</div>
+        <div class="divide-y divide-gray-100">${rows}</div>
       </div>`;
   }).join('');
 }
