@@ -825,6 +825,13 @@ async function handleUpdateItemInRecord(p: Record<string, unknown>) {
 // relies on, so the numbers here always match what LINE alerts are based on) grouped by category,
 // plus each category's most recent check date — not real-time (nothing cuts stock at sale time),
 // same staleness as the LINE alerts, just viewable on demand instead of waiting for a push.
+//
+// "low" per item reuses the exact same buffer-config + isLowFlag math the LINE reorder alert
+// uses at check-in time (computeLowStockFlags above) — just fed different inputs, since there's
+// no fresh check happening here: "actual" is the current running qty (last_verified_qty + any
+// movements since), "predicted" is last_verified_qty itself (the qty as of the last physical
+// check/adjust, before those movements). Same question the LINE alert asks ("did the count come
+// in well below what we last verified"), just evaluated on demand instead of only at check-in.
 async function handleGetBranchOverview(p: Record<string, unknown>) {
   if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
   const branchId = String(p.branch_id ?? "");
@@ -840,11 +847,20 @@ async function handleGetBranchOverview(p: Record<string, unknown>) {
     if (!lastUpdatedByCategory.has(r.category)) lastUpdatedByCategory.set(r.category, r.date);
   }
 
-  const byCategory = new Map<string, Array<{ name: string; qty: number | null; unit: string; hasBaseline: boolean }>>();
-  for (const row of (levels ?? []) as Array<{ item_name: string; category: string; unit: string; qty: number; has_baseline: boolean }>) {
+  const bufferConfig = await getSetting<Record<string, unknown> | null>("buffer_config", null);
+
+  const byCategory = new Map<string, Array<{ name: string; qty: number | null; unit: string; hasBaseline: boolean; low: boolean }>>();
+  for (const row of (levels ?? []) as Array<
+    { item_name: string; category: string; unit: string; qty: number; has_baseline: boolean; last_verified_qty: number | null }
+  >) {
     if (!byCategory.has(row.category)) byCategory.set(row.category, []);
+    const predicted = row.last_verified_qty !== null && row.last_verified_qty !== undefined ? Number(row.last_verified_qty) : null;
+    let low = false;
+    if (bufferConfig && row.has_baseline && isPredictionEnabled(row.item_name, row.category, bufferConfig)) {
+      low = isLowFlag(Number(row.qty), predicted, effectiveBufferPct(row.item_name, row.category, bufferConfig));
+    }
     byCategory.get(row.category)!.push({
-      name: row.item_name, qty: row.has_baseline ? Number(row.qty) : null, unit: row.unit, hasBaseline: row.has_baseline,
+      name: row.item_name, qty: row.has_baseline ? Number(row.qty) : null, unit: row.unit, hasBaseline: row.has_baseline, low,
     });
   }
   const categories = [...byCategory.entries()]

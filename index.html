@@ -2277,12 +2277,12 @@ function renderOverviewPageFiltered_() {
   if (!overviewPageCategories_.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-8">ยังไม่มีรายการสินค้าในสาขานี้</p>`; return; }
 
   const totalItems = overviewPageCategories_.reduce((sum, c) => sum + c.items.length, 0);
-  const totalLow = overviewPageCategories_.reduce((sum, c) => sum + c.items.filter(it => it.hasBaseline && Number(it.qty) <= 0).length, 0);
+  const totalLow = overviewPageCategories_.reduce((sum, c) => sum + c.items.filter(it => it.low).length, 0);
   const filtered = overviewPageCategories_
     .filter(cat => !overviewPageCategoryFilter_ || cat.category === overviewPageCategoryFilter_)
     .map(cat => ({ ...cat, items: cat.items.filter(it => {
       if (overviewPageHideUnchecked_ && !it.hasBaseline) return false;
-      if (overviewPageLowOnly_ && !(it.hasBaseline && Number(it.qty) <= 0)) return false;
+      if (overviewPageLowOnly_ && !it.low) return false;
       if (overviewPageSearch_ && !it.name.toLowerCase().includes(overviewPageSearch_)) return false;
       return true;
     }) }))
@@ -2306,13 +2306,12 @@ function fmtOverviewDate_(d) {
 function renderOverviewPageRows_(categories) {
   const el = document.getElementById('overview-page-content');
   el.innerHTML = categories.map(cat => {
-    // "เหลือน้อย" = หมดแล้ว (qty <= 0) — ค่าที่โชว์ตรงนี้คือยอดคาดคะเนปัจจุบัน ไม่มีค่า "จุดสั่งซื้อ" แยก
-    // เก็บไว้ต่อรายการในระบบ (บัฟเฟอร์ % ที่ตั้งไว้ใช้เทียบตอนเพิ่งเช็คเสร็จเท่านั้น ไม่ใช่ตัวเลขคงที่)
-    const lowCount = cat.items.filter(it => it.hasBaseline && Number(it.qty) <= 0).length;
+    // it.low คำนวณจากฝั่งเซิร์ฟเวอร์ (handleGetBranchOverview) ด้วย logic เดียวกับที่แจ้งเตือน LINE
+    // ใช้ตอนเช็คสต็อก (buffer % ต่อหมวด/รายการ เทียบ qty ปัจจุบันกับยอดที่เช็ค/ปรับล่าสุด) ไม่ใช่แค่ qty<=0
+    const lowCount = cat.items.filter(it => it.low).length;
     const rows = cat.items.map(it => {
-      const low = it.hasBaseline && Number(it.qty) <= 0;
       const valueText = it.hasBaseline ? (fmtQty(it.qty) + (it.unit ? ' ' + it.unit : '')) : 'ยังไม่เคยเช็ค';
-      const cls = low ? 'text-red-600 font-semibold' : (it.hasBaseline ? 'text-gray-800 font-semibold' : 'text-gray-400');
+      const cls = it.low ? 'text-red-600 font-semibold' : (it.hasBaseline ? 'text-gray-800 font-semibold' : 'text-gray-400');
       return `<div class="flex items-center justify-between px-3 py-2 text-sm"><span class="text-gray-700">${it.name}</span><span class="${cls}">${valueText}</span></div>`;
     }).join('');
     return `
@@ -2320,7 +2319,7 @@ function renderOverviewPageRows_(categories) {
         <div class="flex items-center justify-between flex-wrap gap-1 px-3 py-2.5 bg-gray-100 text-sm font-semibold text-gray-700">
           <span>${tCategory(cat.category)}</span>
           <span class="text-xs font-normal flex items-center gap-2">
-            ${lowCount ? `<span class="text-red-600 font-semibold">⚠️ ${lowCount} รายการหมด</span>` : ''}
+            ${lowCount ? `<span class="text-red-600 font-semibold">⚠️ ${lowCount} รายการใกล้หมด</span>` : ''}
             <span class="text-gray-400">${cat.items.length} รายการ · ${fmtOverviewDate_(cat.lastUpdated)}</span>
           </span>
         </div>
