@@ -108,10 +108,13 @@
        width/height เป็น px ตรงๆ แล้วอยู่ใน inline-block/flex ที่ไม่ได้ตั้งความกว้างไว้ตายตัว จะโดนบีบแคบกว่าที่
        ตั้งใจไว้จริง (เจอจริง: ตั้ง 20px แต่เรนเดอร์ออกมาแค่ ~12px เพราะไปอิงความกว้างที่เหลือของ flex แทน) */
     .icon-img{ vertical-align:middle; max-width:none; }
+    /* Tailwind ในไฟล์นี้คอมไพล์ไว้ล่วงหน้า (ไม่ใช่ JIT) — ไม่มี .sm:grid-cols-3 คอมไพล์อยู่จริง ต้องเขียน grid เองตรงนี้ */
+    .overview-card-grid{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:.75rem; }
+    @media (min-width: 768px) { .overview-card-grid{ grid-template-columns:repeat(3, minmax(0, 1fr)); } }
+    @media (min-width: 1024px) { .overview-card-grid{ grid-template-columns:repeat(4, minmax(0, 1fr)); } }
     html[data-theme="dark"] .icon-img{ filter:invert(1); }
     .admin-tab{ padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;color:#6b7280; }
     .admin-tab.active{ background:#ea580c;color:white; }
-    .admin-tab-icon{ width:40px;height:40px;padding:0;border-radius:50%;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:19px; }
     .badge-check{ background:#dbeafe;color:#1d4ed8; }
     .badge-movement{ background:#fef3c7;color:#b45309; }
     .translate-btn{ flex-shrink:0;width:34px;height:34px;border-radius:8px;background:#eef2ff;color:#4338ca;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;border:none; }
@@ -224,7 +227,6 @@
     html[data-theme="dark"] .modal-box{ background:#1f242b; color:#e5e7eb; }
     html[data-theme="dark"] .admin-tab{ color:#9ca3af; }
     html[data-theme="dark"] .admin-tab.active{ color:#fff; }
-    html[data-theme="dark"] .admin-tab-icon{ background:#2a2f36; }
     html[data-theme="dark"] .badge-check{ background:#1e3a5f; color:#93c5fd; }
     html[data-theme="dark"] .badge-movement{ background:#4a3510; color:#fcd34d; }
     html[data-theme="dark"] .translate-btn{ background:#242244; color:#a5b4fc; }
@@ -318,12 +320,18 @@
             <p data-t="dailyCheck" class="text-orange-600 text-sm mt-1">เช็คสต็อกประจำวัน</p>
             <button onclick="branchSwitchLabelClick()" id="branch-switch-label" class="text-xs text-gray-500 underline mt-1"></button>
           </div>
-          <button onclick="showHistory()" class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-md hover:shadow-lg transition-all text-orange-700 font-medium">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span data-t="history">ประวัติ</span>
-          </button>
+          <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button onclick="openOverviewGate()" class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-md hover:shadow-lg transition-all text-orange-700 font-medium">
+              <span>📊</span>
+              <span>ภาพรวม</span>
+            </button>
+            <button onclick="showHistory()" class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-md hover:shadow-lg transition-all text-orange-700 font-medium">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span data-t="history">ประวัติ</span>
+            </button>
+          </div>
         </div>
 
         <div class="bg-white rounded-2xl p-4 shadow-md mb-6">
@@ -490,6 +498,22 @@
       </div>
     </div>
 
+    <!-- หน้าภาพรวม — แยกจากหน้าแอดมิน แต่ยังต้องใส่รหัสแอดมินก่อนเข้า (ผ่าน openOverviewGate() + admin-gate-modal) -->
+    <div id="overview-page" class="min-h-full p-4 md:p-6 pt-20 hidden">
+      <div class="max-w-4xl mx-auto fade-in">
+        <button onclick="goHome()" class="flex items-center gap-2 text-orange-700 mb-6 hover:text-orange-800 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+          <span data-t="backHome">กลับหน้าหลัก</span>
+        </button>
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">📊 ภาพรวม</h2>
+        <div class="bg-white rounded-2xl p-4 shadow-md mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-1">สาขา</label>
+          <select id="overview-page-branch-select" onchange="onOverviewPageBranchChange_()" class="w-full px-3 py-2 border rounded-lg text-sm"></select>
+        </div>
+        <div id="overview-page-content"><p class="text-center text-gray-400 text-sm py-8">กำลังโหลด...</p></div>
+      </div>
+    </div>
+
     <!-- Admin modal -->
     <div id="admin-gate-modal" class="modal-overlay hidden">
       <div class="modal-box p-6 mt-24">
@@ -515,12 +539,10 @@
           <div class="admin-tab" data-tab="branches" onclick="switchAdminTab('branches')" data-t="manageBranches">จัดการสาขา</div>
           <div class="admin-tab" data-tab="translations" onclick="switchAdminTab('translations')" data-t="manageTranslations">จัดการคำแปล</div>
           <div class="admin-tab" data-tab="buffer" onclick="switchAdminTab('buffer')">⚙️ Buffer คาดคะเน</div>
-          <div class="admin-tab admin-tab-icon" data-tab="overview" onclick="switchAdminTab('overview')" title="ภาพรวม">📊</div>
           <div class="admin-tab" data-tab="purchase" onclick="switchAdminTab('purchase')">🧾 นำเข้าจากบัญชี</div>
           <div class="admin-tab" data-tab="password" onclick="switchAdminTab('password')">🔑 เปลี่ยนรหัสผ่าน</div>
         </div>
         <div id="admin-tab-items"></div>
-        <div id="admin-tab-overview" class="hidden"></div>
         <div id="admin-tab-branches" class="hidden"></div>
         <div id="admin-tab-translations" class="hidden"></div>
         <div id="admin-tab-buffer" class="hidden"></div>
@@ -690,6 +712,7 @@ let allRecords = [];
 let currentCategory = '';
 let checkerName = '';
 let adminPassword = sessionStorage.getItem('admin_pw') || '';
+let adminGateIntent_ = 'admin'; // 'admin' = เข้าหน้าแอดมิน, 'overview' = เข้าหน้าภาพรวม (คนละหน้ากัน แต่ใช้ gate รหัสผ่านร่วมกัน)
 window.__currentDetailRecordId = null;
 
 /* =========================================================
@@ -1196,7 +1219,7 @@ function updateBranchSwitchLabel() {
    Page navigation
    ========================================================= */
 function showPage(pageId) {
-  ['branch-page','home-page','name-page','stock-page','movement-page','history-page','history-detail-page'].forEach(p => document.getElementById(p).classList.add('hidden'));
+  ['branch-page','home-page','name-page','stock-page','movement-page','history-page','history-detail-page','overview-page'].forEach(p => document.getElementById(p).classList.add('hidden'));
   document.getElementById(pageId).classList.remove('hidden');
 }
 function goHome() { renderHomeCategoryButtons(); showPage('home-page'); }
@@ -2072,9 +2095,16 @@ async function saveEditedItem(itemName, btn) {
 function openAdminGate() {
   // เพื่อความปลอดภัย ให้ถามรหัสผ่านทุกครั้งที่กดปุ่มแอดมิน ไม่ใช้รหัสผ่านที่จำไว้ข้ามไป
   // ต้องเคลียร์ช่องกรอกรหัสทุกครั้งที่เปิด ไม่งั้นรหัสที่เคยพิมพ์ไว้จะค้างอยู่ในช่อง กดตกลง/Enter ผ่านได้เลยโดยไม่ต้องพิมพ์ใหม่
+  adminGateIntent_ = 'admin';
   document.getElementById('admin-password-input').value = '';
   document.getElementById('admin-gate-modal').classList.remove('hidden');
   applyStaticTranslations(); // บังคับ label ในหน้าแอดมินกลับเป็นไทยตอนนี้ (isAdminUiOpen_ จะเป็น true แล้ว)
+}
+function openOverviewGate() {
+  adminGateIntent_ = 'overview';
+  document.getElementById('admin-password-input').value = '';
+  document.getElementById('admin-gate-modal').classList.remove('hidden');
+  applyStaticTranslations();
 }
 function closeAdminGate() {
   document.getElementById('admin-password-input').value = '';
@@ -2107,7 +2137,11 @@ async function submitAdminLogin() {
       // ไม่ต้องยิง listBranches ซ้ำตอนกดเข้าแท็บ "จัดการสาขา" หรือ "นำเข้าจากบัญชี" อีกรอบ
       if (res.branches) { branches = res.branches; branchesLoaded = true; }
       closeAdminGate();
-      openAdminModal(prefetchItems, prefetchScope);
+      if (adminGateIntent_ === 'overview') {
+        openOverviewPage();
+      } else {
+        openAdminModal(prefetchItems, prefetchScope);
+      }
     } else {
       showToast(t('wrongPassword'), 'error');
     }
@@ -2139,14 +2173,12 @@ async function closeAdminModal() {
 function switchAdminTab(tab, prefetchItems, prefetchScope) {
   document.querySelectorAll('.admin-tab').forEach(el => el.classList.toggle('active', el.getAttribute('data-tab')===tab));
   document.getElementById('admin-tab-items').classList.toggle('hidden', tab!=='items');
-  document.getElementById('admin-tab-overview').classList.toggle('hidden', tab!=='overview');
   document.getElementById('admin-tab-branches').classList.toggle('hidden', tab!=='branches');
   document.getElementById('admin-tab-translations').classList.toggle('hidden', tab!=='translations');
   document.getElementById('admin-tab-buffer').classList.toggle('hidden', tab!=='buffer');
   document.getElementById('admin-tab-purchase').classList.toggle('hidden', tab!=='purchase');
   document.getElementById('admin-tab-password').classList.toggle('hidden', tab!=='password');
   if (tab==='items') renderAdminItemsTab(prefetchItems, prefetchScope);
-  if (tab==='overview') renderAdminOverviewTab();
   if (tab==='branches') renderAdminBranchesTab();
   if (tab==='translations') renderAdminTranslationsTab();
   if (tab==='buffer') renderAdminBufferTab();
@@ -2155,45 +2187,41 @@ function switchAdminTab(tab, prefetchItems, prefetchScope) {
 }
 
 /* =========================================================
-   Admin — ภาพรวม (dashboard): เหลือเท่าไหร่ต่อหมวด + อัพเดตล่าสุดวันไหน ต่อสาขา
+   ภาพรวม (dashboard): เหลือเท่าไหร่ต่อหมวด + อัพเดตล่าสุดวันไหน ต่อสาขา
+   แยกเป็นหน้าเต็มจอของตัวเอง (ไม่ใช่แท็บในแอดมิน) แต่ยังต้องใส่รหัสแอดมินก่อนเข้าเหมือนเดิม
    ไม่เรียลไทม์ — อิงยอดเช็คครั้งล่าสุด + รายการปรับสต็อคที่บันทึกไว้ (เหมือนที่แจ้งเตือนผ่าน LINE ใช้)
    ========================================================= */
-let adminOverviewBranch = ''; // สาขาที่กำลังดูภาพรวมอยู่
-let overviewOpenCategories = new Set();
+let overviewPageBranch_ = ''; // สาขาที่กำลังดูภาพรวมอยู่
 
-async function renderAdminOverviewTab() {
-  const el = document.getElementById('admin-tab-overview');
+async function openOverviewPage() {
+  showPage('overview-page');
+  const content = document.getElementById('overview-page-content');
   if (!branchesLoaded) {
     try { const r = await jsonpGet('listBranches', { password: adminPassword }); if (r && r.ok) { branches = r.branches; branchesLoaded = true; } } catch (e) {}
   }
-  if (!branches.length) { el.innerHTML = `<p class="text-sm text-gray-400 text-center py-4">ยังไม่มีสาขาในระบบ</p>`; return; }
-  if (!adminOverviewBranch || !branches.some(b => b.id === adminOverviewBranch)) {
-    adminOverviewBranch = branches.some(b => b.id === currentBranchId) ? currentBranchId : branches[0].id;
+  if (!branches.length) { content.innerHTML = `<p class="text-sm text-gray-400 text-center py-8">ยังไม่มีสาขาในระบบ</p>`; return; }
+  if (!overviewPageBranch_ || !branches.some(b => b.id === overviewPageBranch_)) {
+    overviewPageBranch_ = branches.some(b => b.id === currentBranchId) ? currentBranchId : branches[0].id;
   }
-  const branchOptions = branches.map(b => `<option value="${b.id}" ${b.id===adminOverviewBranch?'selected':''}>${b.name}</option>`).join('');
-  el.innerHTML = `
-    <label class="block text-sm font-medium text-gray-700 mb-1">สาขา</label>
-    <select id="overview-branch-select" onchange="onOverviewBranchChange_()" class="w-full px-3 py-2 border rounded-lg text-sm mb-4">${branchOptions}</select>
-    <div id="overview-content"><p class="text-center text-gray-400 text-sm py-4">${t('loading')}</p></div>
-  `;
-  await loadOverviewContent_();
+  document.getElementById('overview-page-branch-select').innerHTML =
+    branches.map(b => `<option value="${b.id}" ${b.id===overviewPageBranch_?'selected':''}>${b.name}</option>`).join('');
+  await loadOverviewPageContent_();
 }
 
-function onOverviewBranchChange_() {
-  adminOverviewBranch = document.getElementById('overview-branch-select').value;
-  loadOverviewContent_();
+function onOverviewPageBranchChange_() {
+  overviewPageBranch_ = document.getElementById('overview-page-branch-select').value;
+  loadOverviewPageContent_();
 }
 
-async function loadOverviewContent_() {
-  const el = document.getElementById('overview-content');
-  if (!el) return;
-  el.innerHTML = `<p class="text-center text-gray-400 text-sm py-4">${t('loading')}</p>`;
+async function loadOverviewPageContent_() {
+  const el = document.getElementById('overview-page-content');
+  el.innerHTML = `<p class="text-center text-gray-400 text-sm py-8">${t('loading')}</p>`;
   try {
-    const res = await jsonpGet('getBranchOverview', { password: adminPassword, branch_id: adminOverviewBranch });
+    const res = await jsonpGet('getBranchOverview', { password: adminPassword, branch_id: overviewPageBranch_ });
     if (!res || !res.ok) throw new Error((res && res.error) || 'load_failed');
-    renderOverviewContent_(res.categories || []);
+    renderOverviewPageCards_(res.categories || []);
   } catch (e) {
-    el.innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${(e && e.message) || e}</p>`;
+    el.innerHTML = `<p class="text-sm text-red-500 text-center py-8">โหลดไม่สำเร็จ: ${(e && e.message) || e}</p>`;
   }
 }
 
@@ -2202,36 +2230,36 @@ function fmtOverviewDate_(d) {
   return new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function renderOverviewContent_(categories) {
-  const el = document.getElementById('overview-content');
-  if (!categories.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-4">ยังไม่มีรายการสินค้าในสาขานี้</p>`; return; }
+function renderOverviewPageCards_(categories) {
+  const el = document.getElementById('overview-page-content');
+  if (!categories.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-8">ยังไม่มีรายการสินค้าในสาขานี้</p>`; return; }
   el.innerHTML = categories.map(cat => {
-    const open = overviewOpenCategories.has(cat.category);
     // "เหลือน้อย" = หมดแล้ว (qty <= 0) — ค่าที่โชว์ตรงนี้คือยอดคาดคะเนปัจจุบัน ไม่มีค่า "จุดสั่งซื้อ" แยก
     // เก็บไว้ต่อรายการในระบบ (บัฟเฟอร์ % ที่ตั้งไว้ใช้เทียบตอนเพิ่งเช็คเสร็จเท่านั้น ไม่ใช่ตัวเลขคงที่)
     const lowCount = cat.items.filter(it => it.hasBaseline && Number(it.qty) <= 0).length;
-    const rows = cat.items.map(it => {
+    const cards = cat.items.map(it => {
       const low = it.hasBaseline && Number(it.qty) <= 0;
-      const valueText = it.hasBaseline ? (fmtQty(it.qty) + (it.unit ? ' ' + it.unit : '')) : 'ยังไม่เคยเช็ค';
-      const cls = low ? 'text-red-600 font-semibold' : 'text-gray-600';
-      return `<div class="flex items-center justify-between px-3 py-2 text-sm"><span class="text-gray-700">${it.name}</span><span class="${cls}">${valueText}</span></div>`;
+      const valueHtml = it.hasBaseline
+        ? `<p class="text-xl font-bold ${low ? 'text-red-600' : 'text-gray-800'}">${fmtQty(it.qty)}<span class="text-xs font-normal text-gray-400 ml-1">${it.unit || ''}</span></p>`
+        : `<p class="text-sm text-gray-400">ยังไม่เคยเช็ค</p>`;
+      return `
+        <div class="bg-white rounded-xl p-3 shadow-sm border ${low ? 'border-red-200' : 'border-gray-100'}">
+          <p class="text-sm font-semibold text-gray-800 truncate mb-2" title="${it.name}">${it.name}</p>
+          ${valueHtml}
+        </div>`;
     }).join('');
     return `
-      <details class="mb-2 border border-gray-200 rounded-xl overflow-hidden" ${open?'open':''} ontoggle="onOverviewCategoryToggle_(this,'${cat.category.replace(/'/g,"\\'")}')">
-        <summary class="cursor-pointer select-none px-3 py-2.5 bg-gray-100 text-sm font-semibold text-gray-700 flex items-center justify-between flex-wrap gap-1">
-          <span>${tCategory(cat.category)}</span>
+      <div class="mb-6">
+        <div class="flex items-center justify-between flex-wrap gap-1 mb-3">
+          <h3 class="text-base font-bold text-gray-800">${tCategory(cat.category)}</h3>
           <span class="text-xs font-normal flex items-center gap-2">
             ${lowCount ? `<span class="text-red-600 font-semibold">⚠️ ${lowCount} รายการหมด</span>` : ''}
             <span class="text-gray-400">${cat.itemCount} รายการ · ${fmtOverviewDate_(cat.lastUpdated)}</span>
           </span>
-        </summary>
-        <div class="divide-y divide-gray-100">${rows}</div>
-      </details>`;
+        </div>
+        <div class="overview-card-grid">${cards}</div>
+      </div>`;
   }).join('');
-}
-
-function onOverviewCategoryToggle_(detailsEl, cat) {
-  if (detailsEl.open) overviewOpenCategories.add(cat); else overviewOpenCategories.delete(cat);
 }
 
 /* =========================================================
