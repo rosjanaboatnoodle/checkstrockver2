@@ -506,9 +506,20 @@
           <span data-t="backHome">กลับหน้าหลัก</span>
         </button>
         <h2 class="text-2xl font-bold text-gray-800 mb-4">📊 ภาพรวม</h2>
-        <div class="bg-white rounded-2xl p-4 shadow-md mb-6">
+        <div class="bg-white rounded-2xl p-4 shadow-md mb-4">
           <label class="block text-sm font-medium text-gray-700 mb-1">สาขา</label>
           <select id="overview-page-branch-select" onchange="onOverviewPageBranchChange_()" class="w-full px-3 py-2 border rounded-lg text-sm"></select>
+        </div>
+        <div class="bg-white rounded-2xl p-4 shadow-md mb-6">
+          <input id="overview-page-search" type="text" oninput="onOverviewPageFilterChange_()" placeholder="ค้นหาชื่อสินค้า..." class="w-full px-3 py-2 border rounded-lg text-sm mb-3">
+          <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+              <input type="checkbox" id="overview-page-low-only" onchange="onOverviewPageFilterChange_()">
+              เฉพาะใกล้หมด
+            </label>
+            <span id="overview-page-stats" class="text-xs text-gray-400"></span>
+          </div>
+          <div id="overview-page-category-pills" class="flex items-center gap-2 flex-wrap"></div>
         </div>
         <div id="overview-page-content"><p class="text-center text-gray-400 text-sm py-8">กำลังโหลด...</p></div>
       </div>
@@ -2192,6 +2203,10 @@ function switchAdminTab(tab, prefetchItems, prefetchScope) {
    ไม่เรียลไทม์ — อิงยอดเช็คครั้งล่าสุด + รายการปรับสต็อคที่บันทึกไว้ (เหมือนที่แจ้งเตือนผ่าน LINE ใช้)
    ========================================================= */
 let overviewPageBranch_ = ''; // สาขาที่กำลังดูภาพรวมอยู่
+let overviewPageCategories_ = []; // ข้อมูลดิบที่ดึงมาล่าสุด เก็บไว้กรอง/ค้นหาฝั่ง client โดยไม่ต้องยิงซ้ำ
+let overviewPageSearch_ = '';
+let overviewPageCategoryFilter_ = ''; // '' = ทุกหมวดหมู่
+let overviewPageLowOnly_ = false;
 
 async function openOverviewPage() {
   showPage('overview-page');
@@ -2219,10 +2234,61 @@ async function loadOverviewPageContent_() {
   try {
     const res = await jsonpGet('getBranchOverview', { password: adminPassword, branch_id: overviewPageBranch_ });
     if (!res || !res.ok) throw new Error((res && res.error) || 'load_failed');
-    renderOverviewPageCards_(res.categories || []);
+    overviewPageCategories_ = res.categories || [];
+    // สลับสาขาแล้วเริ่มตัวกรองใหม่ — ค้นหา/หมวดหมู่/เฉพาะใกล้หมดของสาขาเก่าอาจไม่มีความหมายกับสาขาใหม่
+    overviewPageSearch_ = '';
+    overviewPageCategoryFilter_ = '';
+    overviewPageLowOnly_ = false;
+    document.getElementById('overview-page-search').value = '';
+    document.getElementById('overview-page-low-only').checked = false;
+    renderOverviewPageCategoryPills_();
+    renderOverviewPageFiltered_();
   } catch (e) {
     el.innerHTML = `<p class="text-sm text-red-500 text-center py-8">โหลดไม่สำเร็จ: ${(e && e.message) || e}</p>`;
   }
+}
+
+function renderOverviewPageCategoryPills_() {
+  const wrap = document.getElementById('overview-page-category-pills');
+  const pills = [{ category: '', label: 'ทั้งหมด' }, ...overviewPageCategories_.map(c => ({ category: c.category, label: tCategory(c.category) }))];
+  wrap.innerHTML = pills.map(p => `<button type="button" class="admin-tab ${overviewPageCategoryFilter_===p.category?'active':''}" onclick="onOverviewPageCategoryPillClick_('${p.category.replace(/'/g,"\\'")}')">${p.label}</button>`).join('');
+}
+
+function onOverviewPageCategoryPillClick_(cat) {
+  overviewPageCategoryFilter_ = cat;
+  renderOverviewPageCategoryPills_();
+  renderOverviewPageFiltered_();
+}
+
+function onOverviewPageFilterChange_() {
+  overviewPageSearch_ = document.getElementById('overview-page-search').value.trim().toLowerCase();
+  overviewPageLowOnly_ = document.getElementById('overview-page-low-only').checked;
+  renderOverviewPageFiltered_();
+}
+
+function renderOverviewPageFiltered_() {
+  const el = document.getElementById('overview-page-content');
+  if (!overviewPageCategories_.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-8">ยังไม่มีรายการสินค้าในสาขานี้</p>`; return; }
+
+  const totalItems = overviewPageCategories_.reduce((sum, c) => sum + c.items.length, 0);
+  const totalLow = overviewPageCategories_.reduce((sum, c) => sum + c.items.filter(it => it.hasBaseline && Number(it.qty) <= 0).length, 0);
+  const filtered = overviewPageCategories_
+    .filter(cat => !overviewPageCategoryFilter_ || cat.category === overviewPageCategoryFilter_)
+    .map(cat => ({ ...cat, items: cat.items.filter(it => {
+      if (overviewPageLowOnly_ && !(it.hasBaseline && Number(it.qty) <= 0)) return false;
+      if (overviewPageSearch_ && !it.name.toLowerCase().includes(overviewPageSearch_)) return false;
+      return true;
+    }) }))
+    .filter(cat => cat.items.length > 0);
+  const shownItems = filtered.reduce((sum, c) => sum + c.items.length, 0);
+  const filtersActive = !!(overviewPageSearch_ || overviewPageLowOnly_ || overviewPageCategoryFilter_);
+
+  document.getElementById('overview-page-stats').textContent = filtersActive
+    ? `แสดง ${shownItems} จาก ${totalItems} รายการ`
+    : `ทั้งหมด ${totalItems} รายการ · ใกล้หมด ${totalLow} รายการ`;
+
+  if (!filtered.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-8">ไม่พบรายการที่ตรงกับตัวกรอง</p>`; return; }
+  renderOverviewPageCards_(filtered);
 }
 
 function fmtOverviewDate_(d) {
@@ -2232,7 +2298,6 @@ function fmtOverviewDate_(d) {
 
 function renderOverviewPageCards_(categories) {
   const el = document.getElementById('overview-page-content');
-  if (!categories.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-8">ยังไม่มีรายการสินค้าในสาขานี้</p>`; return; }
   el.innerHTML = categories.map(cat => {
     // "เหลือน้อย" = หมดแล้ว (qty <= 0) — ค่าที่โชว์ตรงนี้คือยอดคาดคะเนปัจจุบัน ไม่มีค่า "จุดสั่งซื้อ" แยก
     // เก็บไว้ต่อรายการในระบบ (บัฟเฟอร์ % ที่ตั้งไว้ใช้เทียบตอนเพิ่งเช็คเสร็จเท่านั้น ไม่ใช่ตัวเลขคงที่)
@@ -2254,7 +2319,7 @@ function renderOverviewPageCards_(categories) {
           <h3 class="text-base font-bold text-gray-800">${tCategory(cat.category)}</h3>
           <span class="text-xs font-normal flex items-center gap-2">
             ${lowCount ? `<span class="text-red-600 font-semibold">⚠️ ${lowCount} รายการหมด</span>` : ''}
-            <span class="text-gray-400">${cat.itemCount} รายการ · ${fmtOverviewDate_(cat.lastUpdated)}</span>
+            <span class="text-gray-400">${cat.items.length} รายการ · ${fmtOverviewDate_(cat.lastUpdated)}</span>
           </span>
         </div>
         <div class="overview-card-grid">${cards}</div>
