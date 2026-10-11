@@ -111,6 +111,7 @@
     html[data-theme="dark"] .icon-img{ filter:invert(1); }
     .admin-tab{ padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;color:#6b7280; }
     .admin-tab.active{ background:#ea580c;color:white; }
+    .admin-tab-icon{ width:40px;height:40px;padding:0;border-radius:50%;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:19px; }
     .badge-check{ background:#dbeafe;color:#1d4ed8; }
     .badge-movement{ background:#fef3c7;color:#b45309; }
     .translate-btn{ flex-shrink:0;width:34px;height:34px;border-radius:8px;background:#eef2ff;color:#4338ca;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;border:none; }
@@ -223,6 +224,7 @@
     html[data-theme="dark"] .modal-box{ background:#1f242b; color:#e5e7eb; }
     html[data-theme="dark"] .admin-tab{ color:#9ca3af; }
     html[data-theme="dark"] .admin-tab.active{ color:#fff; }
+    html[data-theme="dark"] .admin-tab-icon{ background:#2a2f36; }
     html[data-theme="dark"] .badge-check{ background:#1e3a5f; color:#93c5fd; }
     html[data-theme="dark"] .badge-movement{ background:#4a3510; color:#fcd34d; }
     html[data-theme="dark"] .translate-btn{ background:#242244; color:#a5b4fc; }
@@ -512,8 +514,8 @@
           <div class="admin-tab active" data-tab="items" onclick="switchAdminTab('items')" data-t="manageItems">จัดการรายการสินค้า</div>
           <div class="admin-tab" data-tab="branches" onclick="switchAdminTab('branches')" data-t="manageBranches">จัดการสาขา</div>
           <div class="admin-tab" data-tab="translations" onclick="switchAdminTab('translations')" data-t="manageTranslations">จัดการคำแปล</div>
-          <div class="admin-tab" data-tab="overview" onclick="switchAdminTab('overview')">📊 ภาพรวม</div>
           <div class="admin-tab" data-tab="buffer" onclick="switchAdminTab('buffer')">⚙️ Buffer คาดคะเน</div>
+          <div class="admin-tab admin-tab-icon" data-tab="overview" onclick="switchAdminTab('overview')" title="ภาพรวม">📊</div>
           <div class="admin-tab" data-tab="purchase" onclick="switchAdminTab('purchase')">🧾 นำเข้าจากบัญชี</div>
           <div class="admin-tab" data-tab="password" onclick="switchAdminTab('password')">🔑 เปลี่ยนรหัสผ่าน</div>
         </div>
