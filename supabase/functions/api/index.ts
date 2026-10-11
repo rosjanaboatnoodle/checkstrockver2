@@ -498,7 +498,13 @@ async function handleCreate(p: Record<string, unknown>) {
   const branchId = String(p.branch_id ?? "");
   const category = String(p.category ?? "");
   let items: Array<Record<string, unknown>> = [];
-  try { items = JSON.parse(String(p.items ?? "[]")); } catch { /* ignore, saved as empty */ }
+  // Client sends `items` as an array directly (not a JSON string) at the call site — handle
+  // both shapes defensively since postNoCors serializes the whole payload as JSON already.
+  // (Same bug class as handleCreateMovement's `entries` below — this one was missing the
+  // Array.isArray check, so every check-in silently saved with zero items: check_records
+  // got a row, but check_record_items never did, since String(array) isn't valid JSON.)
+  if (Array.isArray(p.items)) items = p.items as Array<Record<string, unknown>>;
+  else { try { items = JSON.parse(String(p.items ?? "[]")); } catch { /* ignore, saved as empty */ } }
 
   // Snapshot low-stock flags BEFORE inserting this check — get_current_stock_levels only
   // sees data already committed, so "predicted" here means "right before this check landed".
@@ -537,6 +543,10 @@ async function handleCreate(p: Record<string, unknown>) {
   }
 
   if (p.line_text) await sendLine(String(p.line_text));
+  // Client builds this separately (buildWasteReportText_) and only sends it non-empty when
+  // there's actual waste to report — was never read here, so the waste summary never reached
+  // LINE even though saveStock() always sent it alongside the main report.
+  if (p.line_text_waste) await sendLine(String(p.line_text_waste));
 
   // Never let a bug in the reorder-alert bookkeeping break an otherwise-successful save.
   if (reorderConfig?.enabled) {
