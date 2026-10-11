@@ -880,7 +880,24 @@ async function handleGetBranchOverview(p: Record<string, unknown>) {
 
   const bufferConfig = await getSetting<Record<string, unknown> | null>("buffer_config", null);
 
-  const byCategory = new Map<string, Array<{ name: string; qty: number | null; unit: string; hasBaseline: boolean; low: boolean }>>();
+  // Photo + SKU per item (central catalog, overridden by this branch's own row, inheriting the
+  // central photo/SKU when the branch copy has none of its own) — same override rule
+  // mergeItemsForBranch_ uses elsewhere, trimmed to just the two fields this page needs.
+  const { data: centralMeta } = await supabase.from("items").select("category, name, image_url, sku").is("branch_id", null).eq("active", true);
+  const { data: branchMeta } = await supabase.from("items").select("category, name, image_url, sku").eq("branch_id", branchId).eq("active", true);
+  const metaByKey = new Map<string, { imageUrl: string | null; sku: string | null }>();
+  for (const it of (centralMeta ?? []) as Array<{ category: string; name: string; image_url: string | null; sku: string | null }>) {
+    metaByKey.set(`${it.category}||${it.name}`, { imageUrl: it.image_url ?? null, sku: it.sku ?? null });
+  }
+  for (const it of (branchMeta ?? []) as Array<{ category: string; name: string; image_url: string | null; sku: string | null }>) {
+    const key = `${it.category}||${it.name}`;
+    const central = metaByKey.get(key);
+    metaByKey.set(key, { imageUrl: it.image_url ?? central?.imageUrl ?? null, sku: it.sku ?? central?.sku ?? null });
+  }
+
+  const byCategory = new Map<string, Array<
+    { name: string; qty: number | null; unit: string; hasBaseline: boolean; low: boolean; imageUrl: string | null; sku: string | null }
+  >>();
   for (const row of (levels ?? []) as Array<
     { item_name: string; category: string; unit: string; qty: number; has_baseline: boolean; predicted_qty: number | null }
   >) {
@@ -890,8 +907,10 @@ async function handleGetBranchOverview(p: Record<string, unknown>) {
       const bufferPct = effectiveBufferPct(row.item_name, row.category, bufferConfig);
       low = isLowFlag(Number(row.qty), row.predicted_qty, bufferPct);
     }
+    const meta = metaByKey.get(`${row.category}||${row.item_name}`);
     byCategory.get(row.category)!.push({
       name: row.item_name, qty: row.has_baseline ? Number(row.qty) : null, unit: row.unit,
+      imageUrl: meta?.imageUrl ?? null, sku: meta?.sku ?? null,
       hasBaseline: row.has_baseline, low,
     });
   }

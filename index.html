@@ -138,6 +138,7 @@
     /* min-w-0 แบบทั่วไป (ไม่ผูกกับ .flex-half) — มีหลายจุดในไฟล์นี้ใช้คลาสนี้ตรงๆ (ช่อง input ที่ต้องหดได้ใน
        flex/grid แคบๆ) แต่คลาสนี้ไม่เคย compile มาจาก Tailwind เหมือนที่คอมเมนต์ข้างบนอธิบายไว้ — เพิ่มเองตรงนี้ */
     .min-w-0{ min-width:0; }
+    .whitespace-nowrap{ white-space:nowrap; }
     .mv-truncate{ overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
     /* หน้ารายการเบิกสินค้า — ปุ่มเลือกประเภท (รับ/ออก/ปรับ) ในแต่ละแถว + ปุ่ม +/- ปรับจำนวน + แถบลอยกดบันทึกทั้งหมด
        ไม่มีขั้นตอน "กดยืนยัน/ล็อค" แยกแล้ว — แค่เลือกประเภท + กรอกจำนวนมากกว่า 0 ก็นับเป็นรายการที่พร้อมบันทึกทันที */
@@ -148,6 +149,13 @@
     .mv-dir-btn:disabled{ opacity:.45;cursor:not-allowed; }
     .mv-step-btn{ width:28px;height:28px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1; }
     .mv-step-btn:active{ background:#f3f4f6; }
+    /* หน้าภาพรวม — ปุ่มสลับมุมมองตาราง/รายการ + การ์ดสินค้า */
+    .overview-view-btn{ width:36px;height:36px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#9ca3af;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:17px;line-height:1; }
+    .overview-view-btn.active{ background:#ea580c;border-color:#ea580c;color:#fff; }
+    /* Tailwind ในไฟล์นี้คอมไพล์ไว้ล่วงหน้า (ไม่ใช่ JIT) — ไม่มี .sm:grid-cols-3 คอมไพล์อยู่จริง ต้องเขียน grid เองตรงนี้ */
+    .overview-card-grid{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:.75rem; }
+    @media (min-width: 768px) { .overview-card-grid{ grid-template-columns:repeat(3, minmax(0, 1fr)); } }
+    @media (min-width: 1024px) { .overview-card-grid{ grid-template-columns:repeat(4, minmax(0, 1fr)); } }
     .mv-row{ transition:background-color .15s,border-color .15s; }
     .mv-row.ready{ background:#f0fdf4;border:1.5px solid #86efac; }
     .mv-batch-bar{ position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:50;background:#111827;color:#fff;padding:12px 22px;border-radius:999px;font-weight:700;font-size:14px;box-shadow:0 12px 32px rgba(0,0,0,.35);cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;border:none; }
@@ -247,6 +255,7 @@
     html[data-theme="dark"] .hover\:bg-gray-50:hover{ background-color:#2b333a; }
     html[data-theme="dark"] .mv-dir-btn{ background:#1a1f24;border-color:#3a434c;color:#8b93a1; }
     html[data-theme="dark"] .mv-step-btn{ background:#1a1f24;border-color:#3a434c;color:#aab2bd; }
+    html[data-theme="dark"] .overview-view-btn{ background:#1a1f24;border-color:#3a434c;color:#8b93a1; }
     html[data-theme="dark"] .mv-row.ready{ background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.5); }
     /* บังคับ font-size ขั้นต่ำ 16px ให้ input/select/textarea ทุกตัวในแอป — iOS Safari จะซูมหน้าจอเข้าอัตโนมัติ
        ทุกครั้งที่แตะช่องกรอกที่ font-size ต่ำกว่า 16px แล้วผู้ใช้ต้องซูมออกเองทุกครั้งหลังกรอกเสร็จ เสียเวลามาก
@@ -505,8 +514,30 @@
           <label class="block text-sm font-medium text-gray-700 mb-1">สาขา</label>
           <select id="overview-page-branch-select" onchange="onOverviewPageBranchChange_()" class="w-full px-3 py-2 border rounded-lg text-sm"></select>
         </div>
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div class="bg-white rounded-2xl p-4 shadow-md flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-xl flex-shrink-0">📦</div>
+            <div class="min-w-0">
+              <p class="text-xs text-gray-400 truncate">รายการสินค้า</p>
+              <p id="overview-page-stat-total" class="text-xl font-bold text-gray-800">0</p>
+            </div>
+          </div>
+          <div class="bg-orange-50 rounded-2xl p-4 shadow-md flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl flex-shrink-0">⚠️</div>
+            <div class="min-w-0">
+              <p class="text-xs text-orange-700 truncate">สต็อกใกล้หมด / หมด</p>
+              <p id="overview-page-stat-warn" class="text-xl font-bold text-orange-700">0</p>
+            </div>
+          </div>
+        </div>
         <div class="bg-white rounded-2xl p-4 shadow-md mb-6">
-          <input id="overview-page-search" type="text" oninput="onOverviewPageFilterChange_()" placeholder="ค้นหาชื่อสินค้า..." class="w-full px-3 py-2 border rounded-lg text-sm mb-3">
+          <div class="flex items-center gap-2 mb-3">
+            <input id="overview-page-search" type="text" oninput="onOverviewPageFilterChange_()" placeholder="ค้นหาชื่อสินค้า หรือ รหัสสินค้า..." class="flex-1 min-w-0 px-3 py-2 border rounded-lg text-sm">
+            <div class="flex items-center gap-1 flex-shrink-0">
+              <button type="button" onclick="setOverviewPageViewMode_('grid')" id="overview-page-view-grid" class="overview-view-btn active" title="มุมมองตาราง">⊞</button>
+              <button type="button" onclick="setOverviewPageViewMode_('list')" id="overview-page-view-list" class="overview-view-btn" title="มุมมองรายการ">☰</button>
+            </div>
+          </div>
           <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
             <div class="flex items-center gap-4 flex-wrap">
               <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
@@ -2215,6 +2246,7 @@ let overviewPageSearch_ = '';
 let overviewPageCategoryFilter_ = ''; // '' = ทุกหมวดหมู่
 let overviewPageLowOnly_ = false;
 let overviewPageHideUnchecked_ = true; // ซ่อนรายการที่ไม่เคยเช็คไว้ก่อน (ค่าเริ่มต้น) — ไม่งั้นหมวดที่มีหลายสิบรายการจะเต็มไปด้วยรายการที่ไม่มีข้อมูลจริง
+let overviewPageViewMode_ = 'grid'; // 'grid' = การ์ด, 'list' = ตาราง
 
 async function openOverviewPage() {
   showPage('overview-page');
@@ -2251,11 +2283,39 @@ async function loadOverviewPageContent_() {
     document.getElementById('overview-page-search').value = '';
     document.getElementById('overview-page-low-only').checked = false;
     document.getElementById('overview-page-hide-unchecked').checked = true;
+    renderOverviewPageStats_();
     renderOverviewPageCategoryPills_();
     renderOverviewPageFiltered_();
   } catch (e) {
     el.innerHTML = `<p class="text-sm text-red-500 text-center py-8">โหลดไม่สำเร็จ: ${(e && e.message) || e}</p>`;
   }
+}
+
+function renderOverviewPageStats_() {
+  const totalItems = overviewPageCategories_.reduce((sum, c) => sum + c.items.length, 0);
+  const totalWarn = overviewPageCategories_.reduce((sum, c) => sum + c.items.filter(it => {
+    const st = overviewItemStatus_(it).key;
+    return st === 'warn' || st === 'out';
+  }).length, 0);
+  document.getElementById('overview-page-stat-total').textContent = totalItems;
+  document.getElementById('overview-page-stat-warn').textContent = totalWarn;
+}
+
+function setOverviewPageViewMode_(mode) {
+  overviewPageViewMode_ = mode;
+  document.getElementById('overview-page-view-grid').classList.toggle('active', mode === 'grid');
+  document.getElementById('overview-page-view-list').classList.toggle('active', mode === 'list');
+  renderOverviewPageFiltered_();
+}
+
+/** สถานะสต็อกของรายการ — ใช้ตัดสินสีป้าย/สีตัวเลขทั้งแบบการ์ดและตาราง
+    low มาจากฝั่งเซิร์ฟเวอร์ (handleGetBranchOverview) ด้วย logic เดียวกับที่แจ้งเตือน LINE ใช้
+    (buffer % เทียบ qty ปัจจุบันกับยอดที่เช็ค/ปรับล่าสุด) ส่วน "หมด" คือ qty<=0 ตรงๆ แยกออกมาให้ชัดกว่า "ใกล้หมด" */
+function overviewItemStatus_(it) {
+  if (!it.hasBaseline) return { key: 'unchecked', label: 'ยังไม่เคยเช็ค', badge: 'bg-gray-100 text-gray-500', value: 'text-gray-400' };
+  if (Number(it.qty) <= 0) return { key: 'out', label: 'หมด', badge: 'bg-red-50 text-red-700', value: 'text-red-700' };
+  if (it.low) return { key: 'warn', label: 'ใกล้หมด', badge: 'bg-orange-50 text-orange-700', value: 'text-orange-700' };
+  return { key: 'ok', label: 'พร้อมขาย', badge: 'bg-green-50 text-green-700', value: 'text-gray-800' };
 }
 
 function renderOverviewPageCategoryPills_() {
@@ -2282,13 +2342,12 @@ function renderOverviewPageFiltered_() {
   if (!overviewPageCategories_.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-8">ยังไม่มีรายการสินค้าในสาขานี้</p>`; return; }
 
   const totalItems = overviewPageCategories_.reduce((sum, c) => sum + c.items.length, 0);
-  const totalLow = overviewPageCategories_.reduce((sum, c) => sum + c.items.filter(it => it.low).length, 0);
   const filtered = overviewPageCategories_
     .filter(cat => !overviewPageCategoryFilter_ || cat.category === overviewPageCategoryFilter_)
     .map(cat => ({ ...cat, items: cat.items.filter(it => {
       if (overviewPageHideUnchecked_ && !it.hasBaseline) return false;
       if (overviewPageLowOnly_ && !it.low) return false;
-      if (overviewPageSearch_ && !it.name.toLowerCase().includes(overviewPageSearch_)) return false;
+      if (overviewPageSearch_ && !it.name.toLowerCase().includes(overviewPageSearch_) && !(it.sku || '').toLowerCase().includes(overviewPageSearch_)) return false;
       return true;
     }) }))
     .filter(cat => cat.items.length > 0);
@@ -2297,40 +2356,79 @@ function renderOverviewPageFiltered_() {
 
   document.getElementById('overview-page-stats').textContent = filtersActive
     ? `แสดง ${shownItems} จาก ${totalItems} รายการ`
-    : `ทั้งหมด ${totalItems} รายการ · ใกล้หมด ${totalLow} รายการ`;
+    : `ทั้งหมด ${totalItems} รายการ`;
 
   if (!filtered.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-8">ไม่พบรายการที่ตรงกับตัวกรอง</p>`; return; }
-  renderOverviewPageRows_(filtered);
+
+  // รวมทุกหมวดเป็นลิสต์เดียว (ไม่แบ่งหัวข้อหมวดหมู่อีกต่อไป) — แต่ละรายการมีป้ายหมวดหมู่ของตัวเองอยู่แล้ว
+  // และปุ่มเลือกหมวดด้านบนก็กรองได้โดยตรง เรียงรายการที่ต้องสนใจ (ใกล้หมด/หมด) ขึ้นก่อน
+  const statusPriority = { out: 0, warn: 1, ok: 2, unchecked: 3 };
+  const flat = [];
+  filtered.forEach(cat => cat.items.forEach(it => flat.push({ ...it, category: cat.category })));
+  flat.sort((a, b) => {
+    const pa = statusPriority[overviewItemStatus_(a).key], pb = statusPriority[overviewItemStatus_(b).key];
+    return pa - pb || a.name.localeCompare(b.name);
+  });
+
+  if (overviewPageViewMode_ === 'list') renderOverviewPageList_(flat);
+  else renderOverviewPageGrid_(flat);
 }
 
-function fmtOverviewDate_(d) {
-  if (!d) return 'ยังไม่เคยเช็ค';
-  return new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function renderOverviewPageRows_(categories) {
+function renderOverviewPageGrid_(items) {
   const el = document.getElementById('overview-page-content');
-  el.innerHTML = categories.map(cat => {
-    // it.low คำนวณจากฝั่งเซิร์ฟเวอร์ (handleGetBranchOverview) ด้วย logic เดียวกับที่แจ้งเตือน LINE
-    // ใช้ตอนเช็คสต็อก (buffer % ต่อหมวด/รายการ เทียบ qty ปัจจุบันกับยอดที่เช็ค/ปรับล่าสุด) ไม่ใช่แค่ qty<=0
-    const lowCount = cat.items.filter(it => it.low).length;
-    const rows = cat.items.map(it => {
-      const valueText = it.hasBaseline ? (fmtQty(it.qty) + (it.unit ? ' ' + it.unit : '')) : 'ยังไม่เคยเช็ค';
-      const cls = it.low ? 'text-red-600 font-semibold' : (it.hasBaseline ? 'text-gray-800 font-semibold' : 'text-gray-400');
-      return `<div class="flex items-center justify-between px-3 py-2 text-sm"><span class="text-gray-700">${it.name}</span><span class="${cls}">${valueText}</span></div>`;
-    }).join('');
+  el.innerHTML = `<div class="overview-card-grid">${items.map(it => {
+    const st = overviewItemStatus_(it);
+    const valueText = it.hasBaseline ? (fmtQty(it.qty) + (it.unit ? ' ' + it.unit : '')) : 'ยังไม่เคยเช็ค';
     return `
-      <div class="mb-4 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="flex items-center justify-between flex-wrap gap-1 px-3 py-2.5 bg-gray-100 text-sm font-semibold text-gray-700">
-          <span>${tCategory(cat.category)}</span>
-          <span class="text-xs font-normal flex items-center gap-2">
-            ${lowCount ? `<span class="text-red-600 font-semibold">⚠️ ${lowCount} รายการใกล้หมด</span>` : ''}
-            <span class="text-gray-400">${cat.items.length} รายการ · ${fmtOverviewDate_(cat.lastUpdated)}</span>
-          </span>
+      <div class="bg-white rounded-xl p-3 shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between gap-1 mb-2">
+          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 truncate">${tCategory(it.category)}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${st.badge}">${st.label}</span>
         </div>
-        <div class="divide-y divide-gray-100">${rows}</div>
+        <div class="flex items-center gap-2 mb-2">
+          ${itemPhotoIconHtml_(it.imageUrl)}
+          <p class="text-sm font-semibold text-gray-800 truncate" title="${it.name}">${it.name}</p>
+        </div>
+        <p class="text-xs text-gray-400">คงเหลือ</p>
+        <p class="text-lg font-bold ${st.value}">${valueText}</p>
       </div>`;
+  }).join('')}</div>`;
+}
+
+function renderOverviewPageList_(items) {
+  const el = document.getElementById('overview-page-content');
+  const rows = items.map(it => {
+    const st = overviewItemStatus_(it);
+    const valueText = it.hasBaseline ? (fmtQty(it.qty) + (it.unit ? ' ' + it.unit : '')) : 'ยังไม่เคยเช็ค';
+    return `
+      <tr class="border-b border-gray-100">
+        <td class="px-3 py-2">
+          <div class="flex items-center gap-2">
+            ${itemPhotoIconHtml_(it.imageUrl)}
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-gray-800 truncate">${it.name}</p>
+              ${it.sku ? `<p class="text-xs text-gray-400 truncate">${it.sku}</p>` : ''}
+            </div>
+          </div>
+        </td>
+        <td class="px-3 py-2"><span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap">${tCategory(it.category)}</span></td>
+        <td class="px-3 py-2 text-right whitespace-nowrap">
+          <span class="font-semibold ${st.value}">${valueText}</span>
+          <span class="text-xs px-1.5 py-0.5 rounded-full font-semibold ml-2 ${st.badge}">${st.label}</span>
+        </td>
+      </tr>`;
   }).join('');
+  el.innerHTML = `
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50"><tr>
+          <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500">รหัส/ชื่อสินค้า</th>
+          <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500">หมวดหมู่</th>
+          <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500">คงเหลือ</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 /* =========================================================
