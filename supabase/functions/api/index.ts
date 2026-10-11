@@ -508,12 +508,13 @@ async function handleCreate(p: Record<string, unknown>) {
 
   // Snapshot low-stock flags BEFORE inserting this check — get_current_stock_levels only
   // sees data already committed, so "predicted" here means "right before this check landed".
+  // Always computed (not just when reorder alerts are enabled): the admin overview page's
+  // "ใกล้หมด" persists this same per-item flag (see check_record_items.is_low below), so it
+  // needs to exist regardless of whether the LINE push alert feature is toggled on.
   const reorderConfig = await getSetting<Record<string, unknown> | null>("reorder_config", null);
   let flaggedThisCategory: string[] = [];
-  if (reorderConfig?.enabled) {
-    try { flaggedThisCategory = await computeLowStockFlags(branchId, category, items); }
-    catch (e) { console.error("computeLowStockFlags failed", e); }
-  }
+  try { flaggedThisCategory = await computeLowStockFlags(branchId, category, items); }
+  catch (e) { console.error("computeLowStockFlags failed", e); }
 
   const { data: record, error } = await supabase
     .from("check_records")
@@ -529,6 +530,7 @@ async function handleCreate(p: Record<string, unknown>) {
   if (error) return json({ ok: false, error: error.message });
 
   if (items.length) {
+    const flaggedSet = new Set(flaggedThisCategory);
     await supabase.from("check_record_items").insert(
       items.map((it) => ({
         record_id: record.id,
@@ -538,6 +540,7 @@ async function handleCreate(p: Record<string, unknown>) {
         unit: it.unit ?? null,
         note: it.note ?? null,
         waste_qty: it.waste_qty !== undefined ? Number(it.waste_qty) : null,
+        is_low: flaggedSet.has(String(it.name ?? "")),
       })),
     );
   }
@@ -836,12 +839,14 @@ async function handleUpdateItemInRecord(p: Record<string, unknown>) {
 // plus each category's most recent check date — not real-time (nothing cuts stock at sale time),
 // same staleness as the LINE alerts, just viewable on demand instead of waiting for a push.
 //
-// "low" per item reuses the exact same buffer-config + isLowFlag math the LINE reorder alert
-// uses at check-in time (computeLowStockFlags above) — just fed different inputs, since there's
-// no fresh check happening here: "actual" is the current running qty (last_verified_qty + any
-// movements since), "predicted" is last_verified_qty itself (the qty as of the last physical
-// check/adjust, before those movements). Same question the LINE alert asks ("did the count come
-// in well below what we last verified"), just evaluated on demand instead of only at check-in.
+// "low" per item is last_check_was_low from the RPC — the exact flag computeLowStockFlags
+// produced at the time of that item's last check (persisted on check_record_items.is_low by
+// handleCreate), not recomputed here. It can't be recomputed from a later snapshot: the
+// comparison is "did the fresh count come in well below what the system expected right before
+// this check landed" — a question that only has an answer at the moment of the check itself,
+// since immediately after, the check IS the system's new expectation (predicted == actual).
+// This is a snapshot as of the last check, same staleness as the qty/has_baseline fields above —
+// a stock movement after that check won't flip it until the next check runs.
 async function handleGetBranchOverview(p: Record<string, unknown>) {
   if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
   const branchId = String(p.branch_id ?? "");
@@ -857,20 +862,14 @@ async function handleGetBranchOverview(p: Record<string, unknown>) {
     if (!lastUpdatedByCategory.has(r.category)) lastUpdatedByCategory.set(r.category, r.date);
   }
 
-  const bufferConfig = await getSetting<Record<string, unknown> | null>("buffer_config", null);
-
   const byCategory = new Map<string, Array<{ name: string; qty: number | null; unit: string; hasBaseline: boolean; low: boolean }>>();
   for (const row of (levels ?? []) as Array<
-    { item_name: string; category: string; unit: string; qty: number; has_baseline: boolean; last_verified_qty: number | null }
+    { item_name: string; category: string; unit: string; qty: number; has_baseline: boolean; last_check_was_low: boolean }
   >) {
     if (!byCategory.has(row.category)) byCategory.set(row.category, []);
-    const predicted = row.last_verified_qty !== null && row.last_verified_qty !== undefined ? Number(row.last_verified_qty) : null;
-    let low = false;
-    if (bufferConfig && row.has_baseline && isPredictionEnabled(row.item_name, row.category, bufferConfig)) {
-      low = isLowFlag(Number(row.qty), predicted, effectiveBufferPct(row.item_name, row.category, bufferConfig));
-    }
     byCategory.get(row.category)!.push({
-      name: row.item_name, qty: row.has_baseline ? Number(row.qty) : null, unit: row.unit, hasBaseline: row.has_baseline, low,
+      name: row.item_name, qty: row.has_baseline ? Number(row.qty) : null, unit: row.unit,
+      hasBaseline: row.has_baseline, low: !!row.last_check_was_low,
     });
   }
   const categories = [...byCategory.entries()]
