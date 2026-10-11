@@ -139,17 +139,17 @@
        flex/grid แคบๆ) แต่คลาสนี้ไม่เคย compile มาจาก Tailwind เหมือนที่คอมเมนต์ข้างบนอธิบายไว้ — เพิ่มเองตรงนี้ */
     .min-w-0{ min-width:0; }
     .mv-truncate{ overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
-    /* หน้ารายการเบิกสินค้า — ปุ่มเลือกประเภท (รับ/ออก/ปรับ) ในแต่ละแถว + ปุ่มล็อค + แถบลอยกดบันทึกทั้งหมด */
+    /* หน้ารายการเบิกสินค้า — ปุ่มเลือกประเภท (รับ/ออก/ปรับ) ในแต่ละแถว + ปุ่ม +/- ปรับจำนวน + แถบลอยกดบันทึกทั้งหมด
+       ไม่มีขั้นตอน "กดยืนยัน/ล็อค" แยกแล้ว — แค่เลือกประเภท + กรอกจำนวนมากกว่า 0 ก็นับเป็นรายการที่พร้อมบันทึกทันที */
     .mv-dir-btn{ padding:5px 10px;border-radius:8px;font-size:12px;font-weight:700;border:1.5px solid #e5e7eb;background:#fff;color:#6b7280;cursor:pointer;white-space:nowrap; }
     .mv-dir-btn[data-active="1"][data-dir="in"]{ background:#22c55e;border-color:#22c55e;color:#fff; }
     .mv-dir-btn[data-active="1"][data-dir="out"]{ background:#ef4444;border-color:#ef4444;color:#fff; }
     .mv-dir-btn[data-active="1"][data-dir="adjust"]{ background:#3b82f6;border-color:#3b82f6;color:#fff; }
     .mv-dir-btn:disabled{ opacity:.45;cursor:not-allowed; }
-    .mv-lock-btn{ width:34px;height:34px;border-radius:9px;border:1.5px solid #e5e7eb;background:#fff;color:#9ca3af;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1; }
-    .mv-lock-btn.locked{ background:#16a34a;border-color:#16a34a;color:#fff; }
+    .mv-step-btn{ width:28px;height:28px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1; }
+    .mv-step-btn:active{ background:#f3f4f6; }
     .mv-row{ transition:background-color .15s,border-color .15s; }
-    .mv-row.locked{ background:#f0fdf4;border:1.5px solid #86efac; }
-    .mv-qty-input:disabled{ opacity:.6;background:#f9fafb; }
+    .mv-row.ready{ background:#f0fdf4;border:1.5px solid #86efac; }
     .mv-batch-bar{ position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:50;background:#111827;color:#fff;padding:12px 22px;border-radius:999px;font-weight:700;font-size:14px;box-shadow:0 12px 32px rgba(0,0,0,.35);cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;border:none; }
     .mv-batch-bar.hidden{ display:none !important; }
     /* ป้ายแจ้งมีเวอร์ชันใหม่ — ลอยด้านบนกลางจอ กดเพื่อโหลดหน้าใหม่ทันที (แยกตำแหน่งจาก .mv-batch-bar ที่อยู่ล่าง กันซ้อนกัน) */
@@ -246,9 +246,8 @@
     html[data-theme="dark"] .hover\:bg-orange-50:hover{ background-color:rgba(249,115,22,.18); }
     html[data-theme="dark"] .hover\:bg-gray-50:hover{ background-color:#2b333a; }
     html[data-theme="dark"] .mv-dir-btn{ background:#1a1f24;border-color:#3a434c;color:#8b93a1; }
-    html[data-theme="dark"] .mv-lock-btn{ background:#1a1f24;border-color:#3a434c;color:#454f59; }
-    html[data-theme="dark"] .mv-row.locked{ background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.5); }
-    html[data-theme="dark"] .mv-qty-input:disabled{ background:#242b32; }
+    html[data-theme="dark"] .mv-step-btn{ background:#1a1f24;border-color:#3a434c;color:#aab2bd; }
+    html[data-theme="dark"] .mv-row.ready{ background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.5); }
     /* บังคับ font-size ขั้นต่ำ 16px ให้ input/select/textarea ทุกตัวในแอป — iOS Safari จะซูมหน้าจอเข้าอัตโนมัติ
        ทุกครั้งที่แตะช่องกรอกที่ font-size ต่ำกว่า 16px แล้วผู้ใช้ต้องซูมออกเองทุกครั้งหลังกรอกเสร็จ เสียเวลามาก
        ใช้ !important เพราะต้อง override คลาส text-sm/text-xs ของ Tailwind ซึ่ง specificity สูงกว่า element selector เฉยๆ */
@@ -706,7 +705,6 @@ const UI_TH = {
   fillBranchNameAndPassword:'กรอกชื่อสาขาและรหัสผ่านสาขา', firstBranchNameHint:'ชื่อสาขา เช่น สาขาหลัก',
   adminPasswordShort:'รหัสผ่านแอดมิน', enterNamePlaceholder:'กรอกชื่อของคุณ',
   mvQuickSearchPlaceholder:'ค้นหาด่วน: พิมพ์ชื่อสินค้าที่จะปรับ...', qtyInputHint:'* ช่อง "จำนวน" ใส่ได้เฉพาะ 0-9 และสัญลักษณ์ . / + -',
-  lockedTooltip:'ยืนยันแล้ว กดอีกครั้งเพื่อแก้ไข', lockTooltip:'กดยืนยัน/ล็อครายการนี้',
   newVersionAvailable:'มีเวอร์ชันใหม่ กดเพื่ออัปเดต'
 };
 const CAT_TH = { 'หน้าเรือ':'หน้าเรือ', 'อาหารตามสั่ง':'อาหารตามสั่ง', 'เด็กเสิร์ฟ':'เด็กเสิร์ฟ' };
@@ -1540,7 +1538,7 @@ function buildWasteReportText_(stockEntries) {
 let currentStockLevels = {}; // ชื่อสินค้า -> {qty, unit, category, hasBaseline}
 let mvCategoryFilter = '';   // '' = ทั้งหมด
 let mvSearchQuery = '';
-let mvPending = {}; // ชื่อสินค้า -> {direction, quantity, locked} — สถานะที่กำลังกรอกอยู่ในแต่ละแถว (ยังไม่บันทึก)
+let mvPending = {}; // ชื่อสินค้า -> {direction, quantity} — สถานะที่กำลังกรอกอยู่ในแต่ละแถว (ยังไม่บันทึก) — mvIsReady_() ตัดสินว่าพร้อมรวมเข้ารายการบันทึกหรือยัง
 
 async function loadCurrentStockLevels() {
   try {
@@ -1666,24 +1664,32 @@ function movementItemQtyDisplay_(name) {
 }
 
 function mvGetPending_(name) {
-  if (!mvPending[name]) mvPending[name] = { direction: '', quantity: '', locked: false };
+  if (!mvPending[name]) mvPending[name] = { direction: '', quantity: '' };
   return mvPending[name];
+}
+
+/** พร้อมรวมเข้ารายการบันทึกหรือยัง — เลือกประเภท (รับ/ออก/ปรับ) แล้ว และกรอกจำนวนที่ถูกต้องมากกว่า 0 */
+function mvIsReady_(name) {
+  const p = mvGetPending_(name);
+  if (!p.direction) return false;
+  const parsed = parseQuantity_(String(p.quantity || '').trim());
+  return parsed.ok && parsed.value > 0;
 }
 
 /** สร้าง HTML การ์ดของสินค้า 1 รายการ — เรียกทั้งตอน render ลิสต์ทั้งหน้า และตอน refresh แถวเดียว */
 function movementRowHtml_(it) {
   const name = it.name;
   const pending = mvGetPending_(name);
-  const locked = !!pending.locked;
+  const ready = mvIsReady_(name);
   const level = currentStockLevels[name];
   const qtyDisp = movementItemQtyDisplay_(name);
   // ใช้หน่วยหลักที่แอดมินตั้งไว้ใน "⚖️ หน่วย" (หน่วยที่ใช้ส่งเข้าไลน์) เสมอ ไม่ใช้ level.unit ที่อาจเป็นหน่วยดิบ
   // ของรอบก่อนหน้าที่ยังไม่ตรงกับหน่วยหลักที่ตั้งไว้ล่าสุด — กันไม่ให้หน้านี้โชว์คนละหน่วยกับรายงาน LINE
   const unit = getPrimaryUnit_(name, it.unit) || (level && level.unit) || '';
   const esc = s => String(s).replace(/'/g,"\\'");
-  const dirBtn = (dir, label) => `<button type="button" ${locked ? 'disabled' : ''} data-dir="${dir}" data-active="${pending.direction===dir?'1':'0'}" onclick="mvSelectDirection('${esc(name)}','${dir}')" class="mv-dir-btn">${label}</button>`;
+  const dirBtn = (dir, label) => `<button type="button" data-dir="${dir}" data-active="${pending.direction===dir?'1':'0'}" onclick="mvSelectDirection('${esc(name)}','${dir}')" class="mv-dir-btn">${label}</button>`;
   return `
-    <div class="bg-white rounded-xl shadow-md p-3 mv-row ${locked?'locked':''}" data-mv-row="${name}">
+    <div class="bg-white rounded-xl shadow-md p-3 mv-row ${ready?'ready':''}" data-mv-row="${name}">
       <p class="font-medium text-gray-800 mb-2">${tItem(name)}</p>
       <div class="flex items-center justify-between gap-2 mb-2">
         <div class="flex gap-2">
@@ -1695,10 +1701,13 @@ function movementRowHtml_(it) {
       </div>
       <div class="flex items-center justify-between gap-2">
         <p class="text-xs text-gray-400 mv-truncate flex-half">${tCategory(it.category)}</p>
-        <input type="text" inputmode="decimal" placeholder="${t('quantity')}" value="${pending.quantity ? String(pending.quantity).replace(/"/g,'&quot;') : ''}" ${locked?'disabled':''}
+        <input type="text" inputmode="decimal" placeholder="${t('quantity')}" value="${pending.quantity ? String(pending.quantity).replace(/"/g,'&quot;') : ''}"
           oninput="mvSetQty('${esc(name)}', this.value)"
           class="w-20 px-2 py-1 border-2 border-gray-200 rounded-lg text-sm mv-qty-input" style="text-align:center">
-        <button type="button" onclick="mvToggleLock('${esc(name)}')" title="${locked ? t('lockedTooltip') : t('lockTooltip')}" class="mv-lock-btn ${locked?'locked':''}">✓</button>
+        <div class="flex items-center gap-1 flex-shrink-0">
+          <button type="button" onclick="mvStepQty('${esc(name)}', -1)" class="mv-step-btn">−</button>
+          <button type="button" onclick="mvStepQty('${esc(name)}', 1)" class="mv-step-btn">+</button>
+        </div>
       </div>
     </div>`;
 }
@@ -1732,41 +1741,37 @@ function refreshMovementRow_(name) {
 
 function mvSelectDirection(name, dir) {
   const p = mvGetPending_(name);
-  if (p.locked) return;
   p.direction = (p.direction === dir) ? '' : dir; // กดปุ่มเดิมซ้ำ = ยกเลิกการเลือก
   refreshMovementRow_(name);
+  updateMovementBatchBar_();
 }
 
 function mvSetQty(name, val) {
   mvGetPending_(name).quantity = val; // แค่เก็บ state ไม่ render ใหม่ กัน cursor กระโดด/โฟกัสหลุดตอนพิมพ์
+  updateMovementBatchBar_(); // อัปเดตแค่ตัวเลขนับที่แถบลอย ไม่กระทบโฟกัสของช่องกรอก
+}
+
+/** ปุ่ม +/- ข้างช่องจำนวน — ปรับทีละ 1 หน่วย ไม่ให้ติดลบ */
+function mvStepQty(name, delta) {
+  const p = mvGetPending_(name);
+  const parsed = parseQuantity_(String(p.quantity || '').trim());
+  const current = parsed.ok ? parsed.value : 0;
+  const next = Math.max(0, current + delta);
+  p.quantity = String(next);
+  refreshMovementRow_(name);
+  updateMovementBatchBar_();
 }
 
 function updateMovementBatchBar_() {
-  const count = Object.keys(mvPending).filter(name => mvPending[name].locked).length;
+  const count = Object.keys(mvPending).filter(name => mvIsReady_(name)).length;
   const bar = document.getElementById('mv-batch-bar');
   document.getElementById('mv-batch-count').textContent = count;
   bar.classList.toggle('hidden', count === 0);
 }
 
-function mvToggleLock(name) {
-  const p = mvGetPending_(name);
-  if (p.locked) {
-    p.locked = false;
-    refreshMovementRow_(name);
-    updateMovementBatchBar_();
-    return;
-  }
-  if (!p.direction) { showToast('กรุณาเลือกประเภท รับ/ออก/ปรับ ก่อน', 'error'); return; }
-  const parsed = parseQuantity_(String(p.quantity || '').trim());
-  if (String(p.quantity || '').trim() === '' || !parsed.ok || parsed.value <= 0) { showToast(t('invalidQty'), 'error'); return; }
-  p.locked = true;
-  refreshMovementRow_(name);
-  updateMovementBatchBar_();
-}
-
-/** รวมรายการที่ถูกล็อคไว้ทั้งหมดเป็น entries สำหรับส่งบันทึกทีเดียว */
+/** รวมรายการที่พร้อมบันทึก (เลือกประเภท + กรอกจำนวนแล้ว) ทั้งหมดเป็น entries สำหรับส่งบันทึกทีเดียว */
 function mvBatchEntries_() {
-  return Object.keys(mvPending).filter(name => mvPending[name].locked).map(name => {
+  return Object.keys(mvPending).filter(name => mvIsReady_(name)).map(name => {
     const meta = ITEM_META_BY_NAME[name] || {};
     // ผูกกับหน่วยหลักที่แอดมินตั้งไว้เสมอ เพื่อให้รายงาน LINE ของการปรับสต็อคใช้หน่วยเดียวกับที่ตั้งไว้ให้ใช้ส่งเข้าไลน์
     const unit = getPrimaryUnit_(name, meta.defaultUnit) || '';
@@ -1799,7 +1804,7 @@ function renderMovementReviewList_() {
   `).join('');
 }
 function mvRemoveFromReview(name) {
-  if (mvPending[name]) mvPending[name].locked = false;
+  if (mvPending[name]) { mvPending[name].direction = ''; mvPending[name].quantity = ''; }
   refreshMovementRow_(name);
   updateMovementBatchBar_();
   renderMovementReviewList_();
@@ -1839,7 +1844,7 @@ function submitMovementBatch() {
   // เครื่องเดียวกัน) การคำนวณ "ค่าคาด" (getExpectedQtyBefore_) จะยังไม่เห็นรายการปรับสต็อคที่เพิ่งบันทึกไป
   // เพราะ allRecords ยังไม่ได้ดึงใหม่จากเซิร์ฟเวอร์ (ไม่อยากยิง sync แบบรอผลตรงนี้ เพราะจะทำให้บันทึกช้าลง)
   allRecords.push({ id: 'local_' + saveDate, branch_id: currentBranchId, type: 'movement', category: 'ปรับสต็อค', checker_name: checkerName, date: saveDate, items: JSON.stringify(entries) });
-  // อัปเดตตัวเลขคงเหลือของทุกรายการในหน้าจอทันทีแบบ optimistic แล้วล้างสถานะที่ล็อคไว้
+  // อัปเดตตัวเลขคงเหลือของทุกรายการในหน้าจอทันทีแบบ optimistic แล้วล้างสถานะที่กรอกไว้
   entries.forEach(en => {
     const level = currentStockLevels[en.name] || { qty: 0, unit: en.unit, category: ITEM_META_BY_NAME[en.name] && ITEM_META_BY_NAME[en.name].category, hasBaseline: false };
     if (en.direction === 'in') level.qty = Number(level.qty || 0) + en.quantity;
