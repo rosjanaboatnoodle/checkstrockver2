@@ -2390,10 +2390,22 @@ function onOverviewPageFilterChange_() {
   renderOverviewPageFiltered_();
 }
 
+/** หา SKU ภายใน overviewPageCategories_ เอง (ข้อมูลที่โหลดมาของสาขาที่กำลังดูอยู่จริงๆ) แทนการพึ่ง
+    catalogFlat ของ loadCatalog() ซึ่งผูกกับ currentBranchId (สาขาที่พนักงานล็อกอินไว้ในเครื่อง) — สองค่านี้
+    ไม่จำเป็นต้องตรงกัน (แอดมินอาจเปิดดูภาพรวมสาขาอื่นที่ไม่ใช่สาขาที่ล็อกอินอยู่) ถ้าใช้ catalogFlat จะหา
+    รายการเฉพาะสาขา (ไม่ใช่ส่วนกลาง) ของสาขาที่กำลังดูไม่เจอเลย */
+function lookupOverviewItemBySku_(code) {
+  for (const cat of overviewPageCategories_) {
+    const found = (cat.items || []).find(it => it.sku && it.sku === code);
+    if (found) return found;
+  }
+  return null;
+}
+
 /** ผลสแกนบาร์โค้ดในหน้าภาพรวม — หาสินค้าที่ตรงกับ SKU แล้วค้นหาให้อัตโนมัติ
     เคลียร์ตัวกรองอื่น (หมวดหมู่/เฉพาะใกล้หมด/ซ่อนที่ยังไม่เคยเช็ค) ด้วย กันสินค้าที่สแกนเจอโดนตัวกรองอื่นบังไว้ */
 function onOverviewScanResult_(code) {
-  const item = lookupItemBySku_(code);
+  const item = lookupOverviewItemBySku_(code);
   if (!item) { showToast('ไม่พบสินค้าที่มีบาร์โค้ดนี้ (' + code + ')', 'error'); return; }
   overviewPageCategoryFilter_ = '';
   overviewPageLowOnly_ = false;
