@@ -1656,7 +1656,26 @@ async function openScanModal_(onResult) {
   }
   statusEl.textContent = 'กำลังเปิดกล้อง...';
   try {
-    scanReader_ = new ZXing.BrowserMultiFormatReader();
+    // ระบุฟอร์แมตที่รองรับไว้ตรงๆ (บาร์โค้ด 1D ที่ใช้จริง + QR/Micro QR) กันไม่ให้พฤติกรรมเปลี่ยนไปเองถ้า
+    // ไลบรารี @latest เปลี่ยนค่าเริ่มต้นในอนาคต — ไม่ใส่ hints ก็อ่าน QR ได้อยู่แล้วเป็นค่าเริ่มต้นของไลบรารีนี้
+    let hints = null;
+    try {
+      hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        ZXing.BarcodeFormat.QR_CODE,
+        ZXing.BarcodeFormat.MICRO_QR_CODE,
+        ZXing.BarcodeFormat.EAN_13,
+        ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.UPC_A,
+        ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.CODE_128,
+        ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.CODE_93,
+        ZXing.BarcodeFormat.CODABAR,
+        ZXing.BarcodeFormat.ITF,
+      ]);
+    } catch (e) { hints = null; }
+    scanReader_ = new ZXing.BrowserMultiFormatReader(hints);
     // facingMode: 'environment' ขอกล้องหลัง (เหมาะกับสแกนบาร์โค้ด) แทนกล้องหน้าที่บางเครื่องเลือกให้เป็นค่าเริ่มต้น
     await scanReader_.decodeFromConstraints({ video: { facingMode: 'environment' } }, 'scan-video', (result) => {
       if (!result) return; // ยังหาบาร์โค้ดไม่เจอในเฟรมนี้ ปกติ รอเฟรมถัดไป
