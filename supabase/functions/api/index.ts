@@ -330,6 +330,13 @@ async function handleSaveItem(p: Record<string, unknown>) {
       try { await cascadeItemRename(before.name, before.category, newName); }
       catch (e) { console.error("cascadeItemRename failed", e); }
     }
+    // Only log when something a human would recognize as an edit changed — a bare sort_order
+    // update fires on every single drag-reorder step, which would otherwise flood the audit log
+    // with noise nobody can read through.
+    const loggableKeys = Object.keys(update).filter((k) => k !== "sort_order");
+    if (loggableKeys.length) {
+      await logAdmin("updateItem", { id: p.id, name: newName ?? before?.name ?? null, fields: loggableKeys });
+    }
     return json({ ok: true, item: data });
   }
   const branchId = p.branch_id ? String(p.branch_id) : null;
@@ -935,6 +942,64 @@ async function handleGetCurrentStockLevels(p: Record<string, unknown>) {
     levels[row.item_name] = { qty: row.qty, unit: row.unit, category: row.category, hasBaseline: row.has_baseline };
   }
   return json({ ok: true, levels });
+}
+
+// Aggregates check_record_items.waste_qty over a date range for one branch, grouped by item —
+// built entirely from data already captured on every check-in (waste_qty has been collected since
+// day one), nothing new to track. Fetches every check_records row for the branch (same unbounded
+// pattern handleList already uses) and filters the date range in JS, since this app's data volume
+// per branch is small; only the (usually much smaller) in-range subset gets the heavier
+// check_record_items lookup.
+async function handleGetWasteReport(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const branchId = String(p.branch_id ?? "");
+  if (!branchId) return json({ ok: false, error: "missing_branch_id" });
+  const sinceDate = String(p.since_date ?? ""); // "YYYY-MM-DD", ว่าง = ไม่จำกัดจุดเริ่ม
+  const untilDate = String(p.until_date ?? ""); // "YYYY-MM-DD", ว่าง = ถึงปัจจุบัน
+
+  const { data: records, error } = await supabase
+    .from("check_records").select("id, category, date").eq("branch_id", branchId);
+  if (error) return json({ ok: false, error: error.message });
+
+  const inRange = ((records ?? []) as Array<{ id: string; category: string; date: string }>).filter((r) => {
+    const d = String(r.date).slice(0, 10);
+    if (sinceDate && d < sinceDate) return false;
+    if (untilDate && d > untilDate) return false;
+    return true;
+  });
+  const categoryByRecord = new Map(inRange.map((r) => [r.id, r.category]));
+  const recordIds = inRange.map((r) => r.id);
+  if (!recordIds.length) return json({ ok: true, items: [], recordCount: 0 });
+
+  const { data: lines, error: linesError } = await supabase
+    .from("check_record_items").select("record_id, item_name, waste_qty, unit").in("record_id", recordIds);
+  if (linesError) return json({ ok: false, error: linesError.message });
+
+  const byItem = new Map<string, { name: string; category: string; totalWaste: number; unit: string | null; occurrences: number }>();
+  for (const line of (lines ?? []) as Array<{ record_id: string; item_name: string; waste_qty: number | null; unit: string | null }>) {
+    const waste = Number(line.waste_qty) || 0;
+    if (waste <= 0) continue; // ไม่มีของเสียในแถวนี้ — ข้าม ไม่ต้องให้มา “ถ่วง” occurrences
+    const category = categoryByRecord.get(line.record_id) ?? "";
+    const key = `${category}||${line.item_name}`;
+    const entry = byItem.get(key) ?? { name: line.item_name, category, totalWaste: 0, unit: null, occurrences: 0 };
+    entry.totalWaste += waste;
+    entry.occurrences += 1;
+    if (!entry.unit && line.unit) entry.unit = line.unit;
+    byItem.set(key, entry);
+  }
+  const items = [...byItem.values()].sort((a, b) => b.totalWaste - a.totalWaste);
+  return json({ ok: true, items, recordCount: recordIds.length });
+}
+
+// Read-only view over admin_log (written on every significant admin action already — see
+// logAdmin() calls throughout this file) — just exposes it, no new tracking added.
+async function handleGetAdminLog(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const limit = Math.min(Math.max(Number(p.limit ?? 200) || 200, 1), 500);
+  const { data, error } = await supabase
+    .from("admin_log").select("at, action, details").order("at", { ascending: false }).limit(limit);
+  if (error) return json({ ok: false, error: error.message });
+  return json({ ok: true, logs: data ?? [] });
 }
 
 // ============================================================
@@ -1639,6 +1704,8 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   updateItemInRecord: handleUpdateItemInRecord,
   getCurrentStockLevels: handleGetCurrentStockLevels,
   getBranchOverview: handleGetBranchOverview,
+  getWasteReport: handleGetWasteReport,
+  getAdminLog: handleGetAdminLog,
   translateAll: handleTranslateAll,
   getDictionary: handleGetDictionary,
   translateNote: handleTranslateNote,

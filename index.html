@@ -584,6 +584,8 @@
           <div class="admin-tab" data-tab="translations" onclick="switchAdminTab('translations')" data-t="manageTranslations">จัดการคำแปล</div>
           <div class="admin-tab" data-tab="buffer" onclick="switchAdminTab('buffer')">⚙️ Buffer คาดคะเน</div>
           <div class="admin-tab" data-tab="purchase" onclick="switchAdminTab('purchase')">🧾 นำเข้าจากบัญชี</div>
+          <div class="admin-tab" data-tab="waste" onclick="switchAdminTab('waste')">🗑️ รายงานของเสีย</div>
+          <div class="admin-tab" data-tab="log" onclick="switchAdminTab('log')">📋 บันทึกการใช้งาน</div>
           <div class="admin-tab" data-tab="password" onclick="switchAdminTab('password')">🔑 เปลี่ยนรหัสผ่าน</div>
         </div>
         <div id="admin-tab-items"></div>
@@ -591,6 +593,8 @@
         <div id="admin-tab-translations" class="hidden"></div>
         <div id="admin-tab-buffer" class="hidden"></div>
         <div id="admin-tab-purchase" class="hidden"></div>
+        <div id="admin-tab-waste" class="hidden"></div>
+        <div id="admin-tab-log" class="hidden"></div>
         <div id="admin-tab-password" class="hidden"></div>
       </div>
     </div>
@@ -2279,12 +2283,16 @@ function switchAdminTab(tab, prefetchItems, prefetchScope) {
   document.getElementById('admin-tab-translations').classList.toggle('hidden', tab!=='translations');
   document.getElementById('admin-tab-buffer').classList.toggle('hidden', tab!=='buffer');
   document.getElementById('admin-tab-purchase').classList.toggle('hidden', tab!=='purchase');
+  document.getElementById('admin-tab-waste').classList.toggle('hidden', tab!=='waste');
+  document.getElementById('admin-tab-log').classList.toggle('hidden', tab!=='log');
   document.getElementById('admin-tab-password').classList.toggle('hidden', tab!=='password');
   if (tab==='items') renderAdminItemsTab(prefetchItems, prefetchScope);
   if (tab==='branches') renderAdminBranchesTab();
   if (tab==='translations') renderAdminTranslationsTab();
   if (tab==='buffer') renderAdminBufferTab();
   if (tab==='purchase') renderAdminPurchaseTab();
+  if (tab==='waste') renderAdminWasteTab();
+  if (tab==='log') renderAdminLogTab();
   if (tab==='password') renderAdminPasswordTab();
 }
 
@@ -2892,6 +2900,144 @@ async function skipPurchaseRow(rowId, btn) {
     showToast('ข้ามรายการไม่สำเร็จ', 'error');
     btn.disabled = false;
   }
+}
+
+/* =========================================================
+   Admin — รายงานของเสีย (สรุป waste_qty ที่เก็บไว้ทุกครั้งตอนเช็คสต็อกอยู่แล้ว ไม่มีข้อมูลใหม่ที่ต้องเก็บ
+   เพิ่ม — แค่ดึงมาสรุป/เรียงให้ดูง่ายขึ้น)
+   ========================================================= */
+async function renderAdminWasteTab() {
+  const el = document.getElementById('admin-tab-waste');
+  if (!branchesLoaded) {
+    try { const r = await jsonpGet('listBranches', { password: adminPassword }); if (r && r.ok) { branches = r.branches; branchesLoaded = true; } } catch (e) {}
+  }
+  const branchOptions = branches.map(b => `<option value="${b.id}" ${b.id===currentBranchId?'selected':''}>${b.name}</option>`).join('');
+  const now = new Date();
+  const since30 = new Date(now.getTime() - 30*24*60*60*1000);
+  const fmtInput = (d) => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  el.innerHTML = `
+    <div class="bg-gray-50 rounded-xl p-4 mb-4">
+      <p class="text-sm text-gray-500 mb-3">สรุปของเสียที่บันทึกไว้ตอนเช็คสต็อก เรียงจากเสียมากสุดไปน้อย ช่วยดูว่าควรสั่งซื้อสินค้าตัวไหนน้อยลง</p>
+      <div class="grid grid-cols-2 gap-2 mb-3">
+        <div class="col-span-2">
+          <label class="block text-xs font-medium text-gray-600 mb-1">สาขา</label>
+          <select id="waste-report-branch" class="w-full px-3 py-2.5 border rounded-lg text-sm">${branchOptions}</select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">ตั้งแต่วันที่</label>
+          <input type="date" id="waste-report-since" value="${fmtInput(since30)}" class="w-full px-3 py-2.5 border rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">ถึงวันที่</label>
+          <input type="date" id="waste-report-until" value="${fmtInput(now)}" class="w-full px-3 py-2.5 border rounded-lg text-sm">
+        </div>
+      </div>
+      <button id="waste-report-btn" onclick="runWasteReport_()" class="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold">ดูรายงาน</button>
+    </div>
+    <div id="waste-report-results"></div>
+  `;
+  runWasteReport_();
+}
+
+async function runWasteReport_() {
+  const btn = document.getElementById('waste-report-btn');
+  const resultsEl = document.getElementById('waste-report-results');
+  const branchId = document.getElementById('waste-report-branch').value;
+  const sinceDate = document.getElementById('waste-report-since').value;
+  const untilDate = document.getElementById('waste-report-until').value;
+  if (btn) btn.disabled = true;
+  resultsEl.innerHTML = `<p class="text-center text-gray-400 text-sm py-6">${t('loading')}</p>`;
+  try {
+    const res = await jsonpGet('getWasteReport', { password: adminPassword, branch_id: branchId, since_date: sinceDate, until_date: untilDate });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'load_failed');
+    renderWasteReportResults_(res);
+  } catch (e) {
+    resultsEl.innerHTML = `<p class="text-sm text-red-500 text-center py-6">โหลดไม่สำเร็จ: ${(e && e.message) || e}</p>`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderWasteReportResults_(res) {
+  const el = document.getElementById('waste-report-results');
+  const items = res.items || [];
+  if (!items.length) {
+    el.innerHTML = `<p class="text-center text-gray-400 text-sm py-6">ไม่มีของเสียบันทึกไว้ในช่วงนี้ (จาก ${res.recordCount || 0} ครั้งที่เช็คสต็อก)</p>`;
+    return;
+  }
+  const maxWaste = Math.max(...items.map(it => it.totalWaste));
+  const rows = items.map(it => {
+    const pct = maxWaste > 0 ? Math.round((it.totalWaste / maxWaste) * 100) : 0;
+    return `
+      <div class="flex items-center justify-between py-2">
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold text-gray-800 truncate">${tItem(it.name)}</p>
+          <p class="text-xs text-gray-400">${tCategory(it.category)} · เสีย ${it.occurrences} ครั้ง</p>
+          <div class="h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden"><div class="h-full bg-red-500 rounded-full" style="width:${pct}%"></div></div>
+        </div>
+        <p class="text-sm font-bold text-red-600 flex-shrink-0 ml-3">${fmtQty(it.totalWaste)}${it.unit ? ' '+it.unit : ''}</p>
+      </div>`;
+  }).join('');
+  el.innerHTML = `
+    <p class="text-xs text-gray-400 mb-2">มีของเสีย ${items.length} รายการ จาก ${res.recordCount} ครั้งที่เช็คสต็อกในช่วงนี้</p>
+    <div class="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100 px-3">${rows}</div>
+  `;
+}
+
+/* =========================================================
+   Admin — บันทึกการใช้งาน (audit log: แสดง admin_log ที่เซิร์ฟเวอร์เขียนไว้ทุกครั้งที่มีการแก้ไขสำคัญ
+   อยู่แล้ว เช่น ลบ/เพิ่มสาขา เพิ่ม/แก้ไขรายการสินค้า เปลี่ยนรหัสผ่าน — แค่เพิ่มหน้าให้เปิดดูได้ ไม่มีการเก็บ
+   ข้อมูลใหม่เพิ่มขึ้น)
+   ========================================================= */
+async function renderAdminLogTab() {
+  const el = document.getElementById('admin-tab-log');
+  el.innerHTML = `<p class="text-center text-gray-400 text-sm py-6">${t('loading')}</p>`;
+  try {
+    const res = await jsonpGet('getAdminLog', { password: adminPassword, limit: 200 });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'load_failed');
+    renderAdminLogResults_(res.logs || []);
+  } catch (e) {
+    el.innerHTML = `<p class="text-sm text-red-500 text-center py-6">โหลดไม่สำเร็จ: ${(e && e.message) || e}</p>`;
+  }
+}
+
+/** แปล action + details (jsonb ดิบจาก admin_log) ให้เป็นประโยคไทยอ่านรู้เรื่อง — action ที่ไม่มีใน mapping นี้
+    (เผื่ออนาคตเพิ่ม logAdmin() จุดใหม่แล้วลืมมาเพิ่มคำแปลตรงนี้) จะ fallback ไปโชว์ชื่อ action ดิบ ไม่ซ่อนไปเฉยๆ */
+function describeAdminLogEntry_(action, d) {
+  d = d || {};
+  switch (action) {
+    case 'addBranch': return `เพิ่มสาขา: ${d.name || d.id || ''}`;
+    case 'updateBranch': return `แก้ไขข้อมูลสาขา: ${d.id || ''}`;
+    case 'deleteBranch': return `ลบสาขา: ${d.id || ''}`;
+    case 'setItemHiddenForBranch': {
+      const name = (d.key || '').split('||')[1] || d.key || '';
+      return (d.hidden ? `ซ่อนสินค้า "${name}" จากสาขา ` : `เลิกซ่อนสินค้า "${name}" จากสาขา `) + (d.branchId || '');
+    }
+    case 'changeAdminPassword': return 'เปลี่ยนรหัสผ่านแอดมิน';
+    case 'saveItem': return `เพิ่มรายการสินค้าใหม่: ${d.name || ''}` + (d.branch_id ? ` (เฉพาะสาขา ${d.branch_id})` : ' (ส่วนกลาง)');
+    case 'updateItem': return `แก้ไขรายการสินค้า: ${d.name || d.id || ''}`;
+    case 'uploadItemImage': return `อัปโหลดรูปสินค้า (id: ${d.id || ''})`;
+    case 'deleteItem': return `ลบรายการสินค้า (id: ${d.id || ''})`;
+    case 'deleteCategoryInScope': return `ลบหมวดหมู่ "${d.category || ''}" ทั้งหมด (${d.deleted ?? 0} รายการ)`;
+    case 'bulkSeedItems': return `นำเข้ารายการสินค้าแบบกลุ่ม: เพิ่ม ${d.added ?? 0} รายการ` + (d.error ? ` (มีข้อผิดพลาด: ${d.error})` : '');
+    case 'updateItemInRecord': return `แก้ไขรายการในประวัติ: ${d.itemName || ''} เป็น ${d.quantity ?? ''}` + (d.editor ? ` (โดย ${d.editor})` : '');
+    case 'translateAll': return `อัปเดตคำแปลด้วย AI: ภาษา ${d.lang || ''}`;
+    default: return action + (Object.keys(d).length ? ' ' + JSON.stringify(d) : '');
+  }
+}
+
+function renderAdminLogResults_(logs) {
+  const el = document.getElementById('admin-tab-log');
+  if (!logs.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-6">ยังไม่มีบันทึกการใช้งาน</p>`; return; }
+  const rows = logs.map(l => `
+    <div class="py-2">
+      <p class="text-sm text-gray-800">${describeAdminLogEntry_(l.action, l.details)}</p>
+      <p class="text-xs text-gray-400">${formatFullDate(l.at)}</p>
+    </div>`).join('');
+  el.innerHTML = `
+    <p class="text-xs text-gray-400 mb-2">ล่าสุด ${logs.length} รายการ</p>
+    <div class="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100 px-3">${rows}</div>
+  `;
 }
 
 /* =========================================================
