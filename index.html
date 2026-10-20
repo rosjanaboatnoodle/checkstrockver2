@@ -3995,7 +3995,9 @@ async function confirmAiImport() {
   const btn = document.getElementById('ai-import-confirm-btn');
   btn.disabled = true; btn.textContent = 'กำลังนำเข้า...';
   try {
-    const items = rows.map(r => ({ category: r.category.trim() || 'ทั่วไป', name: r.name.trim(), unit: r.unit.trim() }));
+    // ใส่ sort_order ตามตำแหน่งจริงในไฟล์ทั้งก้อน (ก่อนตัดแบ่งส่งทีละ CHUNK รายการด้านล่าง) — ไม่งั้นแต่ละ
+    // คำขอย่อยจะเริ่มนับลำดับใหม่จาก 0 เอง ทำให้รายการสลับลำดับไม่ตรงกับไฟล์ต้นฉบับหลังนำเข้า
+    const items = rows.map((r, idx) => ({ category: r.category.trim() || 'ทั่วไป', name: r.name.trim(), unit: r.unit.trim(), sort_order: idx }));
     const CHUNK = 40;
     for (let i = 0; i < items.length; i += CHUNK) {
       await jsonpGet('bulkSeedItems', { password: adminPassword, branch_id: '', items: JSON.stringify(items.slice(i, i + CHUNK)) });
@@ -4070,8 +4072,11 @@ async function confirmImportFromCentral() {
   const existingNames = new Set(adminScopeItems.map(it => it.name));
   const itemsToImport = importCentralItems_
     .filter(it => selectedCats.includes(it.category) && !existingNames.has(it.name))
-    .map(it => {
-      const out = { category: it.category, name: it.name, unit: it.unit || '' };
+    .map((it, idx) => {
+      // คงลำดับเดิมของส่วนกลางไว้ (ไม่งั้นพอตัดแบ่งส่งทีละ CHUNK รายการด้านล่าง แต่ละคำขอย่อยจะเริ่มนับ
+      // ลำดับใหม่จาก 0 เอง ทำให้รายการสลับลำดับไม่ตรงกับส่วนกลางหลังนำเข้า) — ใช้ sort_order เดิมของรายการ
+      // ถ้ามี ไม่มีก็ถอยไปใช้ตำแหน่งในลิสต์ที่กำลังนำเข้านี้แทน
+      const out = { category: it.category, name: it.name, unit: it.unit || '', sort_order: it.sort_order !== undefined && it.sort_order !== null ? it.sort_order : idx };
       // ส่ง is_header เฉพาะตอนเป็นหัวข้อจริงๆ เท่านั้น (เหมือนที่ "นำเข้าไฟล์ด้วย AI" ทำมาตลอด) — ห้ามส่งสตริง
       // "FALSE" ไปเฉยๆ เพราะถ้าฝั่ง Code.gs เช็คแบบ if(it.is_header) แบบ truthy ธรรมดา สตริง "FALSE" ก็ truthy
       // (ไม่ใช่สตริงว่าง) ทำให้ทุกรายการที่ไม่ใช่หัวข้อโดนตั้งเป็นหัวข้อไปด้วยหมด (บั๊กที่เจอจริงจากผู้ใช้)

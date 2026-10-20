@@ -475,7 +475,11 @@ async function handleBulkSeedItems(p: Record<string, unknown>) {
       name: String(it.name ?? ""),
       unit: String(it.unit ?? ""),
       is_header: String(it.is_header ?? "FALSE").toUpperCase() === "TRUE",
-      sort_order: idx,
+      // ใช้ sort_order ที่ client ส่งมาเมื่อมี (ตำแหน่งจริงของรายการนี้ในไฟล์ต้นฉบับทั้งก้อน ก่อนถูกตัดแบ่ง
+      // ส่งทีละ 40 รายการต่อคำขอ) — ถ้าใช้ idx ของอาร์เรย์ในคำขอนี้เป็นค่าเริ่มต้นเฉยๆ พอไฟล์มีมากกว่า 40
+      // รายการ แต่ละคำขอจะเริ่มนับ sort_order 0 ใหม่ทับซ้อนกับคำขอก่อนหน้า ทำให้รายการในแต่ละหมวดหมู่
+      // เรียงสลับไม่ตรงกับไฟล์ต้นฉบับที่ผู้ใช้จัดลำดับมาอยู่แล้ว (บั๊กที่ผู้ใช้รายงาน)
+      sort_order: it.sort_order !== undefined && it.sort_order !== null ? Number(it.sort_order) : idx,
     }));
   if (!rows.length) { await logAdmin("bulkSeedItems", { branchId, added: 0 }); return json({ ok: true, added: 0 }); }
 
