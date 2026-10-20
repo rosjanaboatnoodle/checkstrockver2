@@ -2989,11 +2989,31 @@ function renderWasteReportResults_(res) {
    อยู่แล้ว เช่น ลบ/เพิ่มสาขา เพิ่ม/แก้ไขรายการสินค้า เปลี่ยนรหัสผ่าน — แค่เพิ่มหน้าให้เปิดดูได้ ไม่มีการเก็บ
    ข้อมูลใหม่เพิ่มขึ้น)
    ========================================================= */
-async function renderAdminLogTab() {
+let adminLogRangeDays_ = 7; // ค่าเริ่มต้น 7 วันล่าสุด — เยอะกว่านี้อ่านไม่ไหว เปลี่ยนได้จาก dropdown
+function renderAdminLogTab() {
   const el = document.getElementById('admin-tab-log');
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <select id="admin-log-range" onchange="adminLogRangeDays_=this.value==='all'?'all':Number(this.value); loadAdminLogResults_();" class="px-3 py-2 border rounded-lg text-sm">
+        <option value="7" ${adminLogRangeDays_===7?'selected':''}>7 วันล่าสุด</option>
+        <option value="30" ${adminLogRangeDays_===30?'selected':''}>30 วันล่าสุด</option>
+        <option value="all" ${adminLogRangeDays_==='all'?'selected':''}>ทั้งหมด</option>
+      </select>
+    </div>
+    <div id="admin-log-results"><p class="text-center text-gray-400 text-sm py-6">${t('loading')}</p></div>
+  `;
+  loadAdminLogResults_();
+}
+async function loadAdminLogResults_() {
+  const el = document.getElementById('admin-log-results');
   el.innerHTML = `<p class="text-center text-gray-400 text-sm py-6">${t('loading')}</p>`;
   try {
-    const res = await jsonpGet('getAdminLog', { password: adminPassword, limit: 200 });
+    const params = { password: adminPassword, limit: 500 };
+    if (adminLogRangeDays_ !== 'all') {
+      const since = new Date(Date.now() - adminLogRangeDays_ * 24 * 60 * 60 * 1000);
+      params.since_date = since.getFullYear() + '-' + String(since.getMonth()+1).padStart(2,'0') + '-' + String(since.getDate()).padStart(2,'0');
+    }
+    const res = await jsonpGet('getAdminLog', params);
     if (!res || !res.ok) throw new Error((res && res.error) || 'load_failed');
     renderAdminLogResults_(res.logs || []);
   } catch (e) {
@@ -3027,8 +3047,8 @@ function describeAdminLogEntry_(action, d) {
 }
 
 function renderAdminLogResults_(logs) {
-  const el = document.getElementById('admin-tab-log');
-  if (!logs.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-6">ยังไม่มีบันทึกการใช้งาน</p>`; return; }
+  const el = document.getElementById('admin-log-results');
+  if (!logs.length) { el.innerHTML = `<p class="text-center text-gray-400 text-sm py-6">ไม่มีบันทึกการใช้งานในช่วงนี้</p>`; return; }
   const rows = logs.map(l => `
     <div class="py-2">
       <p class="text-sm text-gray-800">${describeAdminLogEntry_(l.action, l.details)}</p>

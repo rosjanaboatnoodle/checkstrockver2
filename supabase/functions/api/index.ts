@@ -995,9 +995,11 @@ async function handleGetWasteReport(p: Record<string, unknown>) {
 // logAdmin() calls throughout this file) — just exposes it, no new tracking added.
 async function handleGetAdminLog(p: Record<string, unknown>) {
   if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
-  const limit = Math.min(Math.max(Number(p.limit ?? 200) || 200, 1), 500);
-  const { data, error } = await supabase
-    .from("admin_log").select("at, action, details").order("at", { ascending: false }).limit(limit);
+  const limit = Math.min(Math.max(Number(p.limit ?? 500) || 500, 1), 1000);
+  const sinceDate = String(p.since_date ?? ""); // "YYYY-MM-DD" ว่าง = ไม่จำกัดจุดเริ่ม (ทั้งหมด)
+  let q = supabase.from("admin_log").select("at, action, details").order("at", { ascending: false });
+  if (sinceDate) q = q.gte("at", sinceDate);
+  const { data, error } = await q.limit(limit);
   if (error) return json({ ok: false, error: error.message });
   return json({ ok: true, logs: data ?? [] });
 }
