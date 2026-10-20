@@ -1145,13 +1145,37 @@ async function handleTranslateNote(p: Record<string, unknown>) {
   }
 }
 
+// Splits combined CSV text into per-sheet chunks, so a big multi-sheet master file (e.g. exported
+// from Apple Numbers, where each sheet is usually one stock category) gets one bounded Gemini call
+// per sheet instead of one huge call for the whole file. The client marks each sheet's section with
+// a "## ชีต: <name>" line (see handleAiImportFile in index.html) — split on that, and further split
+// any single oversized sheet into row-batches, repeating its marker line at the top of each piece so
+// every chunk still carries its section/category hint on its own.
+function chunkCsvBySheets_(content: string, maxRowsPerChunk = 80): string[] {
+  const sections = content.split(/\n(?=## ชีต: )/g).filter((s) => s.trim());
+  if (!sections.length) return content.trim() ? [content] : [];
+  const chunks: string[] = [];
+  for (const section of sections) {
+    const lines = section.split("\n");
+    const isMarked = lines[0].startsWith("## ชีต: ");
+    const header = isMarked ? lines[0] : null;
+    const body = isMarked ? lines.slice(1) : lines;
+    if (body.length <= maxRowsPerChunk) { chunks.push(section); continue; }
+    for (let i = 0; i < body.length; i += maxRowsPerChunk) {
+      const piece = body.slice(i, i + maxRowsPerChunk).join("\n");
+      chunks.push(header ? `${header}\n${piece}` : piece);
+    }
+  }
+  return chunks;
+}
+
 async function runParseItemsAI(
   type: string,
   content: string,
   mimeType: string,
   existingCategories: string[],
 ): Promise<Array<{ category: string; name: string; unit: string }>> {
-  const instructions = `You are reading a raw-material / stock list for a Thai restaurant. Extract every row as {"category": "...", "name": "...", "unit": "..."}, all in Thai. Reuse one of these existing categories when a row clearly fits one, otherwise propose a short new Thai category name: ${JSON.stringify(existingCategories)}. Skip rows that are not actual stock items (totals, section titles, blank rows). Return ONLY a JSON object of shape {"items": [{"category":"...","name":"...","unit":"..."}, ...]}.`;
+  const instructions = `You are reading a raw-material / stock list for a Thai restaurant. Extract every row as {"category": "...", "name": "...", "unit": "..."}, all in Thai. Reuse one of these existing categories when a row clearly fits one, otherwise propose a short new Thai category name: ${JSON.stringify(existingCategories)}. A line starting with "## ชีต:" names the sheet/section the rows below it came from — treat that name as a strong hint for which category those rows belong to (reuse it, or something close to it from the existing-categories list, when it's a good match), and never extract that marker line itself as an item. Skip rows that are not actual stock items (totals, section titles, blank rows). Return ONLY a JSON object of shape {"items": [{"category":"...","name":"...","unit":"..."}, ...]}.`;
 
   const parts: unknown[] = type === "media"
     ? [{ text: instructions }, { inlineData: { mimeType: mimeType || "application/pdf", data: content } }]
@@ -1168,6 +1192,23 @@ async function runParseItemsAI(
     .filter((it) => it.name);
 }
 
+type AiImportJobState = {
+  type: string;
+  mimeType: string;
+  existingCategories: string[];
+  chunks: string[];
+  totalChunks: number;
+  collected: Array<{ category: string; name: string; unit: string }>;
+};
+
+// Submits the job: just splits the input into bounded chunks and stores that state — no Gemini call
+// happens here, so this request is always fast. The actual (possibly slow) work is done by
+// handleGetAiImportResult below, one chunk per call, matching the pattern previewPurchaseSync already
+// uses for the same reason: EdgeRuntime.waitUntil background tasks were found not to reliably run to
+// completion on this project's plan, and a single Gemini call over an entire multi-hundred-row master
+// file routinely ran past both the Gemini call's own timeout and the client's patience. Each chunk's
+// Gemini call instead happens synchronously inside an ordinary request, bounded by one sheet's worth
+// of rows, which comfortably finishes well under the timeout.
 async function handleParseItemsAI(p: Record<string, unknown>) {
   if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
   const jobId = String(p.jobId ?? "");
@@ -1179,18 +1220,11 @@ async function handleParseItemsAI(p: Record<string, unknown>) {
   if (Array.isArray(p.existingCategories)) existingCategories = p.existingCategories as string[];
   else { try { existingCategories = JSON.parse(String(p.existingCategories ?? "[]")); } catch { /* ignore */ } }
 
-  await supabase.from("ai_import_jobs").upsert({ job_id: jobId, status: "pending", items: null, error: null });
-
-  // Runs after the response is sent — parsing (especially a PDF/image via Gemini) can
-  // take well past the client's own request timeout, so the job is polled separately
-  // via getAiImportResult rather than awaited on this request.
-  const task = runParseItemsAI(type, content, mimeType, existingCategories)
-    .then((items) => supabase.from("ai_import_jobs").update({ status: "done", items }).eq("job_id", jobId))
-    .catch((e) => supabase.from("ai_import_jobs").update({ status: "error", error: String(e?.message ?? e) }).eq("job_id", jobId));
-  // deno-lint-ignore no-explicit-any
-  const rt = (globalThis as any).EdgeRuntime;
-  if (rt?.waitUntil) rt.waitUntil(task); else await task;
-
+  // ไฟล์รูป/PDF แบ่งเป็นก้อนย่อยไม่ได้ (ไม่ใช่ข้อความที่ตัดตามแถวได้) — คงเป็นก้อนเดียวเหมือนเดิม ยังอยู่ใน
+  // ขีดจำกัดเวลาเดิม (เอกสารรายการสินค้าแผ่นเดียวมักไม่ใหญ่พอจะเกิน 45 วิอยู่แล้ว)
+  const chunks = type === "media" ? (content ? [content] : []) : chunkCsvBySheets_(content);
+  const state: AiImportJobState = { type, mimeType, existingCategories, chunks, totalChunks: chunks.length, collected: [] };
+  await supabase.from("ai_import_jobs").upsert({ job_id: jobId, status: "pending", items: state, error: null });
   return json({ ok: true, jobId });
 }
 
@@ -1199,7 +1233,44 @@ async function handleGetAiImportResult(p: Record<string, unknown>) {
   const jobId = String(p.jobId ?? "");
   const { data } = await supabase.from("ai_import_jobs").select("status, items, error").eq("job_id", jobId).maybeSingle();
   if (!data) return json({ ok: true, status: "pending", items: [] });
-  return json({ ok: true, status: data.status, items: data.items ?? [], error: data.error ?? undefined });
+  if (data.status === "done") return json({ ok: true, status: "done", items: data.items ?? [] });
+  if (data.status === "error") return json({ ok: true, status: "error", items: [], error: data.error ?? undefined });
+
+  // status "pending" — ยังมีก้อนเหลือ (หรืออาจเก็บ state แบบเก่าก่อนอัปเดตโค้ดนี้ก็ได้ กันพังด้วย fallback
+  // ว่าง) ประมวลผลต่ออีกหนึ่งก้อนในคำขอนี้เลย แล้วค่อยตอบ — client เดิม poll ทุก 1.5 วิอยู่แล้ว เท่ากับขยับ
+  // งานไปทีละก้อนในจังหวะเดียวกัน ไม่ต้องเปลี่ยนฝั่งเว็บเลย
+  const state = (data.items ?? {}) as Partial<AiImportJobState>;
+  const chunks = state.chunks ?? [];
+  const collected = state.collected ?? [];
+  const totalChunks = state.totalChunks ?? chunks.length;
+  if (!chunks.length) {
+    await supabase.from("ai_import_jobs").update({ status: "done", items: collected }).eq("job_id", jobId);
+    return json({ ok: true, status: "done", items: collected });
+  }
+
+  const [chunk, ...rest] = chunks;
+  const progress = { done: totalChunks - chunks.length, total: totalChunks };
+  try {
+    // รวมหมวดหมู่ที่ AI เพิ่งตั้งเองจากก้อนก่อนหน้าของงานเดียวกันเข้าไปด้วย กันก้อนถัดไปตั้งชื่อหมวดใหม่ซ้ำ
+    // ความหมายเดิมแบบสะกดคนละแบบ (เช่นก้อนแรกตั้ง "เนื้อสัตว์แช่แข็ง" ก้อนถัดไปจะได้เห็นแล้วเลือกใช้ซ้ำ)
+    const categoriesSoFar = [...new Set([...(state.existingCategories ?? []), ...collected.map((it) => it.category)])];
+    const parsed = await runParseItemsAI(state.type ?? "text", chunk, state.mimeType ?? "", categoriesSoFar);
+    const newCollected = [...collected, ...parsed];
+    if (!rest.length) {
+      await supabase.from("ai_import_jobs").update({ status: "done", items: newCollected }).eq("job_id", jobId);
+      return json({ ok: true, status: "done", items: newCollected });
+    }
+    const nextState: AiImportJobState = {
+      type: state.type ?? "text", mimeType: state.mimeType ?? "", existingCategories: state.existingCategories ?? [],
+      chunks: rest, totalChunks, collected: newCollected,
+    };
+    await supabase.from("ai_import_jobs").update({ items: nextState }).eq("job_id", jobId);
+    return json({ ok: true, status: "pending", items: [], progress: { done: progress.done + 1, total: totalChunks } });
+  } catch (e) {
+    const msg = String((e as Error)?.message ?? e);
+    await supabase.from("ai_import_jobs").update({ status: "error", error: msg }).eq("job_id", jobId);
+    return json({ ok: true, status: "error", items: [], error: msg });
+  }
 }
 
 // ============================================================

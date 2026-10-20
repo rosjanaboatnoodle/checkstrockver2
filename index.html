@@ -3835,19 +3835,26 @@ function fileToBase64_(file) {
 
 function sleep_(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-/** poll ผลลัพธ์ทุก 1.5 วิ สูงสุด ~90 วิ (60 ครั้ง) ก่อนจะถือว่า timeout */
+/** poll ผลลัพธ์ทุก 1.5 วิ สูงสุด 100 ครั้ง — แต่ละครั้งฝั่งเซิร์ฟเวอร์ประมวลผลไฟล์ไปทีละก้อน (ทีละชีต) ไม่ใช่
+    แค่เช็คสถานะเฉยๆ ดังนั้นเวลาจริงที่ใช้ต่อรอบจะนานกว่า 1.5 วิ (ขึ้นกับว่า Gemini ตอบเร็วแค่ไหน) ไฟล์ที่มี
+    หลายชีตเลยใช้เวลารวมจริงได้มากกว่า "100 ครั้ง x 1.5 วิ" เยอะ โดยไม่ถือว่า timeout ก่อนเวลาอันควร —
+    ให้ timeout การยิงแต่ละครั้งยาวขึ้น (60 วิ) ด้วย กันก้อนที่ Gemini ตอบช้าหน่อยโดนตัดก่อนเวลา */
 async function pollAiImportResult_(jobId, statusEl) {
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 100; i++) {
     await sleep_(1500);
     let res;
-    try { res = await jsonpGet('getAiImportResult', { jobId, password: adminPassword }); }
-    catch (e) { continue; } // เน็ตสะดุดชั่วคราว ลองรอบถัดไปต่อ ไม่ยอมแพ้ทันที
+    try { res = await jsonpGet('getAiImportResult', { jobId, password: adminPassword }, 60000); }
+    catch (e) { continue; } // เน็ตสะดุด/ก้อนนี้ตอบช้า ลองรอบถัดไปต่อ ไม่ยอมแพ้ทันที (ก้อนที่ประมวลผลเสร็จแล้วฝั่งเซิร์ฟเวอร์จะไม่หายไป)
     if (res && res.ok && res.status === 'done') return { ok: true, items: res.items || [] };
     if (res && res.ok && res.status === 'error') return { ok: false, error: res.error || 'ไม่ทราบสาเหตุ' };
-    if (statusEl) statusEl.textContent = `AI กำลังอ่านไฟล์... (${i + 1}s)`;
+    if (statusEl) {
+      statusEl.textContent = (res && res.progress && res.progress.total)
+        ? `AI กำลังอ่านไฟล์... (อ่านไปแล้ว ${res.progress.done}/${res.progress.total} ชีต)`
+        : `AI กำลังอ่านไฟล์ อาจใช้เวลาสักครู่... (${i + 1})`;
+    }
     // status === 'pending' → รอต่อ
   }
-  return { ok: false, error: 'รอผลลัพธ์นานเกินไป (เกิน 90 วินาที) ลองไฟล์ที่เล็กลง หรือลองใหม่อีกครั้ง' };
+  return { ok: false, error: 'รอผลลัพธ์นานเกินไป ไฟล์อาจใหญ่เกินไป ลองแบ่งไฟล์เล็กลง หรือลองใหม่อีกครั้ง' };
 }
 
 let xlsxLoadPromise_ = null;
@@ -3888,8 +3895,13 @@ async function handleAiImportFile() {
       await ensureXlsxLoaded_();
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array' });
-      const firstSheet = wb.Sheets[wb.SheetNames[0]];
-      const csvText = XLSX.utils.sheet_to_csv(firstSheet);
+      // อ่านทุกชีตในไฟล์ ไม่ใช่แค่ชีตแรก — เดิมอ่านแค่ wb.SheetNames[0] ชีตเดียว ถ้าไฟล์มีหลายชีต (เช่น
+      // export จาก Apple Numbers ที่แยกชีตตามหมวดหมู่สินค้า) ชีตอื่นๆ จะหายไปเงียบๆ โดยไม่มีคำเตือนเลย
+      // คั่นแต่ละชีตด้วยบรรทัด "## ชีต: <ชื่อ>" ให้ Gemini ใช้เป็นคำใบ้หมวดหมู่ได้ด้วย (ฝั่งเซิร์ฟเวอร์ใช้
+      // เครื่องหมายนี้แบ่งงานเป็นก้อนย่อยต่อชีตด้วยเช่นกัน กันไฟล์ใหญ่ยิง Gemini ทีเดียวทั้งไฟล์จนไทม์เอาท์)
+      const csvText = wb.SheetNames
+        .map(sheetName => `## ชีต: ${sheetName}\n${XLSX.utils.sheet_to_csv(wb.Sheets[sheetName])}`)
+        .join('\n\n');
       payload = { action: 'parseItemsAI', jobId, password: adminPassword, type: 'text', content: csvText, existingCategories };
     } else {
       // PDF หรือรูปภาพ — ส่งเป็น base64 ให้ Gemini อ่านโดยตรง
