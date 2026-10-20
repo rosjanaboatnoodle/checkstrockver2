@@ -1161,7 +1161,15 @@ function textColorForBg_(hex1, hex2) {
   return avg > 150 ? '#1f2937' : '#ffffff';
 }
 
-let categoryConfig = {}; // { [categoryName]: { icon, sortOrder }, __theme: idx เข้า THEME_PALETTES } — ตั้งเฉพาะที่แอดมินแก้เอง
+// { [categoryName]: { icon, sortOrder }, __theme: idx เข้า THEME_PALETTES } — ตั้งเฉพาะที่แอดมินแก้เอง
+// อ่านจาก localStorage ทันทีตั้งแต่โหลดสคริปต์ (ไม่รอ network) — categoryConfig ใช้วาดการ์ดหน้าแรกซึ่งเป็น
+// สิ่งแรกที่ผู้ใช้เห็น ถ้าเริ่มจาก {} แล้วรอ loadCategoryConfig() (ยิง network แบบ background) ค่อยแก้ทีหลัง
+// จะเห็นภาพกระพริบ: ขึ้นพาเลทเริ่มต้นก่อนแวบหนึ่งแล้วค่อยสลับเป็นธีมที่เลือกไว้ — อ่านจากแคชโลคัลตั้งแต่ต้น
+// ไว้ก่อน (ถูกต้องในเคสปกติที่ตั้งธีมจากเครื่องเดียวกันนี้แหละ) แล้วค่อยยิง loadCategoryConfig() ไปเช็ค/อัปเดต
+// จากเซิร์ฟเวอร์เป็นพื้นหลังอีกที เผื่อมีการเปลี่ยนจากเครื่องอื่น
+let categoryConfig = (() => {
+  try { return JSON.parse(localStorage.getItem('category_config') || '{}'); } catch (e) { return {}; }
+})();
 
 async function loadCategoryConfig() {
   try {
