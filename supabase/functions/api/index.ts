@@ -1775,6 +1775,8 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   saveUnitConfig: (p) => handleSaveConfig(p, "unit_config"),
   getReorderConfig: (p) => handleGetConfig(p, "reorder_config"),
   saveReorderConfig: (p) => handleSaveConfig(p, "reorder_config"),
+  getCategoryConfig: (p) => handleGetConfig(p, "category_config"),
+  saveCategoryConfig: (p) => handleSaveConfig(p, "category_config"),
   create: handleCreate,
   createMovement: handleCreateMovement,
   list: handleList,
