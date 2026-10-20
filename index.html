@@ -684,23 +684,31 @@
     <div id="category-style-modal" class="modal-overlay hidden">
       <div class="modal-box p-5 mt-16 mb-10">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="text-lg font-bold text-gray-800">ไอคอน/สีหมวดหมู่: <span id="category-style-name" class="text-indigo-600"></span></h3>
+          <h3 class="text-lg font-bold text-gray-800">ไอคอนหมวดหมู่: <span id="category-style-name" class="text-indigo-600"></span></h3>
           <button onclick="closeCategoryStyleModal_()" class="text-gray-400 hover:text-gray-600 text-3xl leading-none w-10 h-10 flex items-center justify-center -m-2">&times;</button>
         </div>
         <label class="block text-sm font-medium text-gray-700 mb-1">ไอคอน</label>
         <div id="category-style-icon-presets" class="mb-2" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
         <input id="category-style-icon-input" type="text" maxlength="16" placeholder="หรือพิมพ์อิโมจิเอง (เปิดคีย์บอร์ดอิโมจิมือถือได้เลย)" class="w-full px-3 py-2 border-2 border-gray-200 rounded-xl mb-4 text-center text-2xl focus:border-orange-500 focus:outline-none">
-
-        <label class="block text-sm font-medium text-gray-700 mb-1">สี</label>
-        <p class="text-xs text-gray-400 mb-1">โทนสว่าง</p>
-        <div id="category-style-swatches-light" class="mb-3" style="display:grid;grid-template-columns:repeat(10,1fr);gap:6px;"></div>
-        <p class="text-xs text-gray-400 mb-1">โทนเข้ม</p>
-        <div id="category-style-swatches-dark" class="mb-4" style="display:grid;grid-template-columns:repeat(10,1fr);gap:6px;"></div>
+        <p class="text-xs text-gray-400 mb-4">สีของหมวดหมู่กำหนดจาก "ธีมสี" ที่เลือกไว้ทั้งแอป (ปุ่ม 🎨 ธีมสีหมวดหมู่ ด้านบน) ไม่ได้เลือกเป็นรายหมวดแล้ว</p>
 
         <div class="flex gap-2">
           <button onclick="saveCategoryStyle_()" class="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึก</button>
           <button onclick="closeCategoryStyleModal_()" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold">ยกเลิก</button>
         </div>
+      </div>
+    </div>
+
+    <!-- โมดัลเลือกธีมสีหมวดหมู่ทั้งแอป (เลือกทีเดียวใช้กับทุกหมวด ไม่ต้องจับคู่สีเองทีละหมวด) -->
+    <div id="category-theme-modal" class="modal-overlay hidden">
+      <div class="modal-box p-5 mt-10 mb-10">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-lg font-bold text-gray-800">🎨 ธีมสีหมวดหมู่</h3>
+          <button onclick="closeCategoryThemeModal_()" class="text-gray-400 hover:text-gray-600 text-3xl leading-none w-10 h-10 flex items-center justify-center -m-2">&times;</button>
+        </div>
+        <p class="text-xs text-gray-500 mb-3">เลือกธีมเดียว ใช้สีกับทุกหมวดหมู่ทั้งแอปทันที ไม่ต้องไล่จับคู่สีทีละหมวด</p>
+        <div id="category-theme-options" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;"></div>
+        <button type="button" onclick="pickCategoryTheme_(null)" class="w-full mt-3 text-sm text-gray-500 underline">ใช้ค่าเริ่มต้นของระบบ (ไม่ใช้ธีม)</button>
       </div>
     </div>
 
@@ -1115,24 +1123,33 @@ const CATEGORY_PALETTE = [
   { grad: 'from-green-500 to-green-600', bg: 'bg-green-500', icon: '🍱' },
 ];
 const CATEGORY_ICON_PRESETS = ['🥤','🍖','🥬','🧂','🧻','🍜','🧊','🥛','🍚','🧀','🥚','🍋','🌶️','🍤','🦐','🐟','🍗','🥦','🧅','🧄','🍳','🧈','🍝','🥢','🚣','🧑‍🍳','🍱','📦'];
-// 20 โทนสว่าง + 20 โทนเข้ม ตามที่ขอ — ค่า hex ตรงๆ (ไม่ใช่คลาส Tailwind) จะได้ไม่ติดปัญหาคลาสที่ไม่ได้ compile ไว้
-const CATEGORY_SWATCHES_LIGHT = [
-  ['#ef4444','#dc2626'], ['#f97316','#ea580c'], ['#f59e0b','#d97706'], ['#eab308','#ca8a04'],
-  ['#84cc16','#65a30d'], ['#22c55e','#16a34a'], ['#10b981','#059669'], ['#14b8a6','#0d9488'],
-  ['#06b6d4','#0891b2'], ['#0ea5e9','#0284c7'], ['#3b82f6','#2563eb'], ['#6366f1','#4f46e5'],
-  ['#8b5cf6','#7c3aed'], ['#a855f7','#9333ea'], ['#d946ef','#c026d3'], ['#ec4899','#db2777'],
-  ['#f43f5e','#e11d48'], ['#ff7849','#ff5722'], ['#2dd4bf','#14b8a6'], ['#06d6a0','#05b386'],
+// ธีมสีสำเร็จรูป — เลือกทีเดียวใช้กับทุกหมวดหมู่เลย (ไม่ต้องไล่จับคู่สีทีละหมวดแบบเดิม ซึ่งผู้ใช้จริงไม่ค่อยมาทำ
+// ขนาดนั้น) สีแต่ละชุดคัดมาให้เข้ากันเองอยู่แล้ว (จากภาพตัวอย่างที่ผู้ใช้ส่งมา) ใช้ hex ตรงๆ ไม่ใช่คลาส Tailwind
+const THEME_PALETTES = [
+  { name: 'Warm', colors: ['#797d62','#9b9b7a','#f1dca7','#ffcb69','#d08c60','#997b66'] },
+  { name: 'Futuristic', colors: ['#f72585','#7400b8','#3a0ca3','#4361ee','#4cc9f0','#80ffdb'] },
+  { name: 'Vintage', colors: ['#ecdbba','#c84b31','#2d4263','#191919','#ecb365','#04293a'] },
+  { name: 'Cool', colors: ['#bee9e8','#62b6cb','#1b4965','#cae9ff','#5fa8d3','#2f6690'] },
+  { name: 'Natural', colors: ['#cb997e','#fff1e6','#e7d8c9','#a5a58d','#b7b7a4','#997b66'] },
+  { name: 'Traditional', colors: ['#9f1804','#b36220','#c37f42','#615e3b','#3d2314','#e8c27d'] },
+  { name: 'Soft', colors: ['#e2cfc4','#faf3dd','#c9e4de','#c6def1','#dbcdf0','#f9c6c9'] },
+  { name: 'Exclusive', colors: ['#8a716a','#583f3a','#13262f','#4f2430','#14173a','#071720'] },
+  { name: 'Dark', colors: ['#3e2c41','#5c527f','#3c415c','#b4a5a5','#222831','#151515'] },
+  { name: 'Powerful', colors: ['#dd1c1a','#fff1d0','#f0c808','#086788','#06aed5','#1c1c1c'] },
+  { name: 'Popular', colors: ['#003049','#0a9396','#94d2bd','#ffb703','#f77f00','#d62828'] },
+  { name: 'Romantic', colors: ['#f3e7d7','#f7d7cd','#f8c7c9','#e0c0c7','#c7b9c5','#e5989b'] },
 ];
-const CATEGORY_SWATCHES_DARK = [
-  ['#991b1b','#7f1d1d'], ['#9a3412','#7c2d12'], ['#92400e','#78350f'], ['#854d0e','#713f12'],
-  ['#3f6212','#365314'], ['#166534','#14532d'], ['#065f46','#064e3b'], ['#115e59','#134e4a'],
-  ['#155e75','#164e63'], ['#075985','#0c4a6e'], ['#1e40af','#1e3a8a'], ['#3730a3','#312e81'],
-  ['#5b21b6','#4c1d95'], ['#6b21a8','#581c87'], ['#86198f','#701a75'], ['#9d174d','#831843'],
-  ['#9f1239','#881337'], ['#334155','#1e293b'], ['#44403c','#292524'], ['#1e293b','#0f172a'],
-];
-const CATEGORY_SWATCHES_ALL = [...CATEGORY_SWATCHES_LIGHT, ...CATEGORY_SWATCHES_DARK]; // index 0-19 สว่าง, 20-39 เข้ม
+// ทำสีเข้มขึ้นสำหรับ stop ที่สองของ gradient การ์ด (สูตรเดียวกับที่การ์ดหน้าแรกใช้ทั้งไฟล์ — ให้ความรู้สึก
+// gradient เหมือนเดิม โดยใช้สีจากธีมแค่สีเดียวต่อหมวด ไม่ต้องเตรียม 2 เฉดต่อหมวดในพาเลท)
+function darkenHex_(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, Math.round(((n >> 16) & 255) * (1 - amt)));
+  const g = Math.max(0, Math.round(((n >> 8) & 255) * (1 - amt)));
+  const b = Math.max(0, Math.round((n & 255) * (1 - amt)));
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
 
-let categoryConfig = {}; // { [categoryName]: { icon, colorIdx, sortOrder } } — ตั้งเฉพาะหมวดที่แอดมินแก้เอง
+let categoryConfig = {}; // { [categoryName]: { icon, sortOrder }, __theme: idx เข้า THEME_PALETTES } — ตั้งเฉพาะที่แอดมินแก้เอง
 
 async function loadCategoryConfig() {
   try {
@@ -1166,11 +1183,14 @@ function sortedCategories_() {
 function categoryStyle_(cat) {
   if (cat === '__movement__') return { grad: 'from-purple-500 to-purple-600', bg: 'bg-purple-500', icon: '📦', customStyle: '', customBg: '' };
   const custom = categoryConfig[cat];
-  if (custom && custom.colorIdx !== undefined && custom.colorIdx !== null && CATEGORY_SWATCHES_ALL[custom.colorIdx]) {
-    const [c1, c2] = CATEGORY_SWATCHES_ALL[custom.colorIdx];
-    return { grad: '', bg: '', icon: custom.icon || '📦', customStyle: `background: linear-gradient(135deg, ${c1}, ${c2});`, customBg: c1 };
-  }
   const idx = Object.keys(catalogByCategory).indexOf(cat);
+  const theme = (categoryConfig.__theme !== undefined && categoryConfig.__theme !== null) ? THEME_PALETTES[categoryConfig.__theme] : null;
+  if (theme) {
+    const palette = theme.colors;
+    const c1 = palette[(idx < 0 ? 0 : idx) % palette.length];
+    const c2 = darkenHex_(c1, 0.18);
+    return { grad: '', bg: '', icon: (custom && custom.icon) || '📦', customStyle: `background: linear-gradient(135deg, ${c1}, ${c2});`, customBg: c1 };
+  }
   if (idx < 0) return { grad: 'from-gray-400 to-gray-500', bg: 'bg-orange-500', icon: (custom && custom.icon) || '📦', customStyle: '', customBg: '' };
   const base = CATEGORY_PALETTE[idx % CATEGORY_PALETTE.length];
   return { ...base, icon: (custom && custom.icon) || base.icon, customStyle: '', customBg: '' };
@@ -3458,7 +3478,8 @@ function renderAdminItemsTabFromCache_() {
   const scopeOptions = [`<option value="">${t('scopeGlobal')}</option>`]
     .concat(branches.map(b => `<option value="${b.id}" ${adminItemScope===b.id?'selected':''}>${b.name}</option>`)).join('');
 
-  let seedBtn = `<button onclick="openAiImportModal()" class="mb-3 w-full bg-amber-500 text-white py-2 rounded-lg font-semibold">📄 นำเข้ารายการจากไฟล์ (Excel/PDF/รูปภาพ) ด้วย AI</button>`;
+  let seedBtn = `<button onclick="openAiImportModal()" class="mb-3 w-full bg-amber-500 text-white py-2 rounded-lg font-semibold">📄 นำเข้ารายการจากไฟล์ (Excel/PDF/รูปภาพ) ด้วย AI</button>`
+    + `<button onclick="openCategoryThemeModal_()" class="mb-3 w-full bg-purple-500 text-white py-2 rounded-lg font-semibold">🎨 ธีมสีหมวดหมู่</button>`;
   // ปุ่มนี้มีความหมายเฉพาะตอนดูสโคปของสาขาใดสาขาหนึ่ง (ไม่ใช่ส่วนกลางเอง) — เอาไว้ตั้งค่าสาขาใหม่ให้เร็ว
   // โดยไม่ต้องมานั่งพิมพ์รายการสินค้าใหม่ทั้งหมดทีละสาขา
   // เดิมใช้ bg-indigo-500 ซึ่งไม่ใช่คลาส Tailwind ที่ compile ไว้ในไฟล์นี้ (มีแค่ 50/600) ปุ่มเลยไม่มีพื้นหลัง
@@ -3598,10 +3619,9 @@ function onAdminCategoryToggle_(detailsEl, cat) {
 }
 
 /* =========================================================
-   โมดัลเลือกไอคอน/สีของหมวดหมู่เอง (เก็บใน categoryConfig)
+   โมดัลเลือกไอคอนของหมวดหมู่เอง (เก็บใน categoryConfig) — สีมาจากธีมรวมทั้งแอปแทน (ดูด้านล่าง)
    ========================================================= */
 let categoryStyleEditingCat_ = '';
-let categoryStyleSelectedColorIdx_ = null;
 
 function openCategoryStyleModal_(cat) {
   categoryStyleEditingCat_ = cat;
@@ -3609,7 +3629,6 @@ function openCategoryStyleModal_(cat) {
   const existing = categoryConfig[cat] || {};
   document.getElementById('category-style-icon-input').value = existing.icon || '';
   renderCategoryStyleIconPresets_(existing.icon || '');
-  renderCategoryStyleSwatches_(existing.colorIdx !== undefined ? existing.colorIdx : null);
   // ย้ายไปท้าย <body> เสมอก่อนโชว์ — กันโดนบังตอน z-index เท่ากับ #admin-modal เหตุผลเดียวกับ openScanModal_
   document.body.appendChild(document.getElementById('category-style-modal'));
   document.getElementById('category-style-modal').classList.remove('hidden');
@@ -3628,33 +3647,48 @@ function pickCategoryStyleIcon_(ic) {
   renderCategoryStyleIconPresets_(ic);
 }
 
-function renderCategoryStyleSwatches_(selectedIdx) {
-  categoryStyleSelectedColorIdx_ = selectedIdx;
-  const mk = (list, offset) => list.map(([c1, c2], i) => {
-    const idx = i + offset;
-    const selected = idx === categoryStyleSelectedColorIdx_;
-    return `<button type="button" onclick="pickCategoryStyleColor_(${idx})"
-      style="width:28px;height:28px;border-radius:6px;cursor:pointer;background:linear-gradient(135deg,${c1},${c2});border:2px solid ${selected ? '#1f2937' : 'transparent'};box-shadow:${selected ? '0 0 0 2px #f97316' : 'none'};"></button>`;
-  }).join('');
-  document.getElementById('category-style-swatches-light').innerHTML = mk(CATEGORY_SWATCHES_LIGHT, 0);
-  document.getElementById('category-style-swatches-dark').innerHTML = mk(CATEGORY_SWATCHES_DARK, CATEGORY_SWATCHES_LIGHT.length);
-}
-function pickCategoryStyleColor_(idx) { renderCategoryStyleSwatches_(idx); }
-
 async function saveCategoryStyle_() {
   const cat = categoryStyleEditingCat_;
   const icon = document.getElementById('category-style-icon-input').value.trim();
   const existing = categoryConfig[cat] || {};
-  categoryConfig[cat] = {
-    ...existing,
-    icon: icon || existing.icon,
-    colorIdx: categoryStyleSelectedColorIdx_ !== null ? categoryStyleSelectedColorIdx_ : existing.colorIdx,
-  };
+  categoryConfig[cat] = { ...existing, icon: icon || existing.icon };
   await persistCategoryConfig();
   closeCategoryStyleModal_();
   renderAdminItemsTabFromCache_();
   rerenderVisiblePages();
   showToast('บันทึกแล้ว', 'success');
+}
+
+/* =========================================================
+   โมดัลเลือก "ธีมสี" รวมทั้งแอป — เลือกทีเดียวใช้กับทุกหมวดหมู่เลย (แทนการไล่จับคู่สีทีละหมวดแบบเดิม)
+   ========================================================= */
+function openCategoryThemeModal_() {
+  renderCategoryThemeOptions_();
+  document.body.appendChild(document.getElementById('category-theme-modal'));
+  document.getElementById('category-theme-modal').classList.remove('hidden');
+}
+function closeCategoryThemeModal_() { document.getElementById('category-theme-modal').classList.add('hidden'); }
+
+function renderCategoryThemeOptions_() {
+  const wrap = document.getElementById('category-theme-options');
+  const current = categoryConfig.__theme;
+  wrap.innerHTML = THEME_PALETTES.map((theme, idx) => {
+    const selected = idx === current;
+    const strip = theme.colors.map(c => `<span style="flex:1;background:${c};"></span>`).join('');
+    return `
+      <button type="button" onclick="pickCategoryTheme_(${idx})" style="text-align:left;border:2px solid ${selected ? '#f97316' : '#e5e7eb'};border-radius:10px;overflow:hidden;background:#fff;cursor:pointer;padding:0;">
+        <div style="display:flex;height:40px;">${strip}</div>
+        <div style="padding:6px 8px;font-size:12px;font-weight:600;color:#374151;">${theme.name}${selected ? ' ✓' : ''}</div>
+      </button>`;
+  }).join('');
+}
+async function pickCategoryTheme_(idx) {
+  categoryConfig.__theme = idx;
+  await persistCategoryConfig();
+  closeCategoryThemeModal_();
+  renderAdminItemsTabFromCache_();
+  rerenderVisiblePages();
+  showToast(idx === null ? 'ใช้ค่าเริ่มต้นแล้ว' : 'ใช้ธีมสีแล้ว', 'success');
 }
 
 /* =========================================================
