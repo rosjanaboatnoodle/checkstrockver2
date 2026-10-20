@@ -1148,6 +1148,18 @@ function darkenHex_(hex, amt) {
   const b = Math.max(0, Math.round((n & 255) * (1 - amt)));
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
+/** เลือกสีตัวอักษร (เข้ม/สว่าง) ให้อ่านออกเทียบกับพื้นหลัง — ธีมบางชุด (เช่น Soft) มีสีอ่อนมาก ตัวอักษรขาว
+    เดิมที่ตั้งตายตัวไว้เลยอ่านไม่ออก คำนวณความสว่างแบบ YIQ (สูตรมาตรฐานที่ใช้ตัดสินใจง่ายๆ แบบนี้) จากค่าเฉลี่ย
+    ของ gradient ทั้งสอง stop (ไม่ใช่แค่ stop แรก เพราะข้อความวางทับทั้งการ์ด ไม่ใช่แค่จุดเดียว) */
+function textColorForBg_(hex1, hex2) {
+  const brightnessOf = (h) => {
+    const n = parseInt(h.slice(1), 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return (r * 299 + g * 587 + b * 114) / 1000;
+  };
+  const avg = hex2 ? (brightnessOf(hex1) + brightnessOf(hex2)) / 2 : brightnessOf(hex1);
+  return avg > 150 ? '#1f2937' : '#ffffff';
+}
 
 let categoryConfig = {}; // { [categoryName]: { icon, sortOrder }, __theme: idx เข้า THEME_PALETTES } — ตั้งเฉพาะที่แอดมินแก้เอง
 
@@ -1181,7 +1193,7 @@ function sortedCategories_() {
 }
 
 function categoryStyle_(cat) {
-  if (cat === '__movement__') return { grad: 'from-purple-500 to-purple-600', bg: 'bg-purple-500', icon: '📦', customStyle: '', customBg: '' };
+  if (cat === '__movement__') return { grad: 'from-purple-500 to-purple-600', bg: 'bg-purple-500', icon: '📦', customStyle: '', customBg: '', textColor: '#ffffff' };
   const custom = categoryConfig[cat];
   const idx = Object.keys(catalogByCategory).indexOf(cat);
   const theme = (categoryConfig.__theme !== undefined && categoryConfig.__theme !== null) ? THEME_PALETTES[categoryConfig.__theme] : null;
@@ -1189,11 +1201,15 @@ function categoryStyle_(cat) {
     const palette = theme.colors;
     const c1 = palette[(idx < 0 ? 0 : idx) % palette.length];
     const c2 = darkenHex_(c1, 0.18);
-    return { grad: '', bg: '', icon: (custom && custom.icon) || '📦', customStyle: `background: linear-gradient(135deg, ${c1}, ${c2});`, customBg: c1 };
+    return {
+      grad: '', bg: '', icon: (custom && custom.icon) || '📦',
+      customStyle: `background: linear-gradient(135deg, ${c1}, ${c2});`, customBg: c1,
+      textColor: textColorForBg_(c1, c2),
+    };
   }
-  if (idx < 0) return { grad: 'from-gray-400 to-gray-500', bg: 'bg-orange-500', icon: (custom && custom.icon) || '📦', customStyle: '', customBg: '' };
+  if (idx < 0) return { grad: 'from-gray-400 to-gray-500', bg: 'bg-orange-500', icon: (custom && custom.icon) || '📦', customStyle: '', customBg: '', textColor: '#ffffff' };
   const base = CATEGORY_PALETTE[idx % CATEGORY_PALETTE.length];
-  return { ...base, icon: (custom && custom.icon) || base.icon, customStyle: '', customBg: '' };
+  return { ...base, icon: (custom && custom.icon) || base.icon, customStyle: '', customBg: '', textColor: '#ffffff' };
 }
 
 async function loadCatalog() {
@@ -1431,12 +1447,12 @@ function renderHomeCategoryButtons() {
   el.innerHTML = cats.map(cat => {
     const s = categoryStyle_(cat);
     return `
-      <button onclick="selectCategory('${cat.replace(/'/g,"\\'")}')" class="w-full bg-gradient-to-r ${s.grad} text-white p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]" style="${s.customStyle}">
+      <button onclick="selectCategory('${cat.replace(/'/g,"\\'")}')" class="w-full bg-gradient-to-r ${s.grad} p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]" style="${s.customStyle} color:${s.textColor};">
         <div class="flex items-center gap-4">
           <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">${s.icon}</div>
           <div class="text-left">
             <p class="text-xl font-bold">${tCategory(cat)}</p>
-            <p class="text-white opacity-90 text-sm">${t('checkStockGeneric')}</p>
+            <p class="opacity-90 text-sm">${t('checkStockGeneric')}</p>
           </div>
           <svg class="w-6 h-6 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
         </div>
@@ -1447,8 +1463,8 @@ function selectCategory(category) {
   currentCategory = category;
   const badge = document.getElementById('category-badge');
   const s = categoryStyle_(category);
-  badge.className = `inline-flex items-center gap-2 px-4 py-2 rounded-full text-white text-sm font-medium mb-4 ${s.bg}`;
-  badge.style.cssText = s.customBg ? `background:${s.customBg};` : '';
+  badge.className = `inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium mb-4 ${s.bg}`;
+  badge.style.cssText = (s.customBg ? `background:${s.customBg};` : '') + `color:${s.textColor};`;
   badge.innerHTML = `${s.icon} ${category==='__movement__' ? t('movement') : tCategory(category)}`;
   document.getElementById('checker-name').value = '';
   showPage('name-page');
@@ -1825,14 +1841,14 @@ function onMovementScanResult_(code) {
 
 function renderMovementCategoryChips() {
   const el = document.getElementById('mv-category-chips');
-  const chip = (value, label, activeClass, customBg) => {
+  const chip = (value, label, activeClass, customBg, textColor) => {
     const active = mvCategoryFilter === value;
-    const styleAttr = (active && customBg) ? ` style="background:${customBg};"` : '';
+    const styleAttr = active ? ` style="${customBg ? `background:${customBg};` : ''}color:${textColor || '#ffffff'};"` : '';
     return `<button onclick="selectMovementCategory('${value.replace(/'/g,"\\'")}')"
-      class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${active ? activeClass + ' text-white' : 'bg-white text-gray-600 border border-gray-200'}"${styleAttr}>${label}</button>`;
+      class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${active ? activeClass : 'bg-white text-gray-600 border border-gray-200'}"${styleAttr}>${label}</button>`;
   };
-  let html = chip('', t('all') || 'ทั้งหมด', 'bg-orange-500');
-  sortedCategories_().forEach(cat => { const s = categoryStyle_(cat); html += chip(cat, tCategory(cat), s.bg, s.customBg); });
+  let html = chip('', t('all') || 'ทั้งหมด', 'bg-orange-500', '', '#ffffff');
+  sortedCategories_().forEach(cat => { const s = categoryStyle_(cat); html += chip(cat, tCategory(cat), s.bg, s.customBg, s.textColor); });
   el.innerHTML = html;
 }
 
