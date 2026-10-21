@@ -496,6 +496,16 @@ async function handleGetConfig(p: Record<string, unknown>, key: string) {
   const config = await getSetting<Record<string, unknown> | null>(key, null);
   return config ? json({ ok: true, config }) : json({ ok: false });
 }
+// ไอคอน/สี/ลำดับหมวดหมู่ (category_config) ต้องอ่านได้โดยไม่ต้องล็อกอินแอดมิน — ต่างจาก buffer/unit config
+// ตรงที่นี่เป็นข้อมูล "แสดงผล" ล้วนๆ ที่พนักงานทุกคน (ไม่ใช่แค่เครื่องที่เคยล็อกอินแอดมินไว้) ต้องเห็นตรงกัน
+// เดิมใช้ handleGetConfig (เช็ครหัสผ่านแอดมิน) เหมือน buffer/unit config ทำให้มือถือพนักงานที่ไม่เคยล็อกอิน
+// แอดมินอ่านไม่ได้เลย โดนปัดตกกลับไปใช้ default ทั้งไอคอน สี และลำดับ ทั้งที่ตั้งค่าไว้จากเครื่องแอดมินแล้ว —
+// การแก้ไข (saveCategoryConfig) ยังคงต้องล็อกอินแอดมินเหมือนเดิม มีแค่การอ่านที่เปิดสาธารณะ
+async function handleGetCategoryConfig() {
+  const config = await getSetting<Record<string, unknown> | null>("category_config", {});
+  return json({ ok: true, config: config ?? {} });
+}
+
 async function handleSaveConfig(p: Record<string, unknown>, key: string) {
   if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
   let config: unknown;
@@ -1775,7 +1785,7 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   saveUnitConfig: (p) => handleSaveConfig(p, "unit_config"),
   getReorderConfig: (p) => handleGetConfig(p, "reorder_config"),
   saveReorderConfig: (p) => handleSaveConfig(p, "reorder_config"),
-  getCategoryConfig: (p) => handleGetConfig(p, "category_config"),
+  getCategoryConfig: handleGetCategoryConfig,
   saveCategoryConfig: (p) => handleSaveConfig(p, "category_config"),
   create: handleCreate,
   createMovement: handleCreateMovement,
