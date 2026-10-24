@@ -364,7 +364,7 @@
     <!-- หน้ากรอกชื่อ -->
     <div id="name-page" class="min-h-full p-4 md:p-6 pt-20 hidden">
       <div class="max-w-lg mx-auto fade-in">
-        <button onclick="goHome()" class="flex items-center gap-2 text-orange-700 mb-6 hover:text-orange-800 transition-colors">
+        <button onclick="goHome()" class="theme-back-link flex items-center gap-2 text-orange-700 mb-6 hover:text-orange-800 transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
           <span data-t="backHome">กลับหน้าหลัก</span>
         </button>
@@ -467,7 +467,7 @@
     <!-- หน้าประวัติ -->
     <div id="history-page" class="min-h-full p-4 md:p-6 pt-20 hidden">
       <div class="max-w-2xl mx-auto fade-in">
-        <button onclick="goHome()" class="flex items-center gap-2 text-orange-700 mb-6 hover:text-orange-800 transition-colors">
+        <button onclick="goHome()" class="theme-back-link flex items-center gap-2 text-orange-700 mb-6 hover:text-orange-800 transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
           <span data-t="backHome">กลับหน้าหลัก</span>
         </button>
@@ -495,7 +495,7 @@
     <!-- หน้ารายละเอียดประวัติ -->
     <div id="history-detail-page" class="min-h-full p-4 md:p-6 pt-20 hidden">
       <div class="max-w-2xl mx-auto fade-in">
-        <button onclick="showHistory()" class="flex items-center gap-2 text-orange-700 mb-6 hover:text-orange-800 transition-colors">
+        <button onclick="showHistory()" class="theme-back-link flex items-center gap-2 text-orange-700 mb-6 hover:text-orange-800 transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
           <span data-t="backHistory">กลับหน้าประวัติ</span>
         </button>
@@ -506,7 +506,7 @@
     <!-- หน้าภาพรวม — แยกจากหน้าแอดมิน แต่ยังต้องใส่รหัสแอดมินก่อนเข้า (ผ่าน openOverviewGate() + admin-gate-modal) -->
     <div id="overview-page" class="min-h-full p-4 md:p-6 pt-20 hidden">
       <div class="max-w-4xl mx-auto fade-in">
-        <button onclick="goHome()" class="flex items-center gap-2 text-orange-700 mb-6 hover:text-orange-800 transition-colors">
+        <button onclick="goHome()" class="theme-back-link flex items-center gap-2 text-orange-700 mb-6 hover:text-orange-800 transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
           <span data-t="backHome">กลับหน้าหลัก</span>
         </button>
@@ -1093,6 +1093,8 @@ function applyTheme(theme) {
   try { localStorage.setItem('theme', theme); } catch (e) {}
   const btn = document.getElementById('theme-toggle-btn');
   if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+  // สลับโหมดแล้วสีเน้นของธีมต้องกลับด้านทันที (เข้ม<->สว่าง) ไม่ต้องรอรีเฟรชหน้า
+  if (typeof applyThemeAccent_ === 'function') applyThemeAccent_();
 }
 function toggleTheme() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -1163,6 +1165,14 @@ function darkenHex_(hex, amt) {
   const b = Math.max(0, Math.round((n & 255) * (1 - amt)));
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
+// สูตรกลับของ darkenHex_ — ใช้หา accent สำหรับโหมดมืด (พื้นหลังเกือบดำ ต้องใช้สีสว่างขึ้นถึงจะอ่านออก)
+function lightenHex_(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, Math.round(((n >> 16) & 255) + (255 - ((n >> 16) & 255)) * amt));
+  const g = Math.min(255, Math.round(((n >> 8) & 255) + (255 - ((n >> 8) & 255)) * amt));
+  const b = Math.min(255, Math.round((n & 255) + (255 - (n & 255)) * amt));
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
 /** เลือกสีตัวอักษร (เข้ม/สว่าง) ให้อ่านออกเทียบกับพื้นหลัง — ธีมบางชุด (เช่น Soft) มีสีอ่อนมาก ตัวอักษรขาว
     เดิมที่ตั้งตายตัวไว้เลยอ่านไม่ออก คำนวณความสว่างแบบ YIQ (สูตรมาตรฐานที่ใช้ตัดสินใจง่ายๆ แบบนี้) จากค่าเฉลี่ย
     ของ gradient ทั้งสอง stop (ไม่ใช่แค่ stop แรก เพราะข้อความวางทับทั้งการ์ด ไม่ใช่แค่จุดเดียว) */
@@ -1229,10 +1239,12 @@ function effectiveThemeIdx_() {
   return (personalThemeIdx !== null && THEME_PALETTES[personalThemeIdx]) ? personalThemeIdx : categoryConfig.__theme;
 }
 
-/** สีเน้น (accent) ของธีมที่เลือกไว้ — ใช้แทนสีส้มเดิมสำหรับตัวอักษร/ปุ่มที่อยู่บนพื้นครีมอ่อนของหน้าเว็บเอง
-    (ไม่ใช่บนการ์ดสีของหมวดหมู่) เช่น หัวข้อ, ปุ่มภาพรวม/ประวัติ, ปุ่มเริ่มเช็คสต็อก — ต้องอ่านออกบนพื้นครีมเสมอ
-    เลยเลือกสีที่เข้มที่สุดในธีมนั้น แล้วเข้มเพิ่มอีกถ้ายังไม่พอ (กันธีมพาสเทลล้วนอย่าง Soft ได้สีอ่อนเกินจน
-    อ่านไม่ออกบนพื้นครีม) คืนค่า null ถ้ายังไม่ได้ตั้งธีมไว้เลย (ให้ผู้เรียกใช้สีส้มเดิมของ Tailwind ต่อไป) */
+/** สีเน้น (accent) ของธีมที่เลือกไว้ — ใช้แทนสีส้มเดิมสำหรับตัวอักษร/ปุ่มที่อยู่บนพื้นของหน้าเว็บเอง (ไม่ใช่บน
+    การ์ดสีของหมวดหมู่) เช่น หัวข้อ, ปุ่มภาพรวม/ประวัติ, ปุ่มเริ่มเช็คสต็อก — ต้องอ่านออกเสมอไม่ว่าจะพื้นหลังโหมด
+    ไหน โหมดสว่างพื้นเป็นครีมอ่อนเลยเลือกสีที่เข้มที่สุดในธีม (เข้มเพิ่มอีกถ้ายังไม่พอ กันธีมพาสเทลล้วนอย่าง
+    Soft ได้สีอ่อนเกินจนอ่านไม่ออก) ส่วนโหมดมืดพื้นเป็นสีเกือบดำ ต้องกลับกันคือเลือกสีที่สว่างที่สุดในธีม
+    (สว่างเพิ่มอีกถ้ายังไม่พอ กันธีมเข้มล้วนอย่าง Dark/Exclusive ได้สีเข้มเกินจนอ่านไม่ออกบนพื้นดำ) คืนค่า null
+    ถ้ายังไม่ได้ตั้งธีมไว้เลย (ให้ผู้เรียกใช้สีส้มเดิมของ Tailwind ต่อไป) */
 function themeAccentColor_() {
   const idx = effectiveThemeIdx_();
   if (idx === undefined || idx === null || !THEME_PALETTES[idx]) return null;
@@ -1241,20 +1253,28 @@ function themeAccentColor_() {
     const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
     return (r * 299 + g * 587 + b * 114) / 1000;
   };
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  if (isDark) {
+    let lightest = THEME_PALETTES[idx].colors.reduce((a, b) => brightnessOf(a) >= brightnessOf(b) ? a : b);
+    for (let i = 0; i < 10 && brightnessOf(lightest) < 180; i++) lightest = lightenHex_(lightest, 0.25);
+    return lightest;
+  }
   let darkest = THEME_PALETTES[idx].colors.reduce((a, b) => brightnessOf(a) <= brightnessOf(b) ? a : b);
   for (let i = 0; i < 10 && brightnessOf(darkest) > 140; i++) darkest = darkenHex_(darkest, 0.25);
   return darkest;
 }
 
-/** ทาสีองค์ประกอบนอกการ์ดหมวดหมู่ (หัวข้อ/ปุ่มภาพรวม-ประวัติ/ปุ่มเริ่มเช็คสต็อก) ตามธีมที่เลือกไว้แทนสีส้ม
-    เดิม — เรียกซ้ำได้ทุกครั้งที่ธีมเปลี่ยนหรือ re-render หน้าแรก/หน้ากรอกชื่อ ไม่ทำอะไรถ้ายังไม่เคยตั้งธีม
-    (เคลียร์ style กลับเป็นค่าว่าง ปล่อยสีส้มของ Tailwind เดิมทำงานตามปกติ) */
+/** ทาสีองค์ประกอบนอกการ์ดหมวดหมู่ (หัวข้อ/ปุ่มภาพรวม-ประวัติ/ปุ่มกลับหน้าหลัก/ปุ่มแปลภาษา/ปุ่มเริ่มเช็คสต็อก)
+    ตามธีมที่เลือกไว้แทนสีส้มเดิม — เรียกซ้ำได้ทุกครั้งที่ธีมเปลี่ยน, re-render หน้าแรก/หน้ากรอกชื่อ, หรือสลับ
+    โหมดมืด/สว่าง (themeAccentColor_ อ่าน data-theme ปัจจุบันเองอยู่แล้ว) ไม่ทำอะไรถ้ายังไม่เคยตั้งธีม (เคลียร์
+    style กลับเป็นค่าว่าง ปล่อยสีส้มของ Tailwind เดิม — ซึ่งมี dark-mode variant ของตัวเองอยู่แล้ว — ทำงานตามปกติ) */
 function applyThemeAccent_() {
   const accent = themeAccentColor_();
-  ['shop-title', 'daily-check-subtitle', 'overview-btn-home', 'history-btn-home'].forEach(id => {
+  ['shop-title', 'daily-check-subtitle', 'overview-btn-home', 'history-btn-home', 'branch-switch-label', 'lang-select'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.color = accent || '';
   });
+  document.querySelectorAll('.theme-back-link').forEach(el => { el.style.color = accent || ''; });
   const startBtn = document.getElementById('start-checking-btn');
   if (startBtn) {
     startBtn.style.background = accent || '';
