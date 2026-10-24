@@ -347,12 +347,12 @@
         <div class="space-y-4">
           <div id="home-category-buttons" class="space-y-4"></div>
 
-          <button onclick="selectCategory('__movement__')" class="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+          <button id="movement-home-btn" onclick="selectCategory('__movement__')" class="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]">
             <div class="flex items-center gap-4">
               <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">📦</div>
               <div class="text-left">
                 <p class="text-xl font-bold" data-t="movement">ปรับสต็อค</p>
-                <p class="text-purple-100 text-sm" data-t="movementDesc">บันทึกรับเข้า / เบิกออก / ปรับยอด</p>
+                <p class="opacity-90 text-sm" data-t="movementDesc">บันทึกรับเข้า / เบิกออก / ปรับยอด</p>
               </div>
               <svg class="w-6 h-6 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
             </div>
@@ -430,7 +430,7 @@
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
             <span data-t="back">กลับ</span>
           </button>
-          <div class="px-4 py-2 rounded-full text-white text-sm font-medium bg-purple-500" data-t="movement">ปรับสต็อค</div>
+          <div id="movement-page-badge" class="px-4 py-2 rounded-full text-white text-sm font-medium bg-purple-500" data-t="movement">ปรับสต็อค</div>
         </div>
         <p class="text-sm text-gray-500 mb-4"><span data-t="staffChecker">ผู้เช็คสต็อก:</span> <span id="mv-display-checker-name" class="font-medium"></span></p>
 
@@ -1280,10 +1280,30 @@ function applyThemeAccent_() {
     startBtn.style.background = accent || '';
     startBtn.style.color = accent ? textColorForBg_(accent) : '';
   }
+  // ปุ่ม/ป้าย "ปรับสต็อค" เดิมเป็นสีม่วงตายตัว — ถ้าตั้งธีมไว้ categoryStyle_('__movement__') จะคืนสีจากธีมแทน
+  // (ไม่ตั้งธีมก็คืน customStyle ว่างเปล่า ทำให้ cssText ว่าง เคลียร์กลับไปใช้คลาสสีม่วงเดิมของ Tailwind ตามปกติ)
+  const mvStyle_ = categoryStyle_('__movement__');
+  const mvCss_ = mvStyle_.customStyle ? (mvStyle_.customStyle + ' color:' + mvStyle_.textColor + ';') : '';
+  const mvHomeBtn = document.getElementById('movement-home-btn');
+  if (mvHomeBtn) mvHomeBtn.style.cssText = mvCss_;
+  const mvPageBadge = document.getElementById('movement-page-badge');
+  if (mvPageBadge) mvPageBadge.style.cssText = mvCss_;
 }
 
 function categoryStyle_(cat) {
-  if (cat === '__movement__') return { grad: 'from-purple-500 to-purple-600', bg: 'bg-purple-500', icon: '📦', customStyle: '', customBg: '', textColor: '#ffffff' };
+  if (cat === '__movement__') {
+    // ถ้าตั้งธีมสีไว้ ให้ "ปรับสต็อค" ใช้สีธีมด้วยเหมือนหมวดอื่น — หยิบสีตัวสุดท้ายของพาเลทเสมอ (ไม่ใช่ไล่ตาม
+    // index เหมือนหมวดหมู่ปกติ) กันไม่ให้ไปซ้ำสีกับหมวดแรกๆ ในแคตตาล็อกโดยบังเอิญ ยังไม่ได้ตั้งธีมก็ใช้สีม่วงเดิม
+    const effectiveThemeIdx = effectiveThemeIdx_();
+    const theme = (effectiveThemeIdx !== undefined && effectiveThemeIdx !== null) ? THEME_PALETTES[effectiveThemeIdx] : null;
+    if (theme) {
+      const palette = theme.colors;
+      const c1 = palette[palette.length - 1];
+      const c2 = darkenHex_(c1, 0.18);
+      return { grad: '', bg: '', icon: '📦', customStyle: `background: linear-gradient(135deg, ${c1}, ${c2});`, customBg: c1, textColor: textColorForBg_(c1, c2) };
+    }
+    return { grad: 'from-purple-500 to-purple-600', bg: 'bg-purple-500', icon: '📦', customStyle: '', customBg: '', textColor: '#ffffff' };
+  }
   const custom = categoryConfig[cat];
   const idx = Object.keys(catalogByCategory).indexOf(cat);
   const effectiveThemeIdx = effectiveThemeIdx_();
@@ -2306,8 +2326,9 @@ function showHistoryDetail(id) {
   if (record.type === 'movement') {
     const dirLabel = { in:t('movementIn'), out:t('movementOut'), adjust:t('movementAdjust') };
     const dirColor = { in:'text-green-600', out:'text-red-600', adjust:'text-blue-600' };
+    const mvStyle_ = categoryStyle_('__movement__');
     content.innerHTML = `
-      <div class="bg-gradient-to-r ${categoryStyle_('__movement__').grad} p-4 text-white">
+      <div class="bg-gradient-to-r ${mvStyle_.grad} p-4" style="${mvStyle_.customStyle} color:${mvStyle_.textColor};">
         <h3 class="text-xl font-bold mb-2">${t('movement')}</h3>
         <p class="text-sm opacity-90">${t('staffChecker')} <span class="font-semibold">${record.checker_name}</span></p>
         <p class="text-sm opacity-90">${t('date')} <span class="font-semibold">${formatFullDate(record.date, currentLanguage)}</span></p>
