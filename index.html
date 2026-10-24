@@ -394,7 +394,7 @@
           <div id="stock-category-badge" class="px-4 py-2 rounded-full text-white text-sm font-medium"></div>
         </div>
         <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
-          <div class="bg-gradient-to-r from-orange-500 to-orange-600 p-4 text-white">
+          <div id="stock-header-banner" class="bg-gradient-to-r from-orange-500 to-orange-600 p-4 text-white">
             <p class="text-sm opacity-90"><span data-t="staffChecker">ผู้เช็คสต็อก:</span> <span id="display-checker-name" class="font-semibold"></span></p>
             <p class="text-sm opacity-90"><span data-t="date">วันที่:</span> <span id="display-date" class="font-semibold"></span></p>
           </div>
@@ -1531,9 +1531,18 @@ async function startChecking() {
   await backgroundBootPromise; // รอให้ unitConfig/bufferConfig/history พร้อม (ปกติโหลดเสร็จไปแล้วตั้งแต่ตอนอยู่หน้าแรก)
   document.getElementById('display-checker-name').textContent = checkerName;
   document.getElementById('display-date').textContent = formatDate(new Date(), currentLanguage);
+  // ป้ายหมวดหมู่มุมขวาบนและกล่องสรุปผู้เช็ค/วันที่ ใช้สีตามธีมหมวดหมู่เดียวกับที่อื่นในแอป (การ์ดหน้าแรก ฯลฯ)
+  // เดิมป้ายนี้อ้างอิงแค่ ${categoryStyle_(...).bg} ซึ่งเป็นคลาส Tailwind ที่ว่างเปล่าเมื่อเลือกธีมสีแบบใหม่
+  // (ธีมใช้ hex ตรงๆ ผ่าน inline style ไม่ใช่คลาส) ทำให้ป้ายไม่มีพื้นหลังเลยตอนตั้งธีมไว้ — ใช้ customStyle/
+  // textColor แทน พร้อมคำนวณสีตัวอักษรให้อ่านออกเสมอเหมือนจุดอื่นๆ
+  const s = categoryStyle_(currentCategory);
   const badge = document.getElementById('stock-category-badge');
-  badge.className = `px-4 py-2 rounded-full text-white text-sm font-medium ${categoryStyle_(currentCategory).bg}`;
+  badge.className = `px-4 py-2 rounded-full text-sm font-medium ${s.bg}`;
+  badge.style.cssText = (s.customBg ? `background:${s.customBg};` : '') + `color:${s.textColor};`;
   badge.textContent = tCategory(currentCategory);
+  const banner = document.getElementById('stock-header-banner');
+  banner.className = `bg-gradient-to-r ${s.grad} p-4`;
+  banner.style.cssText = `${s.customStyle} color:${s.textColor};`;
   renderStockTable();
   showPage('stock-page');
 }
