@@ -275,6 +275,7 @@
     <div class="absolute left-4 z-50 flex items-center gap-2" style="top: calc(1rem + env(safe-area-inset-top));">
       <button onclick="openAdminGate()" class="top-bar-btn w-10 h-10 flex items-center justify-center text-orange-700" title="แอดมิน">⚙️</button>
       <button id="theme-toggle-btn" onclick="toggleTheme()" class="top-bar-btn w-10 h-10 flex items-center justify-center text-orange-700" title="สลับโหมดสี">🌙</button>
+      <button onclick="openPersonalThemeModal_()" class="top-bar-btn w-10 h-10 flex items-center justify-center text-orange-700" title="ธีมสีของฉัน (เฉพาะเครื่องนี้)">🎨</button>
     </div>
     <div class="absolute right-4 z-50 flex items-center gap-2" style="top: calc(1rem + env(safe-area-inset-top));">
       <button onclick="location.reload()" class="top-bar-btn w-10 h-10 flex items-center justify-center text-orange-700" title="รีเฟรช">🔄</button>
@@ -709,6 +710,20 @@
         <p class="text-xs text-gray-500 mb-3">เลือกธีมเดียว ใช้สีกับทุกหมวดหมู่ทั้งแอปทันที ไม่ต้องไล่จับคู่สีทีละหมวด</p>
         <div id="category-theme-options" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;"></div>
         <button type="button" onclick="pickCategoryTheme_(null)" class="w-full mt-3 text-sm text-gray-500 underline">ใช้ค่าเริ่มต้นของระบบ (ไม่ใช้ธีม)</button>
+      </div>
+    </div>
+
+    <!-- โมดัลเลือกธีมสีส่วนตัว — เข้าถึงได้จากทุกคน ไม่ต้องล็อกอินแอดมิน เก็บแค่ในเครื่องนี้ (localStorage)
+         ไม่ส่งขึ้นเซิร์ฟเวอร์ ไม่กระทบคนอื่น ถ้าไม่ตั้งจะใช้ธีมที่แอดมินตั้งไว้ให้ทุกคนแทน -->
+    <div id="personal-theme-modal" class="modal-overlay hidden">
+      <div class="modal-box p-5 mt-10 mb-10">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-lg font-bold text-gray-800">🎨 ธีมสีของฉัน</h3>
+          <button onclick="closePersonalThemeModal_()" class="text-gray-400 hover:text-gray-600 text-3xl leading-none w-10 h-10 flex items-center justify-center -m-2">&times;</button>
+        </div>
+        <p class="text-xs text-gray-500 mb-3">เลือกสีที่ชอบสำหรับเครื่องนี้โดยเฉพาะ — ไม่กระทบคนอื่น ไม่ต้องล็อกอินแอดมิน ถ้าไม่เลือกจะใช้สีที่แอดมินตั้งไว้ให้ทุกคนแทน</p>
+        <div id="personal-theme-options" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;"></div>
+        <button type="button" onclick="pickPersonalTheme_(null)" class="w-full mt-3 text-sm text-gray-500 underline">ใช้สีที่แอดมินตั้งไว้ (ไม่ตั้งเอง)</button>
       </div>
     </div>
 
@@ -1170,6 +1185,14 @@ function textColorForBg_(hex1, hex2) {
 let categoryConfig = (() => {
   try { return JSON.parse(localStorage.getItem('category_config') || '{}'); } catch (e) { return {}; }
 })();
+// ธีมสีส่วนตัว — เลือกได้โดยไม่ต้องล็อกอินแอดมิน เก็บแค่ในเครื่องนี้ (localStorage) ล้วนๆ ไม่เคยส่งขึ้น
+// เซิร์ฟเวอร์เลย ไม่กระทบคนอื่น ถ้าไม่ได้ตั้ง (null) จะอิงจากธีมที่แอดมินตั้งไว้ให้ทุกคนแทน (categoryConfig.__theme)
+let personalThemeIdx = (() => {
+  try {
+    const v = localStorage.getItem('personal_category_theme');
+    return v === null ? null : Number(v);
+  } catch (e) { return null; }
+})();
 
 async function loadCategoryConfig() {
   try {
@@ -1204,7 +1227,9 @@ function categoryStyle_(cat) {
   if (cat === '__movement__') return { grad: 'from-purple-500 to-purple-600', bg: 'bg-purple-500', icon: '📦', customStyle: '', customBg: '', textColor: '#ffffff' };
   const custom = categoryConfig[cat];
   const idx = Object.keys(catalogByCategory).indexOf(cat);
-  const theme = (categoryConfig.__theme !== undefined && categoryConfig.__theme !== null) ? THEME_PALETTES[categoryConfig.__theme] : null;
+  // ธีมส่วนตัว (เครื่องนี้) มาก่อนธีมที่แอดมินตั้งไว้ให้ทุกคนเสมอ ถ้าเลือกไว้
+  const effectiveThemeIdx = (personalThemeIdx !== null && THEME_PALETTES[personalThemeIdx]) ? personalThemeIdx : categoryConfig.__theme;
+  const theme = (effectiveThemeIdx !== undefined && effectiveThemeIdx !== null) ? THEME_PALETTES[effectiveThemeIdx] : null;
   if (theme) {
     const palette = theme.colors;
     const c1 = palette[(idx < 0 ? 0 : idx) % palette.length];
@@ -3684,28 +3709,29 @@ async function saveCategoryStyle_() {
 }
 
 /* =========================================================
-   โมดัลเลือก "ธีมสี" รวมทั้งแอป — เลือกทีเดียวใช้กับทุกหมวดหมู่เลย (แทนการไล่จับคู่สีทีละหมวดแบบเดิม)
+   โมดัลเลือก "ธีมสี" — ใช้ร่วมกันสองโมดัล: ของแอดมิน (ทั้งแอป ทุกคนเห็นเหมือนกัน) และของส่วนตัว (เฉพาะ
+   เครื่องนี้ เก็บแค่ localStorage) — renderThemePalettesGrid_ เป็นตัวเรนเดอร์กลาง ต่างกันแค่ว่าจะ mark
+   อันไหนว่า "เลือกอยู่" และกดแล้วเรียกฟังก์ชันไหน
    ========================================================= */
-function openCategoryThemeModal_() {
-  renderCategoryThemeOptions_();
-  document.body.appendChild(document.getElementById('category-theme-modal'));
-  document.getElementById('category-theme-modal').classList.remove('hidden');
-}
-function closeCategoryThemeModal_() { document.getElementById('category-theme-modal').classList.add('hidden'); }
-
-function renderCategoryThemeOptions_() {
-  const wrap = document.getElementById('category-theme-options');
-  const current = categoryConfig.__theme;
+function renderThemePalettesGrid_(wrapId, selectedIdx, onPickFnName) {
+  const wrap = document.getElementById(wrapId);
   wrap.innerHTML = THEME_PALETTES.map((theme, idx) => {
-    const selected = idx === current;
+    const selected = idx === selectedIdx;
     const strip = theme.colors.map(c => `<span style="flex:1;background:${c};"></span>`).join('');
     return `
-      <button type="button" onclick="pickCategoryTheme_(${idx})" style="text-align:left;border:2px solid ${selected ? '#f97316' : '#e5e7eb'};border-radius:10px;overflow:hidden;background:#fff;cursor:pointer;padding:0;">
+      <button type="button" onclick="${onPickFnName}(${idx})" style="text-align:left;border:2px solid ${selected ? '#f97316' : '#e5e7eb'};border-radius:10px;overflow:hidden;background:#fff;cursor:pointer;padding:0;">
         <div style="display:flex;height:40px;">${strip}</div>
         <div style="padding:6px 8px;font-size:12px;font-weight:600;color:#374151;">${theme.name}${selected ? ' ✓' : ''}</div>
       </button>`;
   }).join('');
 }
+
+function openCategoryThemeModal_() {
+  renderThemePalettesGrid_('category-theme-options', categoryConfig.__theme, 'pickCategoryTheme_');
+  document.body.appendChild(document.getElementById('category-theme-modal'));
+  document.getElementById('category-theme-modal').classList.remove('hidden');
+}
+function closeCategoryThemeModal_() { document.getElementById('category-theme-modal').classList.add('hidden'); }
 async function pickCategoryTheme_(idx) {
   categoryConfig.__theme = idx;
   await persistCategoryConfig();
@@ -3713,6 +3739,25 @@ async function pickCategoryTheme_(idx) {
   renderAdminItemsTabFromCache_();
   rerenderVisiblePages();
   showToast(idx === null ? 'ใช้ค่าเริ่มต้นแล้ว' : 'ใช้ธีมสีแล้ว', 'success');
+}
+
+/** ธีมสีส่วนตัว — เปิดได้จากทุกหน้า ไม่ต้องล็อกอินแอดมิน เก็บแค่เครื่องนี้ (localStorage) ไม่ส่งขึ้นเซิร์ฟเวอร์
+    เลย ไม่กระทบคนอื่น — มาก่อนธีมของแอดมินเสมอถ้าเลือกไว้ (ดู categoryStyle_) */
+function openPersonalThemeModal_() {
+  renderThemePalettesGrid_('personal-theme-options', personalThemeIdx, 'pickPersonalTheme_');
+  document.body.appendChild(document.getElementById('personal-theme-modal'));
+  document.getElementById('personal-theme-modal').classList.remove('hidden');
+}
+function closePersonalThemeModal_() { document.getElementById('personal-theme-modal').classList.add('hidden'); }
+function pickPersonalTheme_(idx) {
+  personalThemeIdx = idx;
+  try {
+    if (idx === null) localStorage.removeItem('personal_category_theme');
+    else localStorage.setItem('personal_category_theme', String(idx));
+  } catch (e) { /* localStorage ใช้ไม่ได้ (โหมดส่วนตัว/ปิดไว้) — เลือกได้แค่ชั่วคราวจนกว่าจะรีเฟรช */ }
+  closePersonalThemeModal_();
+  rerenderVisiblePages();
+  showToast(idx === null ? 'ใช้สีของแอดมินแล้ว' : 'เปลี่ยนสีของเครื่องนี้แล้ว', 'success');
 }
 
 /* =========================================================
