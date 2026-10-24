@@ -321,16 +321,16 @@
       <div class="max-w-lg mx-auto">
         <div class="flex items-center justify-between mb-6">
           <div>
-            <h1 id="shop-title" class="text-2xl md:text-3xl font-bold text-orange-800">📋 <span data-t="shopTitle">ระบบเช็คสต็อกสินค้า</span></h1>
-            <p data-t="dailyCheck" class="text-orange-600 text-sm mt-1">เช็คสต็อกประจำวัน</p>
+            <h1 id="shop-title" class="text-2xl md:text-3xl font-bold text-orange-800">📋 <span data-t="shopTitle">ระบบเช็คส&#8288;ต็&#8288;อ&#8288;กสินค้า</span></h1>
+            <p id="daily-check-subtitle" data-t="dailyCheck" class="text-orange-600 text-sm mt-1">เช็คสต็อกประจำวัน</p>
             <button onclick="branchSwitchLabelClick()" id="branch-switch-label" class="text-xs text-gray-500 underline mt-1"></button>
           </div>
           <div class="flex items-center gap-2 flex-wrap justify-end">
-            <button onclick="openOverviewGate()" class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-md hover:shadow-lg transition-all text-orange-700 font-medium">
+            <button id="overview-btn-home" onclick="openOverviewGate()" class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-md hover:shadow-lg transition-all text-orange-700 font-medium">
               <span>📊</span>
               <span>ภาพรวม</span>
             </button>
-            <button onclick="showHistory()" class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-md hover:shadow-lg transition-all text-orange-700 font-medium">
+            <button id="history-btn-home" onclick="showHistory()" class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-md hover:shadow-lg transition-all text-orange-700 font-medium">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -377,7 +377,7 @@
               <label class="block text-sm font-medium text-gray-700 mb-2" data-t="fullName">ชื่อ-นามสกุล</label>
               <input type="text" id="checker-name" onkeydown="if(event.key==='Enter') startChecking()" data-t-placeholder="enterNamePlaceholder" placeholder="กรอกชื่อของคุณ" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors text-lg">
             </div>
-            <button onclick="startChecking()" class="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold text-lg hover:bg-orange-600 transition-colors shadow-md hover:shadow-lg" data-t="startChecking">เริ่มเช็คสต็อก</button>
+            <button id="start-checking-btn" onclick="startChecking()" class="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold text-lg hover:bg-orange-600 transition-colors shadow-md hover:shadow-lg" data-t="startChecking">เริ่มเช็คสต็อก</button>
           </div>
         </div>
       </div>
@@ -817,7 +817,7 @@ const UI_TH = {
   movementType:'ประเภท', movementHistory:'รายการปรับสต็อค', editedNote:'แก้ไขล่าสุดโดย',
   noCategoriesYet:'ยังไม่มีหมวดหมู่สินค้า กรุณาไปเพิ่มรายการสินค้าในหน้าแอดมินก่อน',
   checkStockGeneric:'เช็คสต็อกวัตถุดิบในหมวดนี้',
-  shopTitle:'ระบบเช็คสต็อกสินค้า', loading:'กำลังโหลด...', fillAllQty:'กรุณากรอกจำนวนให้ครบทุกช่อง',
+  shopTitle:'ระบบเช็คส⁠ต็⁠อ⁠กสินค้า', loading:'กำลังโหลด...', fillAllQty:'กรุณากรอกจำนวนให้ครบทุกช่อง',
   fillBranchNameAndPassword:'กรอกชื่อสาขาและรหัสผ่านสาขา', firstBranchNameHint:'ชื่อสาขา เช่น สาขาหลัก',
   adminPasswordShort:'รหัสผ่านแอดมิน', enterNamePlaceholder:'กรอกชื่อของคุณ',
   mvQuickSearchPlaceholder:'ค้นหาด่วน: พิมพ์ชื่อสินค้าที่จะปรับ...', qtyInputHint:'* ช่อง "จำนวน" ใส่ได้เฉพาะ 0-9 และสัญลักษณ์ . / + -',
@@ -1223,12 +1223,50 @@ function sortedCategories_() {
   });
 }
 
+/** ธีมสีที่ "มีผลจริง" ของเครื่องนี้ — ธีมส่วนตัวมาก่อนธีมที่แอดมินตั้งไว้ให้ทุกคนเสมอถ้าเลือกไว้ ใช้ร่วมกัน
+    ทั้ง categoryStyle_ (สีการ์ดหมวดหมู่) และ themeAccentColor_ (สีเน้นนอกการ์ด) */
+function effectiveThemeIdx_() {
+  return (personalThemeIdx !== null && THEME_PALETTES[personalThemeIdx]) ? personalThemeIdx : categoryConfig.__theme;
+}
+
+/** สีเน้น (accent) ของธีมที่เลือกไว้ — ใช้แทนสีส้มเดิมสำหรับตัวอักษร/ปุ่มที่อยู่บนพื้นครีมอ่อนของหน้าเว็บเอง
+    (ไม่ใช่บนการ์ดสีของหมวดหมู่) เช่น หัวข้อ, ปุ่มภาพรวม/ประวัติ, ปุ่มเริ่มเช็คสต็อก — ต้องอ่านออกบนพื้นครีมเสมอ
+    เลยเลือกสีที่เข้มที่สุดในธีมนั้น แล้วเข้มเพิ่มอีกถ้ายังไม่พอ (กันธีมพาสเทลล้วนอย่าง Soft ได้สีอ่อนเกินจน
+    อ่านไม่ออกบนพื้นครีม) คืนค่า null ถ้ายังไม่ได้ตั้งธีมไว้เลย (ให้ผู้เรียกใช้สีส้มเดิมของ Tailwind ต่อไป) */
+function themeAccentColor_() {
+  const idx = effectiveThemeIdx_();
+  if (idx === undefined || idx === null || !THEME_PALETTES[idx]) return null;
+  const brightnessOf = (h) => {
+    const n = parseInt(h.slice(1), 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return (r * 299 + g * 587 + b * 114) / 1000;
+  };
+  let darkest = THEME_PALETTES[idx].colors.reduce((a, b) => brightnessOf(a) <= brightnessOf(b) ? a : b);
+  for (let i = 0; i < 10 && brightnessOf(darkest) > 140; i++) darkest = darkenHex_(darkest, 0.25);
+  return darkest;
+}
+
+/** ทาสีองค์ประกอบนอกการ์ดหมวดหมู่ (หัวข้อ/ปุ่มภาพรวม-ประวัติ/ปุ่มเริ่มเช็คสต็อก) ตามธีมที่เลือกไว้แทนสีส้ม
+    เดิม — เรียกซ้ำได้ทุกครั้งที่ธีมเปลี่ยนหรือ re-render หน้าแรก/หน้ากรอกชื่อ ไม่ทำอะไรถ้ายังไม่เคยตั้งธีม
+    (เคลียร์ style กลับเป็นค่าว่าง ปล่อยสีส้มของ Tailwind เดิมทำงานตามปกติ) */
+function applyThemeAccent_() {
+  const accent = themeAccentColor_();
+  ['shop-title', 'daily-check-subtitle', 'overview-btn-home', 'history-btn-home'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.color = accent || '';
+  });
+  const startBtn = document.getElementById('start-checking-btn');
+  if (startBtn) {
+    startBtn.style.background = accent || '';
+    startBtn.style.color = accent ? textColorForBg_(accent) : '';
+  }
+}
+
 function categoryStyle_(cat) {
   if (cat === '__movement__') return { grad: 'from-purple-500 to-purple-600', bg: 'bg-purple-500', icon: '📦', customStyle: '', customBg: '', textColor: '#ffffff' };
   const custom = categoryConfig[cat];
   const idx = Object.keys(catalogByCategory).indexOf(cat);
-  // ธีมส่วนตัว (เครื่องนี้) มาก่อนธีมที่แอดมินตั้งไว้ให้ทุกคนเสมอ ถ้าเลือกไว้
-  const effectiveThemeIdx = (personalThemeIdx !== null && THEME_PALETTES[personalThemeIdx]) ? personalThemeIdx : categoryConfig.__theme;
+  const effectiveThemeIdx = effectiveThemeIdx_();
   const theme = (effectiveThemeIdx !== undefined && effectiveThemeIdx !== null) ? THEME_PALETTES[effectiveThemeIdx] : null;
   if (theme) {
     const palette = theme.colors;
@@ -1472,6 +1510,7 @@ function rerenderVisiblePages() {
 function renderHomeCategoryButtons() {
   const el = document.getElementById('home-category-buttons');
   if (!el) return;
+  applyThemeAccent_();
   const cats = sortedCategories_();
   if (!cats.length) {
     el.innerHTML = `<p class="text-center text-gray-400 text-sm py-4">${t('noCategoriesYet')}</p>`;
@@ -1494,6 +1533,7 @@ function renderHomeCategoryButtons() {
 }
 function selectCategory(category) {
   currentCategory = category;
+  applyThemeAccent_(); // ปุ่ม "เริ่มเช็คสต็อก" อยู่หน้านี้ ต้องได้สีธีมด้วยเหมือนกัน
   const badge = document.getElementById('category-badge');
   const s = categoryStyle_(category);
   badge.className = `inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium mb-4 ${s.bg}`;
@@ -3747,6 +3787,7 @@ async function pickCategoryTheme_(idx) {
   closeCategoryThemeModal_();
   renderAdminItemsTabFromCache_();
   rerenderVisiblePages();
+  applyThemeAccent_(); // เผื่อกำลังอยู่หน้ากรอกชื่อ (ไม่ได้อยู่ในขอบเขตของ rerenderVisiblePages)
   showToast(idx === null ? 'ใช้ค่าเริ่มต้นแล้ว' : 'ใช้ธีมสีแล้ว', 'success');
 }
 
@@ -3766,6 +3807,7 @@ function pickPersonalTheme_(idx) {
   } catch (e) { /* localStorage ใช้ไม่ได้ (โหมดส่วนตัว/ปิดไว้) — เลือกได้แค่ชั่วคราวจนกว่าจะรีเฟรช */ }
   closePersonalThemeModal_();
   rerenderVisiblePages();
+  applyThemeAccent_(); // เผื่อกำลังอยู่หน้ากรอกชื่อ (ไม่ได้อยู่ในขอบเขตของ rerenderVisiblePages)
   showToast(idx === null ? 'ใช้สีของแอดมินแล้ว' : 'เปลี่ยนสีของเครื่องนี้แล้ว', 'success');
 }
 
