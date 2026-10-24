@@ -2220,7 +2220,7 @@ function renderHistory() {
     return `
     <div onclick="showHistoryDetail('${record.id}')" class="bg-white rounded-xl p-4 shadow-md hover:shadow-lg transition-all cursor-pointer">
       <div class="flex items-center gap-4">
-        <div class="w-12 h-12 bg-gradient-to-br ${s.grad} rounded-xl flex items-center justify-center text-2xl">${s.icon}</div>
+        <div class="w-12 h-12 bg-gradient-to-br ${s.grad} rounded-xl flex items-center justify-center text-2xl" style="${s.customStyle}">${s.icon}</div>
         <div class="flex-1">
           <p class="font-semibold text-gray-800">${record.type==='movement' ? t('movement') : tCategory(record.category)}
             <span class="ml-2 text-xs px-2 py-0.5 rounded-full ${record.type==='movement' ? 'badge-movement' : 'badge-check'}">${record.type==='movement' ? t('movement') : t('dailyCheck')}</span>
@@ -2334,9 +2334,10 @@ function showHistoryDetail(id) {
   items.forEach(item => { expectedQtyByItem_[item.name] = getExpectedQtyBefore_(record.category, item.name, new Date(record.date)); });
   const anyExpected = Object.values(expectedQtyByItem_).some(v => v !== null);
   const editButtonHtml = adminPassword ? `<button onclick="toggleEditMode()" class="text-sm bg-white/20 px-3 py-1.5 rounded-lg" >${t('editRecord')}</button>` : '';
+  const headerStyle_ = categoryStyle_(record.category);
 
   content.innerHTML = `
-    <div class="bg-gradient-to-r ${categoryStyle_(record.category).grad} p-4 text-white flex items-center justify-between">
+    <div class="bg-gradient-to-r ${headerStyle_.grad} p-4 flex items-center justify-between" style="${headerStyle_.customStyle} color:${headerStyle_.textColor};">
       <div>
         <h3 class="text-xl font-bold mb-2">${tCategory(record.category)}</h3>
         <p class="text-sm opacity-90">${t('staffChecker')} <span class="font-semibold">${record.checker_name}</span></p>
