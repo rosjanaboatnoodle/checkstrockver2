@@ -121,7 +121,10 @@
     .translate-btn{ flex-shrink:0;width:34px;height:34px;border-radius:8px;background:#eef2ff;color:#4338ca;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;border:none; }
     .translate-btn:disabled{ opacity:.5;cursor:wait; }
     .toggle-sw{ position:relative;width:38px;height:22px;background:#e5e7eb;border-radius:99px;cursor:pointer;border:none;flex-shrink:0; }
-    .toggle-sw.on{ background:#ea580c; }
+    /* !important กัน html[data-theme="dark"] .toggle-sw{background:...} (specificity สูงกว่าเพราะมี attribute
+       selector เพิ่ม) ทับสีตอนเปิด — เดิมไม่มี !important เลยกลายเป็นว่าสวิตช์ที่เปิดอยู่ในโหมดมืดขึ้นเป็นสีเทา
+       (สีตอนปิด) แทนที่จะเป็นสีส้ม/สีธีม มองไม่ออกว่าเปิดหรือปิดอยู่ */
+    .toggle-sw.on{ background:var(--theme-fill, #ea580c) !important; }
     .toggle-sw::after{ content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.25); }
     .toggle-sw.on::after{ left:18px; }
     .report-pre{ background:#0F2A24;color:#EAF3EE;font:500 12.5px/1.6 'Courier New',monospace;padding:16px;border-radius:12px;white-space:pre-wrap;word-break:break-word;max-height:50vh;overflow-y:auto;margin:0; }
