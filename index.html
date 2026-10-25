@@ -4674,7 +4674,13 @@ async function submitNewItem() {
         catalogDirty = true;
         renderAdminItemsTabFromCache_();
         showToast(t('saveOk'),'success');
-      } else showToast(t('wrongPassword'),'error');
+      } else {
+        // เดิม error อะไรก็ตามจะโชว์ "รหัสผ่านไม่ถูกต้อง" หมด ทั้งที่รหัสผ่านถูกอยู่แล้ว (เพิ่งผ่าน
+        // checkAdminPassword มาตอนเปิดหน้าแอดมิน) — ทำให้เพิ่มรายการซ้ำ (หมวด+ชื่อ ตรงกับของเดิมเป๊ะ) แล้วขึ้น
+        // ข้อความผิดเรื่องจนงงว่าทำไมรหัสผ่านพัง ทั้งที่จริงคือกันรายการซ้ำอยู่ (ระบบห้ามมีรายการหมวด+ชื่อซ้ำ
+        // กันเด็ดขาดอยู่แล้วที่ระดับฐานข้อมูล ไม่มีทางที่ของเดิมจะถูกเขียนทับ/หายไปจากการเพิ่มซ้ำ)
+        showToast(res && res.error === 'duplicate_name' ? 'มีรายการนี้ (หมวด+ชื่อ) อยู่แล้วในส่วนกลาง' : t('error'), 'error');
+      }
     } catch(e){ showToast(t('error'),'error'); }
     return;
   }

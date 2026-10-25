@@ -350,7 +350,14 @@ async function handleSaveItem(p: Record<string, unknown>) {
     sort_order: Number(p.sort_order ?? 0),
   };
   const { data, error } = await supabase.from("items").insert(row).select().maybeSingle();
-  if (error) return json({ ok: false, error: error.message });
+  if (error) {
+    // Same 23505 -> "duplicate_name" normalization as the update path above — this insert
+    // path (adding a brand-new item by hand) never had it, so a manual duplicate add here
+    // returned the raw Postgres constraint-violation message instead, and the client's
+    // duplicate_name check (meant for exactly this) silently never matched.
+    if (error.code === "23505") return json({ ok: false, error: "duplicate_name" });
+    return json({ ok: false, error: error.message });
+  }
   await logAdmin("saveItem", { name: row.name, branch_id: row.branch_id });
   return json({ ok: true, item: data });
 }
