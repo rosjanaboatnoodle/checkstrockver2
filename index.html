@@ -110,7 +110,12 @@
     .icon-img{ vertical-align:middle; max-width:none; }
     html[data-theme="dark"] .icon-img{ filter:invert(1); }
     .admin-tab{ padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;color:#6b7280; }
-    .admin-tab.active{ background:#ea580c;color:white; }
+    /* !important กัน html[data-theme="dark"] .admin-tab{color:...} (specificity สูงกว่าเพราะมี attribute
+       selector เพิ่ม) ทับสีที่ตั้งใจไว้สำหรับแท็บที่ active อยู่ */
+    .admin-tab.active{ background:var(--theme-fill, #ea580c) !important;color:var(--theme-fill-text, #fff) !important; }
+    /* ปุ่มสีส้มทึบเดิมในหน้าแอดมิน/ภาพรวม (เช่น ปุ่ม "ตกลง" ล็อกอินแอดมิน, ปุ่ม "เพิ่มรายการสินค้า") — ใช้ร่วมกับ
+       คลาส bg-orange-500 เดิมเป็น fallback เผื่อ CSS var ยังไม่ถูกตั้ง (ยังไม่เคยเรียก applyThemeAccent_) */
+    .theme-fill-btn{ background-color:var(--theme-fill, #f97316) !important; color:var(--theme-fill-text, #fff) !important; }
     .badge-check{ background:#dbeafe;color:#1d4ed8; }
     .badge-movement{ background:#fef3c7;color:#b45309; }
     .translate-btn{ flex-shrink:0;width:34px;height:34px;border-radius:8px;background:#eef2ff;color:#4338ca;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;border:none; }
@@ -151,7 +156,8 @@
     .mv-step-btn:active{ background:#f3f4f6; }
     /* หน้าภาพรวม — ปุ่มสลับมุมมองตาราง/รายการ + การ์ดสินค้า */
     .overview-view-btn{ width:36px;height:36px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#9ca3af;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:17px;line-height:1; }
-    .overview-view-btn.active{ background:#ea580c;border-color:#ea580c;color:#fff; }
+    /* !important เหตุผลเดียวกับ .admin-tab.active ด้านบน — กัน html[data-theme="dark"] .overview-view-btn ทับ */
+    .overview-view-btn.active{ background:var(--theme-fill, #ea580c) !important;border-color:var(--theme-fill, #ea580c) !important;color:var(--theme-fill-text, #fff) !important; }
     /* Tailwind ในไฟล์นี้คอมไพล์ไว้ล่วงหน้า (ไม่ใช่ JIT) — ไม่มี .sm:grid-cols-3 คอมไพล์อยู่จริง ต้องเขียน grid เองตรงนี้ */
     .overview-card-grid{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:.75rem; }
     @media (min-width: 768px) { .overview-card-grid{ grid-template-columns:repeat(3, minmax(0, 1fr)); } }
@@ -230,7 +236,8 @@
     html[data-theme="dark"] .modal-overlay{ background:rgba(0,0,0,.65); }
     html[data-theme="dark"] .modal-box{ background:#1f242b; color:#e5e7eb; }
     html[data-theme="dark"] .admin-tab{ color:#9ca3af; }
-    html[data-theme="dark"] .admin-tab.active{ color:#fff; }
+    /* .admin-tab.active ใช้ var(--theme-fill-text) อยู่แล้วซึ่งคำนวณแยกตามโหมดมืด/สว่างใน applyThemeAccent_()
+       ไม่ต้อง override สีตรงนี้ซ้ำ (เดิม hardcode #fff ไว้ จะไปทับสีที่คำนวณมาให้ถูกคอนทราสต์แล้ว) */
     html[data-theme="dark"] .badge-check{ background:#1e3a5f; color:#93c5fd; }
     html[data-theme="dark"] .badge-movement{ background:#4a3510; color:#fcd34d; }
     html[data-theme="dark"] .translate-btn{ background:#242244; color:#a5b4fc; }
@@ -565,7 +572,7 @@
         <h3 class="text-lg font-bold text-gray-800 mb-3" data-t="adminPasswordPrompt">กรอกรหัสผ่านแอดมิน</h3>
         <input id="admin-password-input" type="password" autocomplete="new-password" onkeydown="if(event.key==='Enter') submitAdminLogin()" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none">
         <div class="flex gap-2">
-          <button onclick="submitAdminLogin()" class="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold">ตกลง</button>
+          <button onclick="submitAdminLogin()" class="theme-fill-btn flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold">ตกลง</button>
           <button onclick="closeAdminGate()" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold" data-t="cancel">ยกเลิก</button>
         </div>
       </div>
@@ -1288,6 +1295,11 @@ function applyThemeAccent_() {
   if (mvHomeBtn) mvHomeBtn.style.cssText = mvCss_;
   const mvPageBadge = document.getElementById('movement-page-badge');
   if (mvPageBadge) mvPageBadge.style.cssText = mvCss_;
+  // ปุ่ม/แท็บสีส้มทึบในหน้าแอดมิน+ภาพรวม (.admin-tab.active, .overview-view-btn.active, .theme-fill-btn) อ่านสี
+  // จาก CSS var สองตัวนี้ — ตั้งที่เดียวตรงนี้ ที่เหลือ CSS จัดการเอง ไม่ต้องไล่เซ็ต style ทีละปุ่ม
+  const root = document.documentElement.style;
+  if (accent) { root.setProperty('--theme-fill', accent); root.setProperty('--theme-fill-text', textColorForBg_(accent)); }
+  else { root.removeProperty('--theme-fill'); root.removeProperty('--theme-fill-text'); }
 }
 
 function categoryStyle_(cat) {
@@ -3669,7 +3681,7 @@ function renderAdminItemsTabFromCache_() {
         <button type="button" onclick="scanSkuIntoInput_('new-item-sku')" title="สแกนบาร์โค้ด (ใส่ใน SKU)" class="sku-scan-btn-narrow flex-shrink-0 w-10 h-10 bg-gray-100 border border-gray-200 rounded-lg inline-flex items-center justify-center" style="padding:7px;"><img src="icons/icon-barcode.png" class="icon-img" alt="สแกนบาร์โค้ด" style="width:100%;height:100%;"></button>
       </div>
       ` + newItemBranchTargets + `
-      <button onclick="submitNewItem()" class="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-semibold">${t('addItem')}</button>
+      <button onclick="submitNewItem()" class="theme-fill-btn w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-semibold">${t('addItem')}</button>
     </div>
   `;
   const byCat = {};
