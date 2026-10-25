@@ -4450,10 +4450,22 @@ async function confirmAiImport() {
     // คำขอย่อยจะเริ่มนับลำดับใหม่จาก 0 เอง ทำให้รายการสลับลำดับไม่ตรงกับไฟล์ต้นฉบับหลังนำเข้า
     const items = rows.map((r, idx) => ({ category: r.category.trim() || 'ทั่วไป', name: r.name.trim(), unit: r.unit.trim(), sort_order: idx }));
     const CHUNK = 40;
+    // เซิร์ฟเวอร์ (handleBulkSeedItems) ข้ามรายการที่ชื่อ+หมวดหมู่ตรงกับของเดิมที่มีอยู่แล้วแบบเงียบๆ (กันซ้ำ)
+    // แล้วคืนค่า `added` เป็นจำนวนที่เพิ่มจริง — เดิมหน้านี้ไม่เคยอ่านค่านี้เลย โชว์แค่ "จำนวนที่ส่งไป" เป็นข้อความ
+    // สำเร็จตรงๆ ทำให้ถ้าไฟล์ที่อัปโหลดมีรายการชื่อซ้ำกับที่มีอยู่แล้วทั้งหมด (เช่นอัปโหลดไฟล์เดิมซ้ำ) จะขึ้นว่า
+    // "นำเข้าสำเร็จ N รายการ" ทั้งที่จริงเพิ่มรายการใหม่ไป 0 รายการ แล้วก็เลยดูเหมือนไม่มีอะไรขึ้นในหน้าหมวดหมู่
+    let addedCount = 0;
     for (let i = 0; i < items.length; i += CHUNK) {
-      await jsonpGet('bulkSeedItems', { password: adminPassword, branch_id: '', items: JSON.stringify(items.slice(i, i + CHUNK)) });
+      const res = await jsonpGet('bulkSeedItems', { password: adminPassword, branch_id: '', items: JSON.stringify(items.slice(i, i + CHUNK)) });
+      if (res && res.ok && typeof res.added === 'number') addedCount += res.added;
     }
-    showToast(`นำเข้าสำเร็จ ${items.length} รายการ`, 'success');
+    const skippedCount = items.length - addedCount;
+    showToast(
+      skippedCount > 0
+        ? `นำเข้าสำเร็จ ${addedCount} รายการใหม่ (ข้าม ${skippedCount} รายการที่มีชื่อ+หมวดหมู่ซ้ำกับของเดิมอยู่แล้ว)`
+        : `นำเข้าสำเร็จ ${addedCount} รายการ`,
+      'success'
+    );
     closeAiImportModal();
     await loadCatalog();
     adminItemsLoadedScope = null; // เพิ่งนำเข้าสด ๆ จาก server ต้องดึงแคชของ adminScopeItems ใหม่ ไม่ใช้ของเก่า
