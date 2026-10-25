@@ -467,12 +467,26 @@ async function handleBulkSeedItems(p: Record<string, unknown>) {
   const { data: existing } = scopedBranchId === null ? await q.is("branch_id", null) : await q.eq("branch_id", scopedBranchId);
   const existingKeys = new Set((existing ?? []).map((r: { category: string; name: string }) => `${r.category}||${r.name}`));
 
-  const rows = items
-    .filter((it) => !existingKeys.has(`${it.category}||${it.name}`))
-    .map((it, idx) => ({
+  // Also dedupe WITHIN this same batch (seenInBatch), not just against rows already in the DB.
+  // Without this, an AI-extracted file that lists the same item twice under the same category
+  // (e.g. the same product appearing on two sheets) makes the single multi-row insert() below
+  // fail outright with a duplicate-key error on items_scope_key_active -- which rolls back the
+  // WHOLE batch, not just the colliding row, so none of the N items get saved even though the
+  // client shows "added: N" was never reached (res.ok is false). Observed in production: a
+  // 27-item AI import reported success per the client's old (pre-added-count) message but 0 rows
+  // actually landed in the table, traced via the Postgres logs to exactly this 23505 error.
+  const seenInBatch = new Set<string>();
+  const rows: Array<Record<string, unknown>> = [];
+  items.forEach((it, idx) => {
+    const category = String(it.category ?? "");
+    const name = String(it.name ?? "");
+    const key = `${category}||${name}`;
+    if (existingKeys.has(key) || seenInBatch.has(key)) return;
+    seenInBatch.add(key);
+    rows.push({
       branch_id: scopedBranchId,
-      category: String(it.category ?? ""),
-      name: String(it.name ?? ""),
+      category,
+      name,
       unit: String(it.unit ?? ""),
       is_header: String(it.is_header ?? "FALSE").toUpperCase() === "TRUE",
       // ใช้ sort_order ที่ client ส่งมาเมื่อมี (ตำแหน่งจริงของรายการนี้ในไฟล์ต้นฉบับทั้งก้อน ก่อนถูกตัดแบ่ง
@@ -480,7 +494,8 @@ async function handleBulkSeedItems(p: Record<string, unknown>) {
       // รายการ แต่ละคำขอจะเริ่มนับ sort_order 0 ใหม่ทับซ้อนกับคำขอก่อนหน้า ทำให้รายการในแต่ละหมวดหมู่
       // เรียงสลับไม่ตรงกับไฟล์ต้นฉบับที่ผู้ใช้จัดลำดับมาอยู่แล้ว (บั๊กที่ผู้ใช้รายงาน)
       sort_order: it.sort_order !== undefined && it.sort_order !== null ? Number(it.sort_order) : idx,
-    }));
+    });
+  });
   if (!rows.length) { await logAdmin("bulkSeedItems", { branchId, added: 0 }); return json({ ok: true, added: 0 }); }
 
   const { error } = await supabase.from("items").insert(rows);

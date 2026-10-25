@@ -4454,18 +4454,29 @@ async function confirmAiImport() {
     // แล้วคืนค่า `added` เป็นจำนวนที่เพิ่มจริง — เดิมหน้านี้ไม่เคยอ่านค่านี้เลย โชว์แค่ "จำนวนที่ส่งไป" เป็นข้อความ
     // สำเร็จตรงๆ ทำให้ถ้าไฟล์ที่อัปโหลดมีรายการชื่อซ้ำกับที่มีอยู่แล้วทั้งหมด (เช่นอัปโหลดไฟล์เดิมซ้ำ) จะขึ้นว่า
     // "นำเข้าสำเร็จ N รายการ" ทั้งที่จริงเพิ่มรายการใหม่ไป 0 รายการ แล้วก็เลยดูเหมือนไม่มีอะไรขึ้นในหน้าหมวดหมู่
+    // แยกเคส "เซิร์ฟเวอร์ error จริง" (res.ok=false เช่น insert พังทั้งก้อนเพราะชื่อซ้ำกันเองในไฟล์ที่อัปโหลด
+    // — เจอเคสนี้จริงใน production: error 23505 duplicate key บน items_scope_key_active) ออกจากเคส "ตั้งใจ
+    // ข้ามเพราะซ้ำของเดิม" เพราะเดิมถ้า res.ok=false จะถูกนับรวมเป็น "ข้ามเพราะซ้ำ" ไปด้วยแบบผิดๆ ทำให้ error
+    // จริงถูกกลบไม่มีใครเห็น ต้องไปไล่ดู Postgres log ในแดชบอร์ด Supabase ถึงเจอสาเหตุจริง
     let addedCount = 0;
+    let hadError = false;
+    let lastError = '';
     for (let i = 0; i < items.length; i += CHUNK) {
       const res = await jsonpGet('bulkSeedItems', { password: adminPassword, branch_id: '', items: JSON.stringify(items.slice(i, i + CHUNK)) });
       if (res && res.ok && typeof res.added === 'number') addedCount += res.added;
+      else { hadError = true; lastError = (res && res.error) || 'unknown_error'; }
     }
-    const skippedCount = items.length - addedCount;
-    showToast(
-      skippedCount > 0
-        ? `นำเข้าสำเร็จ ${addedCount} รายการใหม่ (ข้าม ${skippedCount} รายการที่มีชื่อ+หมวดหมู่ซ้ำกับของเดิมอยู่แล้ว)`
-        : `นำเข้าสำเร็จ ${addedCount} รายการ`,
-      'success'
-    );
+    if (hadError) {
+      showToast(addedCount > 0 ? `นำเข้าได้บางส่วน (${addedCount} รายการ) มีข้อผิดพลาด: ${lastError}` : `นำเข้าไม่สำเร็จ: ${lastError}`, 'error');
+    } else {
+      const skippedCount = items.length - addedCount;
+      showToast(
+        skippedCount > 0
+          ? `นำเข้าสำเร็จ ${addedCount} รายการใหม่ (ข้าม ${skippedCount} รายการที่มีชื่อ+หมวดหมู่ซ้ำกับของเดิมอยู่แล้ว)`
+          : `นำเข้าสำเร็จ ${addedCount} รายการ`,
+        'success'
+      );
+    }
     closeAiImportModal();
     await loadCatalog();
     adminItemsLoadedScope = null; // เพิ่งนำเข้าสด ๆ จาก server ต้องดึงแคชของ adminScopeItems ใหม่ ไม่ใช้ของเก่า
