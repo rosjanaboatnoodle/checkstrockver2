@@ -305,7 +305,7 @@
         <div id="login-box" class="bg-white rounded-2xl p-5 shadow-md">
           <label class="block text-sm font-medium text-gray-700 mb-2" data-t="loginPasswordLabel">รหัสผ่าน</label>
           <input id="login-password" type="password" onkeydown="if(event.key==='Enter') doLogin()" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none" placeholder="••••••••">
-          <button onclick="doLogin()" class="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600" data-t="login">เข้าสู่ระบบ</button>
+          <button onclick="doLogin()" class="theme-fill-btn w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600" data-t="login">เข้าสู่ระบบ</button>
         </div>
 
         <div id="admin-branch-picker" class="hidden bg-white rounded-2xl p-5 shadow-md mt-4">
@@ -318,7 +318,7 @@
           <input id="first-branch-name" type="text" onkeydown="if(event.key==='Enter') createFirstBranch()" data-t-placeholder="firstBranchNameHint" placeholder="ชื่อสาขา เช่น สาขาหลัก" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none">
           <input id="first-branch-staffpw" type="text" onkeydown="if(event.key==='Enter') createFirstBranch()" data-t-placeholder="branchPasswordLabel" placeholder="รหัสผ่านประจำสาขา (ให้พนักงานใช้)" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none">
           <input id="first-branch-adminpw" type="password" onkeydown="if(event.key==='Enter') createFirstBranch()" data-t-placeholder="adminPasswordShort" placeholder="รหัสผ่านแอดมิน" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-3 focus:border-orange-500 focus:outline-none">
-          <button onclick="createFirstBranch()" class="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600" data-t="createBranch">สร้างสาขา</button>
+          <button onclick="createFirstBranch()" class="theme-fill-btn w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600" data-t="createBranch">สร้างสาขา</button>
         </div>
       </div>
     </div>
@@ -661,7 +661,7 @@
         </button>
 
         <div class="flex gap-2">
-          <button onclick="saveItemDetails_()" class="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึก</button>
+          <button onclick="saveItemDetails_()" class="theme-fill-btn flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึก</button>
           <button onclick="closeItemDetailsModal_()" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold">ยกเลิก</button>
         </div>
       </div>
@@ -682,7 +682,7 @@
         <p class="text-[11px] text-gray-400 mb-3">💡 วงกลมที่ติ๊กไว้ = หน่วยที่ใช้ในรายงาน LINE ตอนนี้</p>
         <button onclick="addUnitRow()" class="text-sm text-indigo-600 font-semibold mb-4">+ เพิ่มหน่วย</button>
         <div class="flex gap-2">
-          <button onclick="saveUnitEditor()" class="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึก</button>
+          <button onclick="saveUnitEditor()" class="theme-fill-btn flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึก</button>
           <button onclick="closeUnitEditor()" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold">ยกเลิก</button>
         </div>
       </div>
@@ -701,7 +701,7 @@
         <p class="text-xs text-gray-400 mb-4">สีของหมวดหมู่กำหนดจาก "ธีมสี" ที่เลือกไว้ทั้งแอป (ปุ่ม 🎨 ธีมสีหมวดหมู่ ด้านบน) ไม่ได้เลือกเป็นรายหมวดแล้ว</p>
 
         <div class="flex gap-2">
-          <button onclick="saveCategoryStyle_()" class="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึก</button>
+          <button onclick="saveCategoryStyle_()" class="theme-fill-btn flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึก</button>
           <button onclick="closeCategoryStyleModal_()" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold">ยกเลิก</button>
         </div>
       </div>
@@ -763,7 +763,7 @@
           <div id="ai-import-rows" class="space-y-2 mb-2 max-h-72 overflow-y-auto"></div>
           <button onclick="addAiImportRow()" class="text-sm text-indigo-600 font-semibold mb-4">+ เพิ่มแถวว่าง</button>
           <div class="flex gap-2">
-            <button onclick="confirmAiImport()" class="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold" id="ai-import-confirm-btn">ยืนยันนำเข้า</button>
+            <button onclick="confirmAiImport()" class="theme-fill-btn flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold" id="ai-import-confirm-btn">ยืนยันนำเข้า</button>
             <button onclick="requestCloseAiImportModal()" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold">ยกเลิก</button>
           </div>
         </div>
@@ -1981,7 +1981,7 @@ function renderMovementCategoryChips() {
     return `<button onclick="selectMovementCategory('${value.replace(/'/g,"\\'")}')"
       class="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${active ? activeClass : 'bg-white text-gray-600 border border-gray-200'}"${styleAttr}>${label}</button>`;
   };
-  let html = chip('', t('all') || 'ทั้งหมด', 'bg-orange-500', '', '#ffffff');
+  let html = chip('', t('all') || 'ทั้งหมด', 'theme-fill-btn bg-orange-500', '', '#ffffff');
   sortedCategories_().forEach(cat => { const s = categoryStyle_(cat); html += chip(cat, tCategory(cat), s.bg, s.customBg, s.textColor); });
   el.innerHTML = html;
 }
@@ -3194,7 +3194,7 @@ async function renderAdminWasteTab() {
           <select id="waste-report-branch" class="w-full px-3 py-2.5 border rounded-lg text-sm">${branchOptions}</select>
         </div>
       </div>
-      <button id="waste-report-btn" onclick="runWasteReport_()" class="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold">ดูรายงาน</button>
+      <button id="waste-report-btn" onclick="runWasteReport_()" class="theme-fill-btn w-full bg-orange-500 text-white py-3 rounded-xl font-semibold">ดูรายงาน</button>
     </div>
     <div id="waste-report-results"></div>
   `;
@@ -3341,7 +3341,7 @@ function renderAdminPasswordTab() {
       <input type="password" id="pw-new" onkeydown="if(event.key==='Enter') submitChangePassword()" class="w-full px-3 py-2.5 border rounded-lg text-sm mb-3" placeholder="อย่างน้อย 4 ตัวอักษร">
       <label class="block text-xs font-medium text-gray-600 mb-1">ยืนยันรหัสผ่านใหม่</label>
       <input type="password" id="pw-confirm" onkeydown="if(event.key==='Enter') submitChangePassword()" class="w-full px-3 py-2.5 border rounded-lg text-sm mb-4" placeholder="พิมพ์ซ้ำอีกครั้ง">
-      <button onclick="submitChangePassword()" class="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึกรหัสผ่านใหม่</button>
+      <button onclick="submitChangePassword()" class="theme-fill-btn w-full bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึกรหัสผ่านใหม่</button>
     </div>`;
 }
 async function submitChangePassword() {
@@ -3430,7 +3430,7 @@ async function renderAdminBufferTab() {
       <p class="text-sm text-gray-500 mb-3">Override รายตัว (ถ้าไม่กรอก จะใช้ค่าเริ่มต้นของหมวดหมู่) — กดชื่อหมวดเพื่อเปิด/หุบ</p>
       ${overrideSections}
     </div>
-    <button onclick="saveAllBufferSettings()" class="w-full mt-4 bg-orange-500 text-white py-3 rounded-xl font-semibold">${t('saveEdit') || 'บันทึกการตั้งค่า'}</button>
+    <button onclick="saveAllBufferSettings()" class="theme-fill-btn w-full mt-4 bg-orange-500 text-white py-3 rounded-xl font-semibold">${t('saveEdit') || 'บันทึกการตั้งค่า'}</button>
 
     <div class="bg-gray-50 rounded-xl p-4 mt-6">
       <div class="flex items-center justify-between mb-1">
@@ -3480,7 +3480,7 @@ async function renderAdminBufferTab() {
           รวมทุกสาขาในข้อความเดียว
         </label>
       </div>
-      <button onclick="saveReorderSettings()" class="w-full mt-4 bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึกการแจ้งเตือน</button>
+      <button onclick="saveReorderSettings()" class="theme-fill-btn w-full mt-4 bg-orange-500 text-white py-3 rounded-xl font-semibold">บันทึกการแจ้งเตือน</button>
     </div>
   `;
 
@@ -4508,7 +4508,7 @@ function renderImportCentralBody_() {
         </label>`;
       }).join('')}
     </div>
-    <button onclick="confirmImportFromCentral()" id="import-central-confirm-btn" class="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold">นำเข้าเข้าสาขานี้</button>
+    <button onclick="confirmImportFromCentral()" id="import-central-confirm-btn" class="theme-fill-btn w-full bg-orange-500 text-white py-3 rounded-xl font-semibold">นำเข้าเข้าสาขานี้</button>
   `;
 }
 function toggleAllImportCats_(checked) {
@@ -4872,7 +4872,7 @@ async function renderAdminBranchesTab() {
         <input id="edit-branch-name" value="${b.name.replace(/"/g,'&quot;')}" onkeydown="if(event.key==='Enter') submitEditBranch('${b.id}')" placeholder="${t('branchNameLabel')}" class="w-full px-3 py-2 border rounded-lg text-sm mb-2">
         <input id="edit-branch-staffpw" onkeydown="if(event.key==='Enter') submitEditBranch('${b.id}')" placeholder="รหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)" class="w-full px-3 py-2 border rounded-lg text-sm mb-2">
         <div class="flex gap-2">
-          <button onclick="submitEditBranch('${b.id}')" class="flex-1 bg-orange-500 text-white py-1.5 rounded-lg text-sm font-semibold">${t('saveEdit')}</button>
+          <button onclick="submitEditBranch('${b.id}')" class="theme-fill-btn flex-1 bg-orange-500 text-white py-1.5 rounded-lg text-sm font-semibold">${t('saveEdit')}</button>
           <button onclick="cancelEditBranch()" class="flex-1 bg-gray-200 text-gray-700 py-1.5 rounded-lg text-sm font-semibold">${t('cancel')}</button>
         </div>
       </div>`;
@@ -4892,7 +4892,7 @@ async function renderAdminBranchesTab() {
       <p class="text-sm font-semibold text-gray-700 mb-2">${t('addBranch')}</p>
       <input id="new-branch-name" onkeydown="if(event.key==='Enter') submitNewBranch()" placeholder="${t('branchNameLabel')}" class="w-full px-3 py-2 border rounded-lg text-sm mb-2">
       <input id="new-branch-staffpw" onkeydown="if(event.key==='Enter') submitNewBranch()" placeholder="${t('branchPasswordLabel')}" class="w-full px-3 py-2 border rounded-lg text-sm mb-2">
-      <button onclick="submitNewBranch()" class="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-semibold">${t('addBranch')}</button>
+      <button onclick="submitNewBranch()" class="theme-fill-btn w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-semibold">${t('addBranch')}</button>
     </div>
     <div>${branches.map(branchRowHtml).join('')}</div>
   `;
@@ -4943,7 +4943,7 @@ function renderAdminTranslationsTab() {
   el.innerHTML = langs.map(([code,label]) => `
     <div class="flex items-center justify-between py-2 border-b border-gray-100">
       <span class="font-medium text-gray-700">${label}</span>
-      <button onclick="runTranslateAll('${code}')" id="translate-btn-${code}" class="text-sm bg-orange-500 text-white px-3 py-1.5 rounded-lg">${t('refreshTranslation')}</button>
+      <button onclick="runTranslateAll('${code}')" id="translate-btn-${code}" class="theme-fill-btn text-sm bg-orange-500 text-white px-3 py-1.5 rounded-lg">${t('refreshTranslation')}</button>
     </div>
   `).join('');
 }
