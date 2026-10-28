@@ -1051,9 +1051,16 @@ async function callGemini(parts: unknown[], opts: { jsonMode?: boolean } = {}): 
   if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
   const body: Record<string, unknown> = { contents: [{ parts }] };
   if (opts.jsonMode) body.generationConfig = { responseMimeType: "application/json" };
+  // Key goes in the x-goog-api-key header, NOT the URL's ?key= query param (Gemini's REST API
+  // supports both). fetchWithTimeout's own timeout error includes the request URL verbatim —
+  // with the key in the query string, that error (which now reaches the client, since a recent
+  // fix stopped swallowing action errors into a generic "wrong password" message) put the raw
+  // API key straight into an admin's browser toast. Security incident: an exposed key from
+  // exactly this leak already made it into a support screenshot — rotate the Gemini API key in
+  // Google AI Studio and update GEMINI_API_KEY in the Supabase project's Edge Function secrets.
   const res = await fetchWithTimeout(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body: JSON.stringify(body) },
     45000,
   );
   const data = await res.json();
@@ -1334,7 +1341,13 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 2
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (e) {
-    if ((e as Error)?.name === "AbortError") throw new Error(`request_timed_out_after_${timeoutMs}ms: ${url}`);
+    // Strip any query string before it can reach a thrown error -- error messages from here can
+    // end up surfaced to the client (and from there, into a screenshot or a log a person reads),
+    // and a caller's secret (API key, token, ...) belongs in a header, not a URL, but this is the
+    // backstop in case one ever ends up in a query string anyway. See callGemini's own comment for
+    // the incident that prompted this.
+    const safeUrl = url.split("?")[0];
+    if ((e as Error)?.name === "AbortError") throw new Error(`request_timed_out_after_${timeoutMs}ms: ${safeUrl}`);
     throw e;
   } finally {
     clearTimeout(timer);
