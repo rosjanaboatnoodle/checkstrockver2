@@ -1119,6 +1119,21 @@ const LANG_NAMES: Record<string, string> = {
   en: "English", my: "Burmese (Myanmar language)", lo: "Lao", km: "Khmer", vi: "Vietnamese",
 };
 
+// Mirrors the client's own getUnitOptions_() in index.html exactly -- an item's stored `unit`
+// field can be a single unit ("ชิ้น") or several slash-joined options the client lets the user
+// pick between at check-in time ("กิโลกรัม/กรัม"). The client always looks up a translation by
+// each SPLIT option individually (tUnit() called per <option>, never with the joined string), so
+// building unitsSource from the raw unsplit DB value was the bug: it translated the combined
+// string "กิโลกรัม/กรัม" as one key, which nothing at render time ever looks up -- tUnit("กิโลกรัม")
+// and tUnit("กรัม") each missed the dict entirely and silently fell back to Thai. Every compound
+// unit (the common case per normalizeQtyToBase_'s กิโลกรัม/กรัม/ขีด, ขวด/ลัง, ขวด/แพ็ค pairs) was
+// therefore permanently untranslated no matter how many times "อัปเดตคำแปลด้วย AI" was re-run.
+function unitOptionsFromRaw_(unitStr: string): string[] {
+  const u = String(unitStr ?? "").trim();
+  if (!u) return [];
+  return u.includes("/") ? u.split("/").map((s) => s.trim()).filter(Boolean) : [u];
+}
+
 function identityMap(values: string[]): Record<string, string> {
   return Object.fromEntries(values.map((v) => [v, v]));
 }
@@ -1171,7 +1186,7 @@ async function handleTranslateAllMeta(p: Record<string, unknown>) {
   const { data: itemsData } = await supabase.from("items").select("name, unit, category").eq("active", true);
   const items = (itemsData ?? []) as Array<{ name: string; unit: string; category: string }>;
   const itemNames = [...new Set(items.map((i) => i.name).filter(Boolean))].sort();
-  const unitsSource = identityMap([...new Set(items.map((i) => i.unit).filter(Boolean))]);
+  const unitsSource = identityMap([...new Set(items.flatMap((i) => unitOptionsFromRaw_(i.unit)))]);
   const categoriesSource = identityMap([...new Set(items.map((i) => i.category).filter(Boolean))]);
   const itemsSource = identityMap(itemNames);
 
