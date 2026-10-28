@@ -2526,12 +2526,18 @@ function openAdminModal(prefetchItems, prefetchScope) {
 }
 async function closeAdminModal() {
   document.getElementById('admin-modal').classList.add('hidden');
-  applyStaticTranslations(); // คืนค่าภาษาที่ตั้งไว้ให้ label กลุ่มนี้ ตอนออกจากหน้าแอดมินแล้ว
-  if (catalogDirty) { // รีเฟรชข้อมูลฝั่งเช็คสต็อกแค่ตอนปิด ไม่ใช่ทุกคลิก
+  if (catalogDirty) { // รีเฟรชข้อมูลฝั่งเช็คสต็อกจาก server แค่ตอนปิด ไม่ใช่ทุกคลิก (เฉพาะตอนแก้แคตตาล็อกจริง)
     await loadCatalog();
     catalogDirty = false;
-    rerenderVisiblePages();
   }
+  // เดิม rerenderVisiblePages() ถูกเรียกเฉพาะตอน catalogDirty เท่านั้น — ทำให้ถ้าแค่กด "อัปเดตคำแปลด้วย AI"
+  // ในแท็บจัดการคำแปล (ไม่แตะแคตตาล็อกเลย) แล้วปิดโมดัล หน้าเช็คสต็อกที่โผล่อยู่ข้างหลังโมดัลตลอดเวลา (ซึ่ง
+  // render ไปแล้วรอบนึงระหว่างที่โมดัลยังเปิดอยู่ — ตอนนั้น isAdminUiOpen_() เป็นจริง t()/tItem()/tUnit() เลย
+  // บังคับคืนค่าภาษาไทยเสมอตามที่ตั้งใจ) จะไม่มีโอกาสได้ re-render ด้วยคำแปลใหม่ที่เพิ่งได้มาเลย ค้างเป็นไทย
+  // ไปจนกว่าจะมีอย่างอื่นมาทำให้ re-render (เช่นสลับหมวด) — ตอนนี้เรียกทั้งสองอันเสมอทุกครั้งที่ปิดโมดัล
+  // (เบาอยู่แล้ว ไม่ยิง network ซ้ำ แค่ re-render จากข้อมูลที่มีอยู่ในหน่วยความจำ) กันปัญหานี้ไว้ล่วงหน้า
+  applyStaticTranslations();
+  rerenderVisiblePages();
 }
 
 function switchAdminTab(tab, prefetchItems, prefetchScope) {
