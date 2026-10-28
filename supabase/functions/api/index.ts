@@ -1129,22 +1129,36 @@ function mergeWithFallback(source: Record<string, string>, result: unknown): Rec
   return out;
 }
 
-async function handleTranslateAll(p: Record<string, unknown>) {
+// Translating everything (UI text + every item/unit/category name) in one Gemini call used to
+// time out once the catalog grew past a few hundred items -- the prompt+response just took
+// longer than fetchWithTimeout's 45s budget. Split into two phases instead, mirroring the same
+// chunk-per-request pattern already used for AI item import (parseItemsAI/getAiImportResult):
+// translateAllMeta handles the UI/units/categories (small, bounded sets that don't grow with the
+// catalog) in one call and also writes the baseline dict, then the client calls
+// translateItemsChunk repeatedly, each covering TRANSLATE_ITEMS_CHUNK_SIZE item names, until the
+// whole (much larger, catalog-sized) item list is done. Each request stays small regardless of
+// how many items the catalog has.
+const TRANSLATE_ITEMS_CHUNK_SIZE = 60;
+
+async function handleTranslateAllMeta(p: Record<string, unknown>) {
   if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
   const lang = String(p.lang ?? "");
   const langName = LANG_NAMES[lang];
   if (!langName) return json({ ok: false, error: "unsupported_lang" });
 
-  const { data: itemsData } = await supabase.from("items").select("name, unit, category").eq("active", true);
+  // .order("name") makes the item list's order stable across repeated calls -- translateItemsChunk
+  // re-fetches and re-sorts the same way, so slicing by a numeric offset lands on the same items
+  // every time rather than drifting if Postgres ever returned rows in a different order.
+  const { data: itemsData } = await supabase.from("items").select("name, unit, category").eq("active", true).order("name");
   const items = (itemsData ?? []) as Array<{ name: string; unit: string; category: string }>;
-  const itemsSource = identityMap([...new Set(items.map((i) => i.name).filter(Boolean))]);
+  const itemNames = [...new Set(items.map((i) => i.name).filter(Boolean))].sort();
   const unitsSource = identityMap([...new Set(items.map((i) => i.unit).filter(Boolean))]);
   const categoriesSource = identityMap([...new Set(items.map((i) => i.category).filter(Boolean))]);
+  const itemsSource = identityMap(itemNames); // Thai fallback baseline for items -- filled in chunk by chunk below
 
-  const prompt = `Translate the values in each of these JSON objects from Thai into ${langName}, keeping every key exactly as given (do not translate keys, only values). This is UI text and item/unit/category names for a Thai restaurant stock-checking app — keep translations short and natural for restaurant staff. Return ONLY a single JSON object of the exact shape {"ui": {...}, "items": {...}, "units": {...}, "categories": {...}}, with no other text.
+  const prompt = `Translate the values in each of these JSON objects from Thai into ${langName}, keeping every key exactly as given (do not translate keys, only values). This is UI text and unit/category names for a Thai restaurant stock-checking app — keep translations short and natural for restaurant staff. Return ONLY a single JSON object of the exact shape {"ui": {...}, "units": {...}, "categories": {...}}, with no other text.
 
 ui: ${JSON.stringify(UI_TH)}
-items: ${JSON.stringify(itemsSource)}
 units: ${JSON.stringify(unitsSource)}
 categories: ${JSON.stringify(categoriesSource)}`;
 
@@ -1158,14 +1172,59 @@ categories: ${JSON.stringify(categoriesSource)}`;
   const p2 = (parsed && typeof parsed === "object") ? parsed as Record<string, unknown> : {};
   const dict = {
     ui: mergeWithFallback(UI_TH, p2.ui),
-    items: mergeWithFallback(itemsSource, p2.items),
+    items: itemsSource, // untranslated (Thai) for now -- translateItemsChunk fills these in
     units: mergeWithFallback(unitsSource, p2.units),
     categories: mergeWithFallback(categoriesSource, p2.categories),
   };
 
+  // เขียนทับ baseline ใหม่ทั้งก้อนตรงนี้ (ไม่ merge กับของเก่าที่แคชไว้) เพื่อให้รายการสินค้าที่ถูกลบ/เปลี่ยนชื่อ
+  // ไปแล้วตั้งแต่รอบแปลที่แล้วหลุดออกจาก dict ไปด้วย -- ของเดิม (ไม่แบ่งเฟส) ก็ rebuild จาก itemsSource
+  // ปัจจุบันทุกรอบอยู่แล้ว พฤติกรรมนี้ยังคงเดิม แค่ตอนนี้ items ยังเป็นภาษาไทยรอให้ chunk ถัดๆ ไปแปลทับ
   await supabase.from("translation_cache").upsert({ lang, dict, updated_at: new Date().toISOString() });
-  await logAdmin("translateAll", { lang });
-  return json({ ok: true, dict });
+  await logAdmin("translateAll", { lang, phase: "meta", totalItems: itemNames.length });
+  return json({ ok: true, dict, totalItems: itemNames.length, chunkSize: TRANSLATE_ITEMS_CHUNK_SIZE });
+}
+
+async function handleTranslateItemsChunk(p: Record<string, unknown>) {
+  if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
+  const lang = String(p.lang ?? "");
+  const langName = LANG_NAMES[lang];
+  if (!langName) return json({ ok: false, error: "unsupported_lang" });
+  const offset = Math.max(0, Number(p.offset ?? 0));
+
+  const { data: itemsData } = await supabase.from("items").select("name").eq("active", true).order("name");
+  const itemNames = [...new Set((itemsData ?? []).map((i: { name: string }) => i.name).filter(Boolean))].sort();
+  const chunkNames = itemNames.slice(offset, offset + TRANSLATE_ITEMS_CHUNK_SIZE);
+  if (!chunkNames.length) return json({ ok: true, done: true, translated: 0 });
+  const chunkSource = identityMap(chunkNames);
+
+  const prompt = `Translate the values in this JSON object (food/ingredient/product names) from Thai into ${langName}, keeping every key exactly as given (do not translate keys, only values). This is for a Thai restaurant stock-checking app — keep translations short and natural for restaurant staff. Return ONLY a JSON object of the exact same shape, with no other text.
+
+${JSON.stringify(chunkSource)}`;
+
+  let parsed: unknown;
+  try {
+    const text = await callGemini([{ text: prompt }], { jsonMode: true });
+    parsed = JSON.parse(text);
+  } catch (e) {
+    return json({ ok: false, error: "translate_failed: " + String((e as Error).message ?? e) });
+  }
+  const translatedChunk = mergeWithFallback(chunkSource, parsed);
+
+  // Read-modify-write: merge just this chunk's translated names into whatever translation_cache
+  // already has (the baseline translateAllMeta wrote, plus any earlier chunks this same run already
+  // finished) rather than overwriting the whole items map -- each chunk call only knows its own slice.
+  const { data: row } = await supabase.from("translation_cache").select("dict").eq("lang", lang).maybeSingle();
+  const dict: Record<string, unknown> = (row?.dict && typeof row.dict === "object")
+    ? row.dict as Record<string, unknown>
+    : { ui: {}, items: {}, units: {}, categories: {} };
+  const currentItems = (dict.items && typeof dict.items === "object") ? dict.items as Record<string, string> : {};
+  dict.items = { ...currentItems, ...translatedChunk };
+
+  await supabase.from("translation_cache").upsert({ lang, dict, updated_at: new Date().toISOString() });
+  const done = offset + TRANSLATE_ITEMS_CHUNK_SIZE >= itemNames.length;
+  if (done) await logAdmin("translateAll", { lang, phase: "items_complete", totalItems: itemNames.length });
+  return json({ ok: true, done, translated: chunkNames.length, dict });
 }
 
 async function handleGetDictionary(p: Record<string, unknown>) {
@@ -1830,7 +1889,8 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   getBranchOverview: handleGetBranchOverview,
   getWasteReport: handleGetWasteReport,
   getAdminLog: handleGetAdminLog,
-  translateAll: handleTranslateAll,
+  translateAllMeta: handleTranslateAllMeta,
+  translateItemsChunk: handleTranslateItemsChunk,
   getDictionary: handleGetDictionary,
   translateNote: handleTranslateNote,
   parseItemsAI: handleParseItemsAI,
