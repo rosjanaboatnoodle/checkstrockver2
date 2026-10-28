@@ -1058,10 +1058,17 @@ async function callGemini(parts: unknown[], opts: { jsonMode?: boolean } = {}): 
   // API key straight into an admin's browser toast. Security incident: an exposed key from
   // exactly this leak already made it into a support screenshot — rotate the Gemini API key in
   // Google AI Studio and update GEMINI_API_KEY in the Supabase project's Edge Function secrets.
+  // 90s, not 45s: even the now-split-into-phases translateAllMeta call (UI text + units +
+  // categories -- a fixed, bounded set, not sized to the catalog) was observed timing out at 45s
+  // in production. Gemini's own response time for a JSON-mode call with ~150+ keys to translate
+  // can genuinely run past 45s under load; 90s gives real headroom while staying well under
+  // Supabase Edge Functions' wall-clock limit (network-wait time, not CPU time, so it doesn't
+  // burn into the CPU-time budget). The client's own jsonpGet timeout for these calls must stay
+  // comfortably above this value or it aborts first and this number never gets the chance to matter.
   const res = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
     { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body: JSON.stringify(body) },
-    45000,
+    90000,
   );
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error?.message || `gemini_http_${res.status}`);

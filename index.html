@@ -4983,11 +4983,14 @@ async function runTranslateAll(lang) {
   const btn = document.getElementById('translate-btn-'+lang);
   btn.disabled = true; btn.textContent = t('translating');
   try {
-    // แปลข้อความ UI + รายชื่อสินค้าทั้งหมดในคำขอเดียวเคยพังตอนแคตตาล็อกโตขึ้น (เกิน timeout 45 วิของเซิร์ฟเวอร์)
+    // แปลข้อความ UI + รายชื่อสินค้าทั้งหมดในคำขอเดียวเคยพังตอนแคตตาล็อกโตขึ้น (เกิน timeout ของเซิร์ฟเวอร์)
     // ตอนนี้แบ่งเป็นเฟส: เฟสแรก (translateAllMeta) แปล UI/หน่วย/หมวดหมู่ (ชุดเล็ก ไม่โตตามแคตตาล็อก) แล้วได้
     // จำนวนสินค้าทั้งหมดกลับมาด้วย จากนั้นแปลรายชื่อสินค้าทีละก้อนย่อย (translateItemsChunk) จนครบ แต่ละคำขอ
     // เล็กพอไม่ชน timeout ไม่ว่าแคตตาล็อกจะโตแค่ไหน — อัปเดตคำแปลที่ได้ทีละเฟสเลย ไม่ต้องรอจบครบทุกเฟสก่อน
-    const metaRes = await jsonpGet('translateAllMeta', { password: adminPassword, lang }, 60000);
+    // timeout ฝั่งนี้ตั้งไว้สูงกว่าของเซิร์ฟเวอร์ (90 วิ) เสมอ ไม่งั้นฝั่งเว็บจะตัดก่อนเซิร์ฟเวอร์เอง แล้วก็จะเห็น
+    // error ของฝั่งเว็บเองแทนที่จะได้รอผลจริงจากเซิร์ฟเวอร์ — เจอเคส translateAllMeta เองก็ยังพังที่ 45 วิมาแล้ว
+    // (Gemini ตอบช้ากว่านั้นได้จริงๆ ตอนคำแปลเยอะ/ช่วงที่ Google ตอบช้า) เลยต้องเผื่อเวลาให้มากกว่าเดิมพอสมควร
+    const metaRes = await jsonpGet('translateAllMeta', { password: adminPassword, lang }, 100000);
     if (!metaRes || !metaRes.ok) { adminErrorToast_(metaRes); return; }
     if (currentLanguage === lang) { dict = metaRes.dict; applyStaticTranslations(); rerenderVisiblePages(); }
 
@@ -4996,7 +4999,7 @@ async function runTranslateAll(lang) {
     const totalChunks = Math.max(1, Math.ceil(totalItems / chunkSize));
     for (let i = 0, offset = 0; offset < totalItems; i++, offset += chunkSize) {
       btn.textContent = `${t('translating')} (${i + 1}/${totalChunks})`;
-      const res = await jsonpGet('translateItemsChunk', { password: adminPassword, lang, offset }, 60000);
+      const res = await jsonpGet('translateItemsChunk', { password: adminPassword, lang, offset }, 100000);
       if (!res || !res.ok) { adminErrorToast_(res); return; }
       if (currentLanguage === lang && res.dict) { dict = res.dict; applyStaticTranslations(); rerenderVisiblePages(); }
     }
