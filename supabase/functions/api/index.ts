@@ -1147,21 +1147,40 @@ function mergeWithFallback(source: Record<string, string>, result: unknown): Rec
 // how many items the catalog has.
 const TRANSLATE_ITEMS_CHUNK_SIZE = 60;
 
+function asStringMap_(v: unknown): Record<string, string> {
+  if (!v || typeof v !== "object") return {};
+  const out: Record<string, string> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) if (typeof val === "string") out[k] = val;
+  return out;
+}
+
+// A key counts as "already translated" only if the cache has a value for it AND that value isn't
+// just the untouched Thai fallback -- so a name that's genuinely identical in both languages (e.g.
+// a brand name) gets asked again rather than wrongly treated as done forever, at the minor cost of
+// occasionally re-asking Gemini for something whose answer won't change.
+function pendingKeys_(source: Record<string, string>, cached: Record<string, string>): string[] {
+  return Object.keys(source).filter((k) => !cached[k] || cached[k] === source[k]);
+}
+
 async function handleTranslateAllMeta(p: Record<string, unknown>) {
   if (!(await checkAdminPassword(String(p.password ?? "")))) return json({ ok: false });
   const lang = String(p.lang ?? "");
   const langName = LANG_NAMES[lang];
   if (!langName) return json({ ok: false, error: "unsupported_lang" });
 
-  // .order("name") makes the item list's order stable across repeated calls -- translateItemsChunk
-  // re-fetches and re-sorts the same way, so slicing by a numeric offset lands on the same items
-  // every time rather than drifting if Postgres ever returned rows in a different order.
-  const { data: itemsData } = await supabase.from("items").select("name, unit, category").eq("active", true).order("name");
+  const { data: itemsData } = await supabase.from("items").select("name, unit, category").eq("active", true);
   const items = (itemsData ?? []) as Array<{ name: string; unit: string; category: string }>;
   const itemNames = [...new Set(items.map((i) => i.name).filter(Boolean))].sort();
   const unitsSource = identityMap([...new Set(items.map((i) => i.unit).filter(Boolean))]);
   const categoriesSource = identityMap([...new Set(items.map((i) => i.category).filter(Boolean))]);
-  const itemsSource = identityMap(itemNames); // Thai fallback baseline for items -- filled in chunk by chunk below
+  const itemsSource = identityMap(itemNames);
+
+  const { data: cachedRow } = await supabase.from("translation_cache").select("dict").eq("lang", lang).maybeSingle();
+  const cachedDict = (cachedRow?.dict && typeof cachedRow.dict === "object") ? cachedRow.dict as Record<string, unknown> : {};
+  const cachedUi = asStringMap_(cachedDict.ui);
+  const cachedItems = asStringMap_(cachedDict.items);
+  const cachedUnits = asStringMap_(cachedDict.units);
+  const cachedCategories = asStringMap_(cachedDict.categories);
 
   const prompt = `Translate the values in each of these JSON objects from Thai into ${langName}, keeping every key exactly as given (do not translate keys, only values). This is UI text and unit/category names for a Thai restaurant stock-checking app — keep translations short and natural for restaurant staff. Return ONLY a single JSON object of the exact shape {"ui": {...}, "units": {...}, "categories": {...}}, with no other text.
 
@@ -1177,19 +1196,24 @@ categories: ${JSON.stringify(categoriesSource)}`;
     return json({ ok: false, error: "translate_failed: " + String((e as Error).message ?? e) });
   }
   const p2 = (parsed && typeof parsed === "object") ? parsed as Record<string, unknown> : {};
+  // UI/units/categories are small, bounded sets that don't grow with the catalog, so these three
+  // keep getting fully re-translated every run (same as before) -- not worth the extra complexity
+  // of skip-if-cached here. Only `items` (the one set that scales with the catalog, and the thing
+  // that actually motivated this) gets the skip-already-translated treatment, in the chunk phase.
   const dict = {
     ui: mergeWithFallback(UI_TH, p2.ui),
-    items: itemsSource, // untranslated (Thai) for now -- translateItemsChunk fills these in
+    items: mergeWithFallback(itemsSource, cachedItems), // keep whatever's already translated; Thai fallback for the rest, pending the chunk phase
     units: mergeWithFallback(unitsSource, p2.units),
     categories: mergeWithFallback(categoriesSource, p2.categories),
   };
 
-  // เขียนทับ baseline ใหม่ทั้งก้อนตรงนี้ (ไม่ merge กับของเก่าที่แคชไว้) เพื่อให้รายการสินค้าที่ถูกลบ/เปลี่ยนชื่อ
-  // ไปแล้วตั้งแต่รอบแปลที่แล้วหลุดออกจาก dict ไปด้วย -- ของเดิม (ไม่แบ่งเฟส) ก็ rebuild จาก itemsSource
-  // ปัจจุบันทุกรอบอยู่แล้ว พฤติกรรมนี้ยังคงเดิม แค่ตอนนี้ items ยังเป็นภาษาไทยรอให้ chunk ถัดๆ ไปแปลทับ
+  // เขียนทับ baseline ใหม่ทั้งก้อนตรงนี้ (ไม่ merge กับของเก่าที่แคชไว้ตรงๆ) เพื่อให้รายการสินค้าที่ถูกลบ/เปลี่ยน
+  // ชื่อไปแล้วหลุดออกจาก dict ไปด้วย (ตัดสิทธิ์ผ่าน mergeWithFallback ที่ไล่จาก itemsSource ปัจจุบันเท่านั้น)
+  // แต่ชื่อที่ยังอยู่และเคยแปลแล้วจะยังคงคำแปลเดิมไว้ ไม่ต้องแปลซ้ำ
   await supabase.from("translation_cache").upsert({ lang, dict, updated_at: new Date().toISOString() });
-  await logAdmin("translateAll", { lang, phase: "meta", totalItems: itemNames.length });
-  return json({ ok: true, dict, totalItems: itemNames.length, chunkSize: TRANSLATE_ITEMS_CHUNK_SIZE });
+  const pendingItemNames = pendingKeys_(itemsSource, cachedItems);
+  await logAdmin("translateAll", { lang, phase: "meta", totalItems: itemNames.length, pendingItems: pendingItemNames.length });
+  return json({ ok: true, dict, pendingItemNames, chunkSize: TRANSLATE_ITEMS_CHUNK_SIZE });
 }
 
 async function handleTranslateItemsChunk(p: Record<string, unknown>) {
@@ -1197,13 +1221,16 @@ async function handleTranslateItemsChunk(p: Record<string, unknown>) {
   const lang = String(p.lang ?? "");
   const langName = LANG_NAMES[lang];
   if (!langName) return json({ ok: false, error: "unsupported_lang" });
-  const offset = Math.max(0, Number(p.offset ?? 0));
 
-  const { data: itemsData } = await supabase.from("items").select("name").eq("active", true).order("name");
-  const itemNames = [...new Set((itemsData ?? []).map((i: { name: string }) => i.name).filter(Boolean))].sort();
-  const chunkNames = itemNames.slice(offset, offset + TRANSLATE_ITEMS_CHUNK_SIZE);
-  if (!chunkNames.length) return json({ ok: true, done: true, translated: 0 });
-  const chunkSource = identityMap(chunkNames);
+  // Client sends the exact names to translate this call (its own slice of the pendingItemNames
+  // list translateAllMeta returned), rather than an offset into "whatever's still pending" -- that
+  // list shrinks after every chunk as this same handler saves results, so a numeric offset would
+  // drift out from under a multi-chunk run. Sending explicit names avoids that entirely.
+  let names: string[] = [];
+  try { names = JSON.parse(String(p.names ?? "[]")); } catch { /* leave empty */ }
+  names = names.filter((n) => typeof n === "string" && n);
+  if (!names.length) return json({ ok: true, translated: 0 });
+  const chunkSource = identityMap(names);
 
   const prompt = `Translate the values in this JSON object (food/ingredient/product names) from Thai into ${langName}, keeping every key exactly as given (do not translate keys, only values). This is for a Thai restaurant stock-checking app — keep translations short and natural for restaurant staff. Return ONLY a JSON object of the exact same shape, with no other text.
 
@@ -1229,9 +1256,7 @@ ${JSON.stringify(chunkSource)}`;
   dict.items = { ...currentItems, ...translatedChunk };
 
   await supabase.from("translation_cache").upsert({ lang, dict, updated_at: new Date().toISOString() });
-  const done = offset + TRANSLATE_ITEMS_CHUNK_SIZE >= itemNames.length;
-  if (done) await logAdmin("translateAll", { lang, phase: "items_complete", totalItems: itemNames.length });
-  return json({ ok: true, done, translated: chunkNames.length, dict });
+  return json({ ok: true, translated: names.length, dict });
 }
 
 async function handleGetDictionary(p: Record<string, unknown>) {
