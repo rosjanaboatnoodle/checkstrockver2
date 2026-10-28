@@ -4985,9 +4985,19 @@ function renderAdminTranslationsTab() {
     </div>
   `).join('');
 }
+// กันกดปุ่ม "อัปเดตคำแปลด้วย AI" ของหลายภาษาพร้อมกัน (ใจร้อนกดรัวๆ ทีละภาษา) — เดิมแต่ละปุ่ม disable แค่ตัวเอง
+// ตอนกำลังแปล ปุ่มภาษาอื่นยังกดได้อยู่ ทำให้ยิงคำขอแปลหลายภาษาพร้อมกันได้ ซึ่งแม้จะไม่ทำให้ข้อมูลพัง/ซ้อนทับกัน
+// (translation_cache แยกแถวตามภาษาอยู่แล้ว คนละภาษาคนละแถว ไม่ชนกัน) แต่ยิง Gemini พร้อมกันหลายคำขอเสี่ยงชน
+// rate limit ของ Gemini เอง ทำให้ล้มเหลว/timeout ง่ายขึ้นโดยไม่จำเป็น — ตอนนี้ล็อกไว้ให้แปลได้ทีละภาษาเท่านั้น
+// กดภาษาอื่นระหว่างที่มีภาษาหนึ่งกำลังแปลอยู่จะโดนบล็อกเงียบๆ ไม่ได้ (ปุ่มอื่นถูก disable ไปด้วยเหมือนกัน)
+let translateAllRunning_ = false;
 async function runTranslateAll(lang) {
+  if (translateAllRunning_) { showToast('กำลังแปลภาษาอื่นอยู่ กรุณารอให้เสร็จก่อนแล้วค่อยกดภาษาถัดไป', 'error'); return; }
+  translateAllRunning_ = true;
+  const allTranslateBtns = [...document.querySelectorAll('[id^="translate-btn-"]')];
+  allTranslateBtns.forEach(b => { b.disabled = true; });
   const btn = document.getElementById('translate-btn-'+lang);
-  btn.disabled = true; btn.textContent = t('translating');
+  btn.textContent = t('translating');
   try {
     // แปลข้อความ UI + รายชื่อสินค้าทั้งหมดในคำขอเดียวเคยพังตอนแคตตาล็อกโตขึ้น (เกิน timeout ของเซิร์ฟเวอร์)
     // ตอนนี้แบ่งเป็นเฟส: เฟสแรก (translateAllMeta) แปล UI/หน่วย/หมวดหมู่ (ชุดเล็ก ไม่โตตามแคตตาล็อก) แล้วได้
@@ -5013,7 +5023,11 @@ async function runTranslateAll(lang) {
     }
     showToast(t('saveOk'), 'success');
   } catch(e) { showToast(t('error'), 'error'); }
-  finally { btn.disabled = false; btn.textContent = t('refreshTranslation'); }
+  finally {
+    translateAllRunning_ = false;
+    allTranslateBtns.forEach(b => { b.disabled = false; });
+    btn.textContent = t('refreshTranslation');
+  }
 }
 
 /** โชว์ error จากคำขอแอดมินที่ res.ok=false — เดิมทุกจุดใช้ t('wrongPassword') ("รหัสผ่านไม่ถูกต้อง") แบบเหมา
