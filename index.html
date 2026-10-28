@@ -1453,7 +1453,7 @@ async function createFirstBranch() {
       sessionStorage.setItem('admin_pw', adminPw);
       await enterAsAdmin(branches[branches.length - 1].id);
     } else {
-      showToast(t('wrongPassword'), 'error');
+      adminErrorToast_(res);
     }
   } catch (e) { showToast(t('error'), 'error'); }
 }
@@ -2448,7 +2448,7 @@ async function saveEditedItem(itemName, btn) {
       await syncHistory();
       showHistoryDetail(window.__currentDetailRecordId);
     } else {
-      showToast(t('wrongPassword'), 'error');
+      adminErrorToast_(res);
     }
   } catch (e) { showToast(t('error'), 'error'); }
 }
@@ -4723,7 +4723,7 @@ async function removeItem(id) {
       } else {
         notifyOncePerDay_('delete_from_central', 'ลบจากส่วนกลาง รายการนี้จะหายไปจากทุกสาขาที่ไม่มีรายการเฉพาะสาขาของตัวเองซ้อนทับอยู่');
       }
-    } else showToast(t('wrongPassword'),'error');
+    } else adminErrorToast_(res);
   } catch(e){ showToast(t('error'),'error'); }
 }
 
@@ -4740,7 +4740,7 @@ async function hideItemFromBranch_(category, name) {
       renderAdminItemsTabFromCache_();
       if (currentBranchId === adminItemScope) await loadCatalog();
       showToast('ซ่อนจากสาขานี้แล้ว', 'success');
-    } else showToast(t('wrongPassword'),'error');
+    } else adminErrorToast_(res);
   } catch (e) { showToast(t('error'),'error'); }
 }
 async function unhideItemFromBranch_(category, name) {
@@ -4752,7 +4752,7 @@ async function unhideItemFromBranch_(category, name) {
       renderAdminItemsTabFromCache_();
       if (currentBranchId === adminItemScope) await loadCatalog();
       showToast('เลิกซ่อนแล้ว', 'success');
-    } else showToast(t('wrongPassword'),'error');
+    } else adminErrorToast_(res);
   } catch (e) { showToast(t('error'),'error'); }
 }
 
@@ -4936,7 +4936,7 @@ async function submitNewBranch() {
   try {
     const res = await jsonpGet('addBranch', { password: adminPassword, name, staff_password: staffPw });
     if (res && res.ok) { branches = res.branches; renderAdminBranchesTab(); showToast(t('saveOk'),'success'); }
-    else showToast(t('wrongPassword'),'error');
+    else adminErrorToast_(res);
   } catch(e){ showToast(t('error'),'error'); }
 }
 function startEditBranch(id) { editingBranchId = id; renderAdminBranchesTab(); }
@@ -4954,7 +4954,7 @@ async function submitEditBranch(id) {
       editingBranchId = '';
       renderAdminBranchesTab();
       showToast(t('saveOk'),'success');
-    } else showToast(t('wrongPassword'),'error');
+    } else adminErrorToast_(res);
   } catch(e){ showToast(t('error'),'error'); }
 }
 async function deleteBranch(id) {
@@ -4965,7 +4965,7 @@ async function deleteBranch(id) {
       branches = res.branches;
       renderAdminBranchesTab();
       showToast(t('saveOk'),'success');
-    } else showToast(t('wrongPassword'),'error');
+    } else adminErrorToast_(res);
   } catch(e){ showToast(t('error'),'error'); }
 }
 
@@ -4990,10 +4990,20 @@ async function runTranslateAll(lang) {
       showToast(t('saveOk'), 'success');
       if (currentLanguage === lang) { dict = res.dict; applyStaticTranslations(); rerenderVisiblePages(); }
     } else {
-      showToast(t('wrongPassword'), 'error');
+      adminErrorToast_(res);
     }
   } catch(e) { showToast(t('error'), 'error'); }
   finally { btn.disabled = false; btn.textContent = t('refreshTranslation'); }
+}
+
+/** โชว์ error จากคำขอแอดมินที่ res.ok=false — เดิมทุกจุดใช้ t('wrongPassword') ("รหัสผ่านไม่ถูกต้อง") แบบเหมา
+    รวมไม่ว่าจะพังเพราะอะไร ทั้งที่ action พวกนี้ส่วนใหญ่เรียกตอนล็อกอินแอดมินผ่านไปแล้ว (adminPassword ที่ส่งไป
+    ถูกต้องอยู่แล้วแน่ๆ) ทำให้ error จริง (เช่น ชื่อซ้ำ, Gemini แปลไม่สำเร็จ, ฯลฯ) ถูกกลบเป็นข้อความ "รหัสผ่านผิด"
+    หลอกๆ ผู้ใช้งงว่าทำไมรหัสผ่านพังทั้งที่เพิ่งล็อกอินมา — ฝั่งเซิร์ฟเวอร์คืน {ok:false} เฉยๆ (ไม่มี .error) เฉพาะ
+    ตอน checkAdminPassword ไม่ผ่านจริงๆ เท่านั้น ส่วนความล้มเหลวอื่นทุกแบบจะมี res.error ติดมาด้วยเสมอ เลยใช้
+    เป็นตัวแยกได้ตรงๆ ว่าควรโชว์ข้อความไหน */
+function adminErrorToast_(res) {
+  showToast((res && res.error) ? (t('error') + ': ' + res.error) : t('wrongPassword'), 'error');
 }
 
 /* =========================================================
