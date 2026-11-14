@@ -1376,8 +1376,20 @@ async function callGeminiTts_(text: string, voiceName = "Kore"): Promise<string>
   );
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error?.message || `gemini_tts_http_${res.status}`);
-  const pcmB64 = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-  if (!pcmB64) throw new Error("gemini_tts_empty_response");
+  const candidate = data?.candidates?.[0];
+  const pcmB64 = candidate?.content?.parts?.[0]?.inlineData?.data;
+  if (!pcmB64) {
+    // ทุกชื่อที่ลองพัง เหมือนกันหมดด้วย error เดียวกัน (ไม่ใช่แค่บางอัน) แปลว่าไม่ใช่ rate limit --
+    // log โครงสร้างที่ Gemini ตอบกลับมาจริงๆ แทน (finishReason/parts/promptFeedback มักบอกสาเหตุจริง
+    // เช่นโมเดลไม่รองรับ audio, โดน safety filter บล็อก, หรือ response shape ไม่ตรงที่โค้ดคาดไว้)
+    console.error(
+      "getItemSpeech: no inlineData.data in Gemini response.",
+      "finishReason:", candidate?.finishReason,
+      "| parts:", JSON.stringify(candidate?.content?.parts)?.slice(0, 800),
+      "| promptFeedback:", JSON.stringify(data?.promptFeedback),
+    );
+    throw new Error("gemini_tts_empty_response");
+  }
   return pcmBase64ToWavBase64_(pcmB64);
 }
 
