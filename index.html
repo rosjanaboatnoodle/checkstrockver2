@@ -1854,6 +1854,13 @@ async function translateNoteField(itemName, btn) {
     if (res && res.ok && res.translated) {
       noteEl.value = res.translated;
       noteEl.dataset.originalNote = original; // เก็บต้นฉบับไว้เผื่อเจ้าของร้านตรวจสอบภายหลัง
+      // ตั้ง .value ทาง JS ตรงๆ แบบนี้ไม่ยิง oninput event ให้เอง (ต่างจากผู้ใช้พิมพ์เอง) ทำให้ draft
+      // autosave (ผูกกับ oninput) ไม่รู้ว่าค่าถูกเปลี่ยน -- ถ้าไม่เซฟ draft ตรงนี้ด้วยมือ พอมีอะไรไป
+      // เรียก renderStockTable() อีกรอบ (เช่น translateAll ของภาษาอื่นทำงานเสร็จพอดี) restoreStockDraft_()
+      // จะดึงค่าหมายเหตุ "ก่อนแปล" จาก localStorage กลับมาทับของที่เพิ่งแปลเสร็จ โดยไม่มีอะไรเตือนเลย
+      // แล้วถ้ากดบันทึกต่อตอนนั้นพอดี รายงานที่ส่งออกไปจะมีข้อความต้นฉบับ (ภาษาพม่า/ลาว/ฯลฯ) หลุดไปแทน
+      // คำแปลไทยที่เห็นอยู่บนจอ -- เซฟ draft ตรงนี้ด้วย กัน state สองที่ (DOM กับ draft) หลุดไม่ตรงกัน
+      saveStockDraftField_(itemName, 'note', res.translated);
       showToast('แปลแล้ว ✓', 'success');
     } else {
       throw new Error('translate_failed');
