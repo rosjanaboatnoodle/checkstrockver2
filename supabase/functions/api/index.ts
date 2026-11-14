@@ -1396,6 +1396,10 @@ async function handleGetItemSpeech(p: Record<string, unknown>) {
     await supabase.from("tts_cache").upsert({ name, audio_b64: wavB64, mime_type: "audio/wav", updated_at: new Date().toISOString() });
     return json({ ok: true, audioBase64: wavB64, mimeType: "audio/wav" });
   } catch (e) {
+    // ฝั่งเว็บ fallback ไปเสียงเครื่องเงียบๆ ตอนล้มเหลว (ไม่โชว์ error ให้พนักงานเห็น) ทำให้ debug ยาก
+    // ถ้าดูแค่ในแอป -- log ชื่อสินค้า + ข้อความ error จริงจาก Gemini ไว้ที่นี่ จะได้เห็นใน Supabase
+    // Dashboard -> Edge Functions -> api -> Logs โดยไม่ต้องเปิด DevTools ของเบราว์เซอร์ผู้ใช้
+    console.error(`getItemSpeech failed for "${name}":`, (e as Error).message ?? e);
     return json({ ok: false, error: "tts_failed: " + String((e as Error).message ?? e) });
   }
 }
