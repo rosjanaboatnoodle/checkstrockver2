@@ -282,6 +282,11 @@
     input, select, textarea { font-size: 16px !important; }
   </style>
   <style>@view-transition { navigation: auto; }</style>
+  <!-- กะพริบปุ่ม 🔊 ระหว่างรอไฟล์เสียงจาก AI (ไม่ใช้คลาส Tailwind อย่าง animate-pulse เพราะสไตล์ชีท
+       ด้านบน precompile ไว้แล้ว สแกนจากคลาสที่ใช้จริงใน index.html ตอน build — ใส่คลาสใหม่ผ่าน JS
+       เฉยๆ จะไม่มี CSS รองรับ ต้องรัน Tailwind CLI build ใหม่ทุกครั้ง เขียน keyframes เองแยกไว้ตรงนี้
+       แทน ไม่ต้องพึ่งการ build ใดๆ เลย) -->
+  <style>@keyframes speak-pulse{0%,100%{opacity:1}50%{opacity:.2}}.speak-loading{animation:speak-pulse .7s ease-in-out infinite}</style>
 </head>
 
 <body class="h-full bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50">
@@ -1743,7 +1748,7 @@ function speakText_(text, langCode) {
 // ไม่สำเร็จ (เน็ตหลุด/เซิร์ฟเวอร์มีปัญหา) ค่อย fallback ไปใช้เสียงเครื่อง (speakText_) เป็นทางสำรอง
 async function speakItemName_(itemName, btn) {
   if (!itemName) return;
-  if (btn) btn.disabled = true;
+  if (btn) { btn.disabled = true; btn.classList.add('speak-loading'); }
   try {
     const res = await jsonpGet('getItemSpeech', { name: itemName }, 100000);
     if (res && res.ok && res.audioBase64) {
@@ -1755,7 +1760,7 @@ async function speakItemName_(itemName, btn) {
   } catch (e) {
     speakText_(itemName, 'th-TH');
   } finally {
-    if (btn) btn.disabled = false;
+    if (btn) { btn.disabled = false; btn.classList.remove('speak-loading'); }
   }
 }
 
