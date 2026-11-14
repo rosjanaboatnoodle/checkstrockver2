@@ -1690,14 +1690,17 @@ function clearStockDraft_() {
 /* ปุ่ม 🔊 ข้างชื่อสินค้า — อ่านออกเสียงเป็นภาษาไทยเสมอไม่ว่า UI ตอนนั้นตั้งภาษาไหนไว้ เพราะจุดประสงค์
    คือให้พนักงานได้ยินว่าชื่อไทยจริงๆออกเสียงยังไง (ไว้สื่อสารกับคนไทย) ไม่ใช่ให้เครื่องอ่านคำทับศัพท์
    ด้วยสำเนียงภาษาอื่น ซึ่งจะออกเสียงผิดเพี้ยนไปจากที่ตั้งใจ ใช้ Web Speech API ของเครื่อง/เบราว์เซอร์เอง
-   ไม่เรียกเน็ต ไม่มีค่าใช้จ่าย แต่บางเครื่อง/บางเบราว์เซอร์อาจไม่มีเสียงภาษาไทยติดตั้งไว้ */
+   ไม่เรียกเน็ต ไม่มีค่าใช้จ่าย แต่บางเครื่อง/บางเบราว์เซอร์อาจไม่มีเสียงภาษาไทยติดตั้งไว้
+   เก็บ utterance ไว้ในตัวแปรข้างนอกฟังก์ชัน (ไม่ใช่ local) เพราะ Safari/iOS มีบั๊คที่รู้จักกันดี —
+   ถ้าไม่มีอะไรอ้างอิง utterance object ไว้ มันจะถูก garbage collect ก่อนเริ่มพูดหรือพูดได้ไม่กี่คำแล้วเงียบไปเลย */
+let lastSpeechUtterance_ = null;
 function speakText_(text, langCode) {
   try {
     if (!('speechSynthesis' in window) || !text) { showToast('อุปกรณ์นี้ไม่รองรับการอ่านออกเสียง', 'error'); return; }
     window.speechSynthesis.cancel(); // กันเสียงทับกันถ้ากดปุ่มรัวๆ/กดหลายปุ่มติดกัน
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = langCode || 'th-TH';
-    window.speechSynthesis.speak(utter);
+    lastSpeechUtterance_ = new SpeechSynthesisUtterance(text);
+    lastSpeechUtterance_.lang = langCode || 'th-TH';
+    window.speechSynthesis.speak(lastSpeechUtterance_);
   } catch (e) {}
 }
 function speakItemName_(itemName) { speakText_(itemName, 'th-TH'); }
