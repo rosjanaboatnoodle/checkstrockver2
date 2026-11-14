@@ -6,6 +6,10 @@
   <title>ระบบเช็คสต็อก</title>
   <!-- ตั้งโหมดสี (มืด/สว่าง) ให้เร็วที่สุดตั้งแต่ก่อนวาดหน้า กันไม่ให้กระพริบเป็นโหมดสว่างแวบนึงก่อนสลับเป็นมืด -->
   <script>(function(){try{if(localStorage.getItem('theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+  <!-- ลงทะเบียน service worker เปล่า (แค่ส่งต่อ fetch ไปเน็ตปกติ ไม่แคชอะไรเพิ่ม) เพราะ Chrome ต้องมี
+       service worker ที่ตอบ fetch event อยู่จริง ไม่งั้นจะไม่โชว์ปุ่ม/เมนู "ติดตั้งแอป" ให้เลย ต่อให้มี
+       manifest.json ที่ถูกต้องแล้วก็ตาม -->
+  <script>(function(){try{if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}catch(e){}})();</script>
 
   <!-- ทำให้เพิ่มลงหน้าจอโฮมไอโฟนแล้วเปิดแบบแอป (ไม่มีแถบ URL ของ Safari) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
