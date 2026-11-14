@@ -10,6 +10,10 @@
        service worker ที่ตอบ fetch event อยู่จริง ไม่งั้นจะไม่โชว์ปุ่ม/เมนู "ติดตั้งแอป" ให้เลย ต่อให้มี
        manifest.json ที่ถูกต้องแล้วก็ตาม -->
   <script>(function(){try{if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}catch(e){}})();</script>
+  <!-- เรียก getVoices() ไว้ล่วงหน้าตั้งแต่โหลดหน้า เพราะรายชื่อเสียงพูดของเครื่องโหลดแบบ async
+       ครั้งแรกมักได้ array เปล่า กว่าจะพร้อมจริงต้องรอ event 'voiceschanged' — เรียกดักไว้ก่อนเพื่อให้
+       พอผู้ใช้กดปุ่ม 🔊 ครั้งแรกจริงๆ รายชื่อเสียงมีโอกาสโหลดเสร็จพร้อมใช้แล้ว -->
+  <script>(function(){try{if('speechSynthesis' in window){window.speechSynthesis.getVoices();window.speechSynthesis.addEventListener('voiceschanged',function(){window.speechSynthesis.getVoices();});}}catch(e){}})();</script>
 
   <!-- ทำให้เพิ่มลงหน้าจอโฮมไอโฟนแล้วเปิดแบบแอป (ไม่มีแถบ URL ของ Safari) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1694,12 +1698,37 @@ function clearStockDraft_() {
    เก็บ utterance ไว้ในตัวแปรข้างนอกฟังก์ชัน (ไม่ใช่ local) เพราะ Safari/iOS มีบั๊คที่รู้จักกันดี —
    ถ้าไม่มีอะไรอ้างอิง utterance object ไว้ มันจะถูก garbage collect ก่อนเริ่มพูดหรือพูดได้ไม่กี่คำแล้วเงียบไปเลย */
 let lastSpeechUtterance_ = null;
+// คืน voice object ที่ภาษาตรงกับ langPrefix (เช่น "th") ถ้ารายชื่อเสียงของเครื่องโหลดเสร็จแล้วและมีจริง,
+// null ถ้าโหลดเสร็จแล้วแต่ไม่มีเสียงภาษานี้เลย (เช่นเครื่อง iOS ที่ตั้งเครื่องเป็นอังกฤษแล้วไม่เคย
+// โหลดเสียงไทยเพิ่ม), หรือ undefined ถ้ายังไม่รู้ (รายชื่อเสียงยังโหลดไม่เสร็จ -- getVoices() ของหลาย
+// เบราว์เซอร์โหลดแบบ async ครั้งแรกอาจได้ array เปล่าทั้งที่จริงมีเสียงอยู่) แยก null กับ undefined ไว้
+// เพื่อไม่ฟ้อง false positive ว่า "ไม่มีเสียงไทย" ทั้งที่จริงแค่ยังโหลดไม่เสร็จ
+function findVoiceForLang_(langPrefix) {
+  try {
+    const voices = window.speechSynthesis.getVoices() || [];
+    if (!voices.length) return undefined;
+    return voices.find((v) => v.lang && v.lang.toLowerCase().startsWith(langPrefix)) || null;
+  } catch (e) { return undefined; }
+}
 function speakText_(text, langCode) {
   try {
     if (!('speechSynthesis' in window) || !text) { showToast('อุปกรณ์นี้ไม่รองรับการอ่านออกเสียง', 'error'); return; }
     window.speechSynthesis.cancel(); // กันเสียงทับกันถ้ากดปุ่มรัวๆ/กดหลายปุ่มติดกัน
+    const lang = langCode || 'th-TH';
     lastSpeechUtterance_ = new SpeechSynthesisUtterance(text);
-    lastSpeechUtterance_.lang = langCode || 'th-TH';
+    lastSpeechUtterance_.lang = lang;
+    // ตั้ง voice ให้ตรงเป๊ะแทนปล่อยให้เบราว์เซอร์เดาจาก .lang เฉยๆ -- Safari/iOS บางเวอร์ชันไม่ได้
+    // เลือก voice ตาม .lang ให้เองเสมอ ถ้าไม่ได้ระบุ voice ตรงๆ อาจหลุดไปใช้เสียงหลักของเครื่อง
+    // (เช่นอังกฤษ) อ่านตัวอักษรไทยแบบสะกดผิดเพี้ยนหรือไม่ออกเสียงเลย
+    const voice = findVoiceForLang_(lang.split('-')[0].toLowerCase());
+    if (voice) {
+      // แยก try/catch ของบรรทัดนี้ออกมาเอง เพราะถ้า voice ที่ได้มาดันไม่ใช่ SpeechSynthesisVoice ที่
+      // ถูกต้องจริงๆ (เบราว์เซอร์/โพลีฟิลแปลกๆ) การตั้ง .voice จะ throw ทันที -- กันไม่ให้ throw ตรงนี้
+      // ไปตัดไม่ให้เรียก .speak() ด้านล่างเลย (ยังอ่านได้ด้วย .lang เฉยๆ ถึงตั้ง voice ตรงไม่สำเร็จ)
+      try { lastSpeechUtterance_.voice = voice; } catch (e) {}
+    } else if (voice === null) {
+      showToast('เครื่องนี้ไม่มีเสียงอ่านภาษาไทยติดตั้งไว้ — ไปที่ตั้งค่า > การช่วยการเข้าถึง > เนื้อหาที่พูด > เสียง แล้วเพิ่มภาษาไทย', 'error');
+    }
     window.speechSynthesis.speak(lastSpeechUtterance_);
   } catch (e) {}
 }
