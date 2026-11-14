@@ -1749,15 +1749,21 @@ function speakText_(text, langCode) {
 async function speakItemName_(itemName, btn) {
   if (!itemName) return;
   if (btn) { btn.disabled = true; btn.classList.add('speak-loading'); }
+  const minLoadingTime_ = new Promise((resolve) => setTimeout(resolve, 500)); // บังคับให้กะพริบอย่างน้อย
+  // 0.5 วิเสมอ ไม่ว่าจะตอบกลับมาเร็วแค่ไหน (เช่นสินค้าที่เคยกดไปแล้วมีแคชอยู่ ดึงไฟล์เสียงกลับมาได้ใน
+  // เสี้ยววินาที) กันไม่ให้การกะพริบเร็วเกินกว่าจะสังเกตเห็นได้ทัน
   try {
     const res = await jsonpGet('getItemSpeech', { name: itemName }, 100000);
     if (res && res.ok && res.audioBase64) {
       const audio = new Audio('data:' + (res.mimeType || 'audio/wav') + ';base64,' + res.audioBase64);
+      await minLoadingTime_;
       await audio.play().catch(() => { speakText_(itemName, 'th-TH'); });
     } else {
+      await minLoadingTime_;
       speakText_(itemName, 'th-TH');
     }
   } catch (e) {
+    await minLoadingTime_;
     speakText_(itemName, 'th-TH');
   } finally {
     if (btn) { btn.disabled = false; btn.classList.remove('speak-loading'); }
