@@ -1119,12 +1119,13 @@ const LANG_NAMES: Record<string, string> = {
   en: "English", my: "Burmese (Myanmar language)", lo: "Lao", km: "Khmer", vi: "Vietnamese",
 };
 
-// For these languages, item/unit/category names are not translated by meaning -- staff who read
-// these scripts but not Thai need to recognize/say the Thai name itself, so the dict value is a
-// phonetic transliteration of the Thai pronunciation instead, formatted "(<original Thai> -
-// <transliteration>)". English keeps ordinary meaning translation (unaffected). UI text (buttons,
-// labels, toasts) also keeps ordinary meaning translation for every language, including these four,
-// since staff still need to understand what a button does, not just how to pronounce it.
+// For these languages, item/unit/category names get BOTH a phonetic transliteration of the Thai
+// pronunciation AND the actual meaning translation, formatted "<transliteration> - <real meaning>"
+// (no parentheses, no Thai script anywhere in the output) -- staff who read these scripts but not
+// Thai can then either sound out the Thai name (useful talking to Thai-speaking colleagues) or read
+// the real word for the item in their own language. English keeps ordinary meaning translation only
+// (unaffected). UI text (buttons, labels, toasts) also keeps ordinary meaning translation for every
+// language, including these four, since staff still need to understand what a control does.
 const TRANSLITERATE_LANGS = new Set(["my", "lo", "km", "vi"]);
 const SCRIPT_NAMES: Record<string, string> = {
   my: "Burmese (Myanmar) script", lo: "Lao script", km: "Khmer script",
@@ -1185,15 +1186,22 @@ function asStringMap_(v: unknown): Record<string, string> {
 // just the untouched Thai fallback -- so a name that's genuinely identical in both languages (e.g.
 // a brand name) gets asked again rather than wrongly treated as done forever, at the minor cost of
 // occasionally re-asking Gemini for something whose answer won't change.
-// requireTranslitFormat: for the 4 transliteration languages, a value cached from before the
-// meaning-translation -> transliteration switch won't match the "(<thai> - <translit>)" shape, so
-// it must count as pending too (one-time re-translate), not just "already done and different from
+// A value counts as the new "<transliteration> - <real meaning>" shape only if it has the " - "
+// separator AND contains no Thai script characters -- catches every earlier cached shape (plain
+// meaning translation with no dash, or an even earlier "(<thai> - <translit>)" shape that still had
+// Thai characters in it) as stale, without needing to track which exact shape came before.
+function looksLikeTranslitFormat_(v: string): boolean {
+  return v.includes(" - ") && !/[฀-๿]/.test(v);
+}
+
+// requireTranslitFormat: for the 4 transliteration languages, a value cached in an older shape
+// must count as pending too (one-time re-translate), not just "already done and different from
 // the Thai source" like the ordinary check below.
 function pendingKeys_(source: Record<string, string>, cached: Record<string, string>, requireTranslitFormat = false): string[] {
   return Object.keys(source).filter((k) => {
     const c = cached[k];
     if (!c || c === source[k]) return true;
-    if (requireTranslitFormat && !/^\(.+ - .+\)$/.test(c)) return true;
+    if (requireTranslitFormat && !looksLikeTranslitFormat_(c)) return true;
     return false;
   });
 }
@@ -1221,7 +1229,7 @@ async function handleTranslateAllMeta(p: Record<string, unknown>) {
   const prompt = TRANSLITERATE_LANGS.has(lang) ? `Process the values in each of these JSON objects from Thai, for a Thai restaurant stock-checking app used by staff who read ${SCRIPT_NAMES[lang]} but not Thai script, keeping every key exactly as given (do not translate keys, only values).
 
 - For "ui": translate the normal MEANING of each value into ${langName} (ordinary translation) — short and natural for restaurant staff, since they need to understand what each button/label/message means.
-- For "units" and "categories": do NOT translate the meaning — instead write a PHONETIC TRANSLITERATION of how the Thai text SOUNDS, spelled out using ${SCRIPT_NAMES[lang]}, so a reader of that script can sound out the Thai word correctly (not the actual ${langName}/local word for the same thing). Format every output value EXACTLY as: "(<original Thai text> - <phonetic transliteration>)" — opening parenthesis, the original Thai text unchanged, a space-dash-space, the transliteration, closing parenthesis.
+- For "units" and "categories": for each value, produce a two-part string with NO Thai script anywhere in it, formatted EXACTLY as: "<phonetic transliteration of how the Thai text sounds, spelled out using ${SCRIPT_NAMES[lang]}> - <the actual ${langName} word or phrase with the same meaning>" — a plain space-dash-space between the two parts, no parentheses. This gives staff two ways to refer to it: how to pronounce the Thai name, and what it actually means in their own language.
 
 Return ONLY a single JSON object of the exact shape {"ui": {...}, "units": {...}, "categories": {...}}, with no other text.
 
@@ -1277,7 +1285,7 @@ async function handleTranslateItemsChunk(p: Record<string, unknown>) {
   if (!names.length) return json({ ok: true, translated: 0 });
   const chunkSource = identityMap(names);
 
-  const prompt = TRANSLITERATE_LANGS.has(lang) ? `These values are Thai food/ingredient/product names in a Thai restaurant stock-checking app used by staff who read ${SCRIPT_NAMES[lang]} but not Thai script, keeping every key exactly as given (do not translate keys, only values). Do NOT translate the meaning of each value — instead write a PHONETIC TRANSLITERATION of how the Thai text SOUNDS, spelled out using ${SCRIPT_NAMES[lang]}, so a reader of that script can sound out the Thai name correctly (not the actual ${langName}/local word for the same ingredient). Format every output value EXACTLY as: "(<original Thai text> - <phonetic transliteration>)" — opening parenthesis, the original Thai text unchanged, a space-dash-space, the transliteration, closing parenthesis. Return ONLY a JSON object of the exact same shape, with no other text.
+  const prompt = TRANSLITERATE_LANGS.has(lang) ? `These values are Thai food/ingredient/product names in a Thai restaurant stock-checking app used by staff who read ${SCRIPT_NAMES[lang]} but not Thai script, keeping every key exactly as given (do not translate keys, only values). For each value, produce a two-part string with NO Thai script anywhere in it, formatted EXACTLY as: "<phonetic transliteration of how the Thai text sounds, spelled out using ${SCRIPT_NAMES[lang]}> - <the actual ${langName} word or phrase with the same meaning>" — a plain space-dash-space between the two parts, no parentheses. This gives staff two ways to refer to the item: how to pronounce the Thai name, and what it actually means in their own language. Return ONLY a JSON object of the exact same shape, with no other text.
 
 ${JSON.stringify(chunkSource)}` : `Translate the values in this JSON object (food/ingredient/product names) from Thai into ${langName}, keeping every key exactly as given (do not translate keys, only values). This is for a Thai restaurant stock-checking app — keep translations short and natural for restaurant staff. Return ONLY a JSON object of the exact same shape, with no other text.
 
