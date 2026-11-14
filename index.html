@@ -1687,6 +1687,21 @@ function clearStockDraft_() {
   try { localStorage.removeItem(stockDraftKey_()); } catch (e) {}
 }
 
+/* ปุ่ม 🔊 ข้างชื่อสินค้า — อ่านออกเสียงเป็นภาษาไทยเสมอไม่ว่า UI ตอนนั้นตั้งภาษาไหนไว้ เพราะจุดประสงค์
+   คือให้พนักงานได้ยินว่าชื่อไทยจริงๆออกเสียงยังไง (ไว้สื่อสารกับคนไทย) ไม่ใช่ให้เครื่องอ่านคำทับศัพท์
+   ด้วยสำเนียงภาษาอื่น ซึ่งจะออกเสียงผิดเพี้ยนไปจากที่ตั้งใจ ใช้ Web Speech API ของเครื่อง/เบราว์เซอร์เอง
+   ไม่เรียกเน็ต ไม่มีค่าใช้จ่าย แต่บางเครื่อง/บางเบราว์เซอร์อาจไม่มีเสียงภาษาไทยติดตั้งไว้ */
+function speakText_(text, langCode) {
+  try {
+    if (!('speechSynthesis' in window) || !text) { showToast('อุปกรณ์นี้ไม่รองรับการอ่านออกเสียง', 'error'); return; }
+    window.speechSynthesis.cancel(); // กันเสียงทับกันถ้ากดปุ่มรัวๆ/กดหลายปุ่มติดกัน
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = langCode || 'th-TH';
+    window.speechSynthesis.speak(utter);
+  } catch (e) {}
+}
+function speakItemName_(itemName) { speakText_(itemName, 'th-TH'); }
+
 function renderStockTable() {
   updateStockLabelWidth_();
   const tbody = document.getElementById('stock-table-body');
@@ -1724,6 +1739,7 @@ function renderStockTable() {
           <div class="flex items-center gap-2">
             ${itemPhotoIconHtml_(item.image_url)}
             <span class="font-medium text-gray-800">${tItem(item.name)}</span>
+            <button type="button" class="shrink-0 text-base leading-none opacity-70 hover:opacity-100" data-item="${item.name}" title="ฟังเสียงอ่านชื่อภาษาไทย" onclick="speakItemName_(this.dataset.item)">🔊</button>
           </div>
         </td>
         <td class="px-4 py-3" data-label="${t('quantity')||'จำนวน'}">
