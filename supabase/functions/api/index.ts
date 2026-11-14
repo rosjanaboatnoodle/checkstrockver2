@@ -1314,6 +1314,92 @@ ${JSON.stringify(chunkSource)}`;
   return json({ ok: true, translated: names.length, dict });
 }
 
+// Speak-aloud button on the stock-check page: the client's own speechSynthesis (device TTS) turned
+// out unreliable for the actual target users (staff on Burmese/Lao/Khmer/Vietnamese-locale phones
+// almost never have a Thai voice installed -- confirmed on both Android and iOS). Generating the
+// pronunciation with Gemini instead works identically on every device since it's just an audio file
+// played through <audio>, with no dependency on what voices happen to be installed locally.
+// Model ID per Gemini's TTS docs as of when this was written -- if Gemini ever renames/retires this
+// model, callGeminiTts_ below will surface the exact error text from Gemini (e.g. "model not
+// found") in the ok:false response, so it's a one-line constant to update, not a mystery to debug.
+const GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts";
+
+// Gemini's TTS response is raw PCM (signed 16-bit, 24000 Hz, mono) -- not a container format a
+// browser's <audio> element can play on its own. Wrap it in a standard 44-byte WAV header so the
+// client can just drop it into `new Audio('data:audio/wav;base64,' + b64)` with zero extra work.
+function pcmBase64ToWavBase64_(pcmBase64: string, sampleRate = 24000, channels = 1, bitsPerSample = 16): string {
+  const pcmBinary = atob(pcmBase64);
+  const pcmBytes = new Uint8Array(pcmBinary.length);
+  for (let i = 0; i < pcmBinary.length; i++) pcmBytes[i] = pcmBinary.charCodeAt(i);
+
+  const byteRate = sampleRate * channels * (bitsPerSample / 8);
+  const blockAlign = channels * (bitsPerSample / 8);
+  const dataSize = pcmBytes.length;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const writeStr = (offset: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)); };
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+  writeStr(36, "data");
+  view.setUint32(40, dataSize, true);
+  new Uint8Array(buffer, 44).set(pcmBytes);
+
+  const wavBytes = new Uint8Array(buffer);
+  let wavBinary = "";
+  for (let i = 0; i < wavBytes.length; i++) wavBinary += String.fromCharCode(wavBytes[i]);
+  return btoa(wavBinary);
+}
+
+async function callGeminiTts_(text: string, voiceName = "Kore"): Promise<string> {
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
+  const body = {
+    contents: [{ parts: [{ text }] }],
+    generationConfig: {
+      responseModalities: ["AUDIO"],
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
+    },
+  };
+  const res = await fetchWithTimeout(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent`,
+    { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body: JSON.stringify(body) },
+    90000,
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || `gemini_tts_http_${res.status}`);
+  const pcmB64 = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  if (!pcmB64) throw new Error("gemini_tts_empty_response");
+  return pcmBase64ToWavBase64_(pcmB64);
+}
+
+// Cache-first: a name only ever reaches Gemini once, ever (not once per tap, not once per staff
+// member) -- every later request for the same name is a plain DB read. No admin password required,
+// same as translateNote -- this is a staff-facing feature used from the stock-check page itself.
+async function handleGetItemSpeech(p: Record<string, unknown>) {
+  const name = String(p.name ?? "").trim();
+  if (!name) return json({ ok: false, error: "missing_name" });
+
+  const { data: cached } = await supabase.from("tts_cache").select("audio_b64, mime_type").eq("name", name).maybeSingle();
+  if (cached?.audio_b64) return json({ ok: true, audioBase64: cached.audio_b64, mimeType: cached.mime_type || "audio/wav" });
+
+  try {
+    const wavB64 = await callGeminiTts_(name);
+    await supabase.from("tts_cache").upsert({ name, audio_b64: wavB64, mime_type: "audio/wav", updated_at: new Date().toISOString() });
+    return json({ ok: true, audioBase64: wavB64, mimeType: "audio/wav" });
+  } catch (e) {
+    return json({ ok: false, error: "tts_failed: " + String((e as Error).message ?? e) });
+  }
+}
+
 async function handleGetDictionary(p: Record<string, unknown>) {
   const lang = String(p.lang ?? "");
   const { data } = await supabase.from("translation_cache").select("dict").eq("lang", lang).maybeSingle();
@@ -1978,6 +2064,7 @@ const ACTIONS: Record<string, (p: Record<string, unknown>) => Promise<Response>>
   getAdminLog: handleGetAdminLog,
   translateAllMeta: handleTranslateAllMeta,
   translateItemsChunk: handleTranslateItemsChunk,
+  getItemSpeech: handleGetItemSpeech,
   getDictionary: handleGetDictionary,
   translateNote: handleTranslateNote,
   parseItemsAI: handleParseItemsAI,

@@ -1735,7 +1735,29 @@ function speakText_(text, langCode) {
     window.speechSynthesis.speak(lastSpeechUtterance_);
   } catch (e) {}
 }
-function speakItemName_(itemName) { speakText_(itemName, 'th-TH'); }
+// เสียงของเครื่อง (speechSynthesis ด้านบน) ไม่น่าเชื่อถือพอสำหรับกลุ่มเป้าหมายจริงของปุ่มนี้ —
+// ทดสอบแล้วทั้ง Android และ iPhone ไม่มีเสียงไทยให้ใช้นอกจากตั้งเครื่องเป็นภาษาไทยไว้เอง ซึ่งพนักงาน
+// พม่า/ลาว/เขมร/เวียดนาม (คนที่ต้องใช้ปุ่มนี้จริงๆ) แทบไม่มีใครตั้งเครื่องเป็นไทยอยู่แล้ว เปลี่ยนมาขอ
+// ไฟล์เสียงที่ AI สร้างไว้จากเซิร์ฟเวอร์แทน (แคชไว้ถาวรต่อชื่อสินค้า เรียก Gemini แค่ครั้งแรกครั้งเดียว)
+// เล่นผ่าน <audio> ธรรมดา ได้ผลเหมือนกันทุกเครื่อง ไม่ขึ้นกับเสียงที่ติดตั้งในเครื่องเลย — ถ้าขอไฟล์เสียง
+// ไม่สำเร็จ (เน็ตหลุด/เซิร์ฟเวอร์มีปัญหา) ค่อย fallback ไปใช้เสียงเครื่อง (speakText_) เป็นทางสำรอง
+async function speakItemName_(itemName, btn) {
+  if (!itemName) return;
+  if (btn) btn.disabled = true;
+  try {
+    const res = await jsonpGet('getItemSpeech', { name: itemName }, 100000);
+    if (res && res.ok && res.audioBase64) {
+      const audio = new Audio('data:' + (res.mimeType || 'audio/wav') + ';base64,' + res.audioBase64);
+      await audio.play().catch(() => { speakText_(itemName, 'th-TH'); });
+    } else {
+      speakText_(itemName, 'th-TH');
+    }
+  } catch (e) {
+    speakText_(itemName, 'th-TH');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
 
 function renderStockTable() {
   updateStockLabelWidth_();
@@ -1774,7 +1796,7 @@ function renderStockTable() {
           <div class="flex items-center gap-2">
             ${itemPhotoIconHtml_(item.image_url)}
             <span class="font-medium text-gray-800">${tItem(item.name)}</span>
-            <button type="button" class="shrink-0 text-base leading-none opacity-70 hover:opacity-100" data-item="${item.name}" title="ฟังเสียงอ่านชื่อภาษาไทย" onclick="speakItemName_(this.dataset.item)">🔊</button>
+            <button type="button" class="shrink-0 text-base leading-none opacity-70 hover:opacity-100" data-item="${item.name}" title="ฟังเสียงอ่านชื่อภาษาไทย" onclick="speakItemName_(this.dataset.item, this)">🔊</button>
           </div>
         </td>
         <td class="px-4 py-3" data-label="${t('quantity')||'จำนวน'}">
