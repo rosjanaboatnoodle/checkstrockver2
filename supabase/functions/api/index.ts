@@ -1408,17 +1408,28 @@ async function handleGetItemSpeech(p: Record<string, unknown>) {
   const { data: cached } = await supabase.from("tts_cache").select("audio_b64, mime_type").eq("name", name).maybeSingle();
   if (cached?.audio_b64) return json({ ok: true, audioBase64: cached.audio_b64, mimeType: cached.mime_type || "audio/wav" });
 
-  try {
-    const wavB64 = await callGeminiTts_(name);
-    await supabase.from("tts_cache").upsert({ name, audio_b64: wavB64, mime_type: "audio/wav", updated_at: new Date().toISOString() });
-    return json({ ok: true, audioBase64: wavB64, mimeType: "audio/wav" });
-  } catch (e) {
-    // ฝั่งเว็บ fallback ไปเสียงเครื่องเงียบๆ ตอนล้มเหลว (ไม่โชว์ error ให้พนักงานเห็น) ทำให้ debug ยาก
-    // ถ้าดูแค่ในแอป -- log ชื่อสินค้า + ข้อความ error จริงจาก Gemini ไว้ที่นี่ จะได้เห็นใน Supabase
-    // Dashboard -> Edge Functions -> api -> Logs โดยไม่ต้องเปิด DevTools ของเบราว์เซอร์ผู้ใช้
-    console.error(`getItemSpeech failed for "${name}":`, (e as Error).message ?? e);
-    return json({ ok: false, error: "tts_failed: " + String((e as Error).message ?? e) });
+  // gemini_tts_empty_response (โมเดลพยายามตอบเป็นข้อความแทนเสียง) ดูเหมือนเป็นพฤติกรรมสุ่มของโมเดล
+  // เอง ไม่ได้ผูกกับเนื้อหาคำที่ส่งไปเสมอไป -- ลองคำเดิมซ้ำบางทีก็ผ่าน เพราะงั้น retry เฉพาะเคสนี้ไม่เกิน
+  // 2 ครั้ง (รวม 3 ครั้ง) แต่ error อื่น (โควตา/http อื่นๆ) ไม่ retry เลย เพราะลองซ้ำทันทีไม่ช่วยอะไร
+  // (ยังติดโควตาเดิมอยู่ดี) มีแต่จะเปลืองโควตารายวันที่จำกัดอยู่แล้วเปล่าๆ
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const wavB64 = await callGeminiTts_(name);
+      await supabase.from("tts_cache").upsert({ name, audio_b64: wavB64, mime_type: "audio/wav", updated_at: new Date().toISOString() });
+      return json({ ok: true, audioBase64: wavB64, mimeType: "audio/wav" });
+    } catch (e) {
+      lastErr = e;
+      const msg = (e as Error).message ?? String(e);
+      if (msg !== "gemini_tts_empty_response" || attempt === 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
   }
+  // ฝั่งเว็บ fallback ไปเสียงเครื่องเงียบๆ ตอนล้มเหลว (ไม่โชว์ error ให้พนักงานเห็น) ทำให้ debug ยาก
+  // ถ้าดูแค่ในแอป -- log ชื่อสินค้า + ข้อความ error จริงจาก Gemini ไว้ที่นี่ จะได้เห็นใน Supabase
+  // Dashboard -> Edge Functions -> api -> Logs โดยไม่ต้องเปิด DevTools ของเบราว์เซอร์ผู้ใช้
+  console.error(`getItemSpeech failed for "${name}":`, (lastErr as Error)?.message ?? lastErr);
+  return json({ ok: false, error: "tts_failed: " + String((lastErr as Error)?.message ?? lastErr) });
 }
 
 async function handleGetDictionary(p: Record<string, unknown>) {
