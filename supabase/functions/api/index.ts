@@ -1362,8 +1362,13 @@ function pcmBase64ToWavBase64_(pcmBase64: string, sampleRate = 24000, channels =
 async function callGeminiTts_(text: string, voiceName = "Kore"): Promise<string> {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
+  // ส่งแค่ชื่อสินค้าเฉยๆ เป็น prompt บางครั้งโมเดล (ซึ่งเป็น chat model ที่ทำ TTS ได้ ไม่ใช่ TTS engine
+  // ล้วนๆ) ตีความเป็นคำถาม/ข้อความให้ตอบแทนที่จะอ่านออกเสียงตรงๆ แล้วพยายามตอบเป็นข้อความ ซึ่งขัดกับ
+  // responseModalities:["AUDIO"] ที่ขอไว้ -- Gemini จะปฏิเสธด้วย "Model tried to generate text, but it
+  // should only be [audio]" ครอบด้วยคำสั่งชัดเจนว่าให้อ่านออกเสียงคำนี้ตรงๆ กันโมเดลตีความผิดเป็นคำถาม
+  const ttsPrompt = `Say exactly this Thai text aloud, clearly and naturally, with no commentary or extra words: ${text}`;
   const body = {
-    contents: [{ parts: [{ text }] }],
+    contents: [{ parts: [{ text: ttsPrompt }] }],
     generationConfig: {
       responseModalities: ["AUDIO"],
       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
