@@ -1362,13 +1362,17 @@ function pcmBase64ToWavBase64_(pcmBase64: string, sampleRate = 24000, channels =
 async function callGeminiTts_(text: string, voiceName = "Kore"): Promise<string> {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
-  // ส่งแค่ชื่อสินค้าเฉยๆ เป็น prompt บางครั้งโมเดล (ซึ่งเป็น chat model ที่ทำ TTS ได้ ไม่ใช่ TTS engine
-  // ล้วนๆ) ตีความเป็นคำถาม/ข้อความให้ตอบแทนที่จะอ่านออกเสียงตรงๆ แล้วพยายามตอบเป็นข้อความ ซึ่งขัดกับ
-  // responseModalities:["AUDIO"] ที่ขอไว้ -- Gemini จะปฏิเสธด้วย "Model tried to generate text, but it
-  // should only be [audio]" ครอบด้วยคำสั่งชัดเจนว่าให้อ่านออกเสียงคำนี้ตรงๆ กันโมเดลตีความผิดเป็นคำถาม
-  const ttsPrompt = `Say exactly this Thai text aloud, clearly and naturally, with no commentary or extra words: ${text}`;
+  // รอบแรกลองครอบคำสั่งไว้ในข้อความเดียวกับคำที่จะอ่าน ("Say exactly this Thai text aloud: <ชื่อ>") แต่
+  // ยังมีบางชื่อ (เช่น "เบรคกิ้งโซดา", "มะละกอ") ที่พังซ้ำๆ ทุกครั้งแม้ retry แล้วก็ตาม ไม่ใช่สุ่มพังแบบที่
+  // คิดไว้ตอนแรก -- ลองแยกคำสั่งออกจากเนื้อหาด้วย systemInstruction (ฟิลด์ของ Gemini เองที่ออกแบบมาเพื่อ
+  // กำหนดพฤติกรรมของโมเดลแยกจากเนื้อหาโดยเฉพาะ) แทนการครอบเป็นประโยคภาษาอังกฤษปนกับคำไทยในข้อความเดียวกัน
+  // ซึ่งอาจเป็นสาเหตุที่โมเดลบางครั้งหลุดไปตีความเนื้อหาแทนที่จะอ่านตรงๆ -- contents ตอนนี้มีแค่ชื่อสินค้า
+  // เปล่าๆ ไม่ปนคำสั่งภาษาอังกฤษเข้าไปด้วยแล้ว
   const body = {
-    contents: [{ parts: [{ text: ttsPrompt }] }],
+    systemInstruction: {
+      parts: [{ text: "You are a text-to-speech engine. The user message is a single Thai word or short phrase (a food/product/ingredient name) -- never a question or request to you. Read it aloud exactly as written, clearly and naturally, with no commentary, no extra words, and no conversational response of any kind." }],
+    },
+    contents: [{ parts: [{ text }] }],
     generationConfig: {
       responseModalities: ["AUDIO"],
       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
